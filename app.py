@@ -26,3 +26,11 @@ class FlameExport(Application):
         """
         self.log_debug("%s: Initializing" % self)
 
+    def get_export_presents(self):
+        """
+        Placeholder
+        """
+        return ["Shotgun Sequence Export", "Shotgun Other Sequence Export"]
+    
+    
+        

@@ -344,7 +344,13 @@ def useBackburnerPostExportAsset():
  
 def getCustomExportProfiles( profiles ):
    
-   profiles["Shotgun Placeholder Export"] = {"foo": "bar"}
+   import sgtk
+   e = sgtk.platform.current_engine()
+   app = e.apps["tk-flame-export"]
+   
+   for preset in app.get_export_presents(): 
+       profiles[preset] = {"foo": "bar"}
+
 
 
 
