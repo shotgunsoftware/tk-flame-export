@@ -13,6 +13,23 @@
 # expected fields in the configuration file for this engine
 configuration:
 
+    sequence_task_template:
+        type: str
+        description: The task template to assign to new sequences created
+        default_value: ""
+        
+    shot_task_template:
+        type: str
+        description: The task template to assign to new shot created
+        default_value: Basic shot template   
+
+
+#    template_shot:
+#        type: template
+#        fields: context, [version], [name], *
+#        description: A reference to a template which locates a work file on disk.
+
+
 # this app works in all engines - it does not contain 
 # any host application specific commands
 supported_engines: 

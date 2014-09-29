@@ -45,36 +45,70 @@ class ExportSession(object):
         
         self._app.log_debug("Preparing export structure for sequence %s and shots %s" % (sequence_name, shot_names))
 
+        self._app.engine.show_busy("Creating Shotgun Structure...", 
+                                   "Preparing Sequence '%s'..." % sequence_name)
+
         sg = self._app.shotgun
 
         # first, ensure that the sequence exists in Shotgun
         self._sequence = sg.find_one("Sequence", [["code", "is", sequence_name],
                                                   ["project", "is", self._app.context.project]])
         if not self._sequence:
+            
+            # Create a new sequence in Shotgun
+            # First see if we should assign a task template
+            sequence_task_template_name = self._app.get_setting("sequence_task_template")
+            sequence_template = None
+            if sequence_task_template_name: 
+                sequence_template = sg.find_one("TaskTemplate", [["code", "is", sequence_task_template_name]])
+                if not sequence_template:
+                    raise TankError("The task template '%s' specified in the sequence_task_template setting "
+                                    "does not exist!" % sequence_task_template_name)
+                
             self._sequence = sg.create("Sequence", {"code": sequence_name, 
                                                     "description": "Created by the Shotgun Toolkit Flame exporter.",
+                                                    "task_template": sequence_template,
                                                     "project": self._app.context.project})
             # todo: add thumbnail
             
 
-        new_shot_ids = []
+        new_shots = {}
         
         for shot_name in shot_names:
+
+            self._app.engine.show_busy("Creating Shotgun Structure...", 
+                                       "Preparing Shot '%s'..." % shot_name)
 
             shot = sg.find_one("Shot", [["code", "is", shot_name],
                                         ["sg_sequence", "is", self._sequence]])
             if not shot:
+                
+                # Create a new shot in Shotgun
+                # First see if we should assign a task template
+                shot_task_template_name = self._app.get_setting("shot_task_template")
+                sequence_template = None
+                if shot_task_template_name: 
+                    shot_template = sg.find_one("TaskTemplate", [["code", "is", shot_task_template_name]])
+                    if not shot_template:
+                        raise TankError("The task template '%s' specified in the shot_task_template setting "
+                                        "does not exist!" % shot_task_template_name)
+
                 shot = sg.create("Shot", {"code": shot_name, 
                                           "description": "Created by the Shotgun Toolkit Flame exporter.",
                                           "sg_sequence": self._sequence,
+                                          "task_template": shot_template,
                                           "project": self._app.context.project})
                 
-                new_shot_ids.append(shot["id"])
+                new_shots[ shot["id"] ] = shot_name 
             
             self._shots[shot_name] = shot
             
-
-        self._app.sgtk.create_filesystem_structure("Shot", new_shot_ids, engine="tk-flame")
+        for (shot_id, shot_name) in new_shots.iteritems():
+            
+            self._app.engine.show_busy("Creating Shotgun Structure...", 
+                                       "Creating folders for Shot '%s'..." % shot_name)
+            
+            self._app.sgtk.create_filesystem_structure("Shot", shot_id, engine="tk-flame")
         
     def register_publish(self, info):
         """
