@@ -25,9 +25,10 @@ class ExportSession(object):
         Construction
         """
         self._app = sgtk.platform.current_bundle()
-        self._app.log_debug("Initializing wiretap...")
-
         self._profile = profile
+        
+        self._sequence = None
+        self._shots = {}
         
     def get_destination_path(self):
         
@@ -37,18 +38,43 @@ class ExportSession(object):
     def get_export_preset_path(self):
         
         #return "/usr/discreet/flameassist_2015.2.pr99/export/presets/file_sequence/Jpeg (8-bit).xml"
-        return "/usr/discreet/flameassist_2015.2.pr99/export/presets/file_sequence/EDL Publish (8-bit DPX and WAVE).xml"
+        return "/usr/discreet/flameassist_2015.2.pr99/export/presets/sequence_publish/EDL Publish (8-bit DPX and WAVE).xml"
         
         
     def prepare_export_structure(self, sequence_name, shot_names):
         
-        self.log_debug("Preparing export structure for sequence %s and shots %s" % (sequence_name, shot_names))
+        self._app.log_debug("Preparing export structure for sequence %s and shots %s" % (sequence_name, shot_names))
 
+        sg = self._app.shotgun
+
+        # first, ensure that the sequence exists in Shotgun
+        self._sequence = sg.find_one("Sequence", [["code", "is", sequence_name],
+                                                  ["project", "is", self._app.context.project]])
+        if not self._sequence:
+            self._sequence = sg.create("Sequence", {"code": sequence_name, 
+                                                    "description": "Created by the Shotgun Toolkit Flame exporter.",
+                                                    "project": self._app.context.project})
+            # todo: add thumbnail
+            
+
+        new_shot_ids = []
         
+        for shot_name in shot_names:
 
+            shot = sg.find_one("Shot", [["code", "is", shot_name],
+                                        ["sg_sequence", "is", self._sequence]])
+            if not shot:
+                shot = sg.create("Shot", {"code": shot_name, 
+                                          "description": "Created by the Shotgun Toolkit Flame exporter.",
+                                          "sg_sequence": self._sequence,
+                                          "project": self._app.context.project})
+                
+                new_shot_ids.append(shot["id"])
+            
+            self._shots[shot_name] = shot
+            
 
-        # ensure sequence exists in shotgun and then on disk
-        # ensure all shots exist in Shotgun and then on disk
+        self._app.sgtk.create_filesystem_structure("Shot", new_shot_ids, engine="tk-flame")
         
     def register_publish(self, info):
         """
@@ -110,7 +136,7 @@ class ExportSession(object):
         
     def post_process_export(self):
         
-        self.log_debug("post_process_export!")
+        self._app.log_debug("post_process_export!")
         
         
         #    # Bulk create shots versions and batch setup assets

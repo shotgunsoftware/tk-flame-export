@@ -19,8 +19,6 @@ import platform
 
 from sgtk.platform import Application
 
-tk_flame_export = self.import_module("tk_flame_export")
-
 
 class FlameExport(Application):
     """
@@ -53,6 +51,7 @@ class FlameExport(Application):
         :returns: session id string which is later passed into various methods
         """
         session_id = "tk_%s" % uuid.uuid4().hex
+        tk_flame_export = self.import_module("tk_flame_export")
         self._sessions[session_id] = tk_flame_export.ExportSession(preset)
         return session_id
     
@@ -104,7 +103,7 @@ class FlameExport(Application):
         :param sequence_name: The sequence that is being exported
         :param shot_name: list of shots to be exported
         """
-        return self._resolve_session(session_id).prepare_export_structure()        
+        return self._resolve_session(session_id).prepare_export_structure(sequence_name, shot_names)        
         
     def use_backburner_post_events(self):
         """
