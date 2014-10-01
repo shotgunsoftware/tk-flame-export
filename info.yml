@@ -13,21 +13,48 @@
 # expected fields in the configuration file for this engine
 configuration:
 
+
     sequence_task_template:
         type: str
-        description: The task template to assign to new sequences created
+        description: The Shotgun task template to assign to new sequences created
         default_value: ""
-        
+
     shot_task_template:
         type: str
-        description: The task template to assign to new shot created
-        default_value: Basic shot template   
+        description: The Shotgun task template to assign to new shot created
+        default_value: Basic shot template
 
 
-#    template_shot:
-#        type: template
-#        fields: context, [version], [name], *
-#        description: A reference to a template which locates a work file on disk.
+    export_profiles:
+        type: list
+        description: List of export profiles
+        values:
+            type: dict
+            items:            
+                export_template:
+                    type: config_path
+                    description: Path to the flame xml export profile to use
+                display_name:
+                    type: str
+                    description: One line description of this profile 
+                video_publish_type:
+                    type: tank_type
+                    description: The publish type for Flame plates                    
+                audio_publish_type:
+                    type: tank_type
+                    description: The publish type for Flame plates
+                batch_publish_type:
+                    type: tank_type
+                    description: The publish type for Flame batch scripts
+                edl_publish_type:
+                    type: tank_type
+                    description: The publish type for Flame Edls
+                    
+            
+
+
+
+
 
 
 # this app works in all engines - it does not contain 
