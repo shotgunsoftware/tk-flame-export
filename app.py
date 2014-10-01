@@ -105,14 +105,6 @@ class FlameExport(Application):
         """
         return self._resolve_session(session_id).prepare_export_structure(sequence_name, shot_names)        
         
-    def use_backburner_post_events(self):
-        """
-        Controls if events should be routed via the render farm
-        
-        :returns: true if renderfarm is used, false if not
-        """
-        return False
-        
     def register_publish(self, session_id, info):
         """
         Called when an item has been exported

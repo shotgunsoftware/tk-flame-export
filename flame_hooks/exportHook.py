@@ -85,6 +85,12 @@ def preExportSequence(info, userData):
         # toolkit export app to set up folder structure on disk
         app.prepare_export_structure(session_id, info["sequenceName"], info["shotNames"])
 
+
+# def preExportAsset(info, userData):
+#     print "preExportAsset!"
+#     
+#     info["namePattern"] = "<name>CUSTOM"
+
  
 def postExportAsset(info, userData):
     """    
@@ -209,26 +215,3 @@ def getCustomExportProfiles(profiles):
     for (preset_title, preset_name) in app.get_export_presets(): 
         profiles[preset_title] = {"preset_name": preset_name}
 
-def useBackburnerPostExportAsset():
-    """
-    Indicates whether postExportAsset should be called from a backburner job or
-    directly from the application.
-    
-    Warning: Not generating a postExportAsset backburner job for exports that are
-    using backburner could result in postExportAsset being called before the
-    export job is complete.
-    
-    :returns: True to generate post export assets events on backburner, false if not
-    """
-
-    # first, get the toolkit app handle
-    import sgtk
-    e = sgtk.platform.current_engine()
-    app = e.apps["tk-flame-export"]
-
-    # get the preset that the user selected
-    # todo - include presets?
-    #current_preset = userData["preset_name"]
-    
-    # populate export settings
-    return app.use_backburner_post_events()
