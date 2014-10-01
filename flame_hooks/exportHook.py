@@ -29,7 +29,7 @@ def preCustomExport(info, userData):
     app = e.apps["tk-flame-export"]
 
     # get the preset that the user selected
-    current_preset = userData["preset_name"]
+    current_preset = userData["preset_title"]
 
     # create a session object in the app - this is how 
     # we keep track of what is going on
@@ -212,6 +212,6 @@ def getCustomExportProfiles(profiles):
     e = sgtk.platform.current_engine()
     app = e.apps["tk-flame-export"]
     
-    for (preset_title, preset_name) in app.get_export_presets(): 
-        profiles[preset_title] = {"preset_name": preset_name}
+    for preset_title in app.get_export_presets(): 
+        profiles[preset_title] = {"preset_title": preset_title}
 

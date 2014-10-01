@@ -36,24 +36,32 @@ class FlameExport(Application):
         """
         Returns the different presets defined in the configuration.
         
-        :returns: List of tuples - (preset title, preset name)
+        :returns: List of preset titles
         """
         presets = []
-        presets.append(("Shotgun Sequence Export", "sequence_export"))
-        presets.append(("Shotgun Sequence Export 2", "sequence_export_2"))
+        
+        for profile in self.get_setting("export_profiles"):
+            presets.append( profile.get("display_name"))
+            
         return presets
     
-    def create_export_session(self, preset):
+    def create_export_session(self, preset_name):
         """
         Start a new export session.
         Creates a session object which represents a single export session in flame.
         
+        :param preset_name: The name of the preset which should be executed.
         :returns: session id string which is later passed into various methods
         """
-        session_id = "tk_%s" % uuid.uuid4().hex
-        tk_flame_export = self.import_module("tk_flame_export")
-        self._sessions[session_id] = tk_flame_export.ExportSession(preset)
-        return session_id
+        profiles = self.get_setting("export_profiles")
+        for profile in profiles:
+            if profile.get("display_name") == preset_name:
+                session_id = "tk_%s" % uuid.uuid4().hex
+                tk_flame_export = self.import_module("tk_flame_export")
+                self._sessions[session_id] = tk_flame_export.ExportSession(profile)
+                return session_id
+        
+        raise TankError("Could not find preset '%s' in configuration!" % preset_name)
     
     def _resolve_session(self, session_id):
         """

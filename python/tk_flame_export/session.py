@@ -23,6 +23,14 @@ class ExportSession(object):
     def __init__(self, profile):
         """
         Construction
+        
+        :param profile: Configuration data for the profile. A dictionary with the following keys: 
+                        - display_name
+                        - export_template
+                        - video_publish_type
+                        - batch_publish_type
+                        - edl_publish_type
+                        - audio_publish_type
         """
         self._app = sgtk.platform.current_bundle()
         self._profile = profile
@@ -32,14 +40,13 @@ class ExportSession(object):
         
     def get_destination_path(self):
         
-        return "/tmp"
+        # return the primary project root by default 
+        return self._app.sgtk.project_path
     
     
     def get_export_preset_path(self):
         
-        #return "/usr/discreet/flameassist_2015.2.pr99/export/presets/file_sequence/Jpeg (8-bit).xml"
-        return "/usr/discreet/flameassist_2015.2.pr99/export/presets/sequence_publish/EDL Publish (8-bit DPX and WAVE).xml"
-        
+        return self._profile["export_template"]        
         
     def prepare_export_structure(self, sequence_name, shot_names):
         
@@ -137,9 +144,14 @@ class ExportSession(object):
            versionNumber:   Current version number of export (0 if unversioned).
         
         """
-        
-        
         pass
+        
+        
+        # [PYTHON HOOK] Calling python hook function postExportAsset(
+        # {'height': 1080L, 
+        #  'destinationPath': '/tmp', 'destinationHost': 'Mannes-MacBook-Pro-2.local', 'sourceOut': 432L, 'assetType': 'video', 'recordIn': 0L, 'sequenceFps': '23.976', 'width': 1920L, 'fps': '23.976', 'resolvedPath': 'X-Ball Gladiator 3_publish_publish_publish_publish_publish_publish_publish_publish_publish_publish/IMPORT/1920x1080/s0014.[00000430-00000431].dpx', 'sequenceName': 'X-Ball Gladiator 3_publish_publish_publish_publish_publish_publish_publish_publish_publish_publish', 'shotName': 'sh_0010', 'assetName': '010_Jump_Sand', 'versionNumber': 0L, 'versionName': 'v<version>', 'recordOut': 2L, 'sourceIn': 430L, 'scanFormat': 'PROGRESSIVE', 'namePattern': '<name>/<tape>/<width>x<height>/s<segment>.<timecode><ext>', 'depth': '8-bit', 'isBackground': False, 'aspectRatio': 1.7777777910232544})
+      
+      
     
 #    assetType = info.get( "assetType" )
 #    if ( assetType not in [ "video", "batch", "openClip", "batchOpenClip" ] ): return
