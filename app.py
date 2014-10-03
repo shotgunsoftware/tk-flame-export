@@ -113,6 +113,16 @@ class FlameExport(Application):
         """
         return self._resolve_session(session_id).prepare_export_structure(sequence_name, shot_names)        
         
+    def adjust_path(self, session_id, info):
+        """
+        Called when an item is about to be exported and a path needs to be computed
+
+        :param session_id: String which identifies which export session is being referred to
+        :param info: metadata dictionary for the publish        
+        :returns: An updated path on disk
+        """
+        return self._resolve_session(session_id).adjust_path(info)
+        
     def register_publish(self, session_id, info):
         """
         Called when an item has been exported
