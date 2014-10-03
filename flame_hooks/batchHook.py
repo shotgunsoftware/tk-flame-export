@@ -9,22 +9,17 @@
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
 
-
 # Hook called when a batch setup is loaded
 #
 # setupName: file path the setup being loaded
 def batchSetupLoaded( setupPath ):
    pass
 
-
-
 # Hook called when a batch setup is saved
 # 
 # setupName: file path of the setup being saved 
 def batchSetupSaved( setupPath ):
     pass
-
-
 
 # Hook called before an export begins. The export will be blocked
 # until this function returns.  Note that for stereo export this
@@ -82,9 +77,6 @@ def batchSetupSaved( setupPath ):
 #
 def batchExportBegin( info, userData ):
    pass
-
-
-
 
 # Hook called when an export ends. Note that for stereo export this
 # function will be called twice (for left then right channel)
@@ -147,11 +139,3 @@ def batchExportBegin( info, userData ):
 #
 def batchExportEnd( info, userData ):
    pass
-
-
-
-
-
-
-
-
