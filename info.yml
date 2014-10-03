@@ -31,21 +31,55 @@ configuration:
         values:
             type: dict
             items:            
-                export_template:
+                flame_export_preset:
                     type: config_path
-                    description: Path to the flame xml export profile to use
+                    description: Path to the flame xml export preset to use
+                
+                video_template:
+                    description: Toolkit file system template to control where video output goes on disk
+                    type: template
+                    allows_empty: True
+                                                 
+                clip_template:
+                    description: Toolkit file system template to control where clip files go on disk
+                    type: template
+                    allows_empty: True
+                
+                audio_template:
+                    description: Toolkit file system template to control where audio files go on disk
+                    type: template
+                    allows_empty: True
+                
+                batch_template:
+                    description: Toolkit file system template to control where flame batch files go on disk
+                    type: template
+                    allows_empty: True
+                                
+                edl_template:
+                    description: Toolkit file system template to control where flame edl files go on disk
+                    type: template
+                    allows_empty: True
+                
                 display_name:
                     type: str
                     description: One line description of this profile 
+                    
                 video_publish_type:
                     type: tank_type
                     description: The publish type for Flame plates                    
+                
+                clip_publish_type:
+                    type: tank_type
+                    description: The publish type for Flame OpenScene XML clips 
+                
                 audio_publish_type:
                     type: tank_type
                     description: The publish type for Flame plates
+                
                 batch_publish_type:
                     type: tank_type
                     description: The publish type for Flame batch scripts
+                
                 edl_publish_type:
                     type: tank_type
                     description: The publish type for Flame Edls
