@@ -8,6 +8,8 @@
 # agreement to the Shotgun Pipeline Toolkit Source Code License. All rights 
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
+import sys
+
 def preCustomExport(info, userData):
     """
     Hook called before a custom export begins. The export will be blocked
@@ -18,11 +20,16 @@ def preCustomExport(info, userData):
                  - destinationHost: Host name where the exported files will be written to.
                  - destinationPath: Export path root.
                  - presetPath: Path to the preset used for the export.
-    
+                 - abort: Pass True back to flame if you want to abort
+                 - abortMessage: Abort message to feed back to client
+                 
     :param userData: Dictionary that could have been populated by previous export hooks and that
                      will be carried over into the subsequent export hooks.
                      This can be used by the hook to pass black box data around.
     """
+    
+    # TODO - add validation and utilize the abort flag! 
+    
     # first, get the toolkit app handle
     import sgtk
     e = sgtk.platform.current_engine()
@@ -44,6 +51,8 @@ def preCustomExport(info, userData):
     info["destinationPath"] = app.get_destination_path(session_id)
     info["presetPath"] = app.get_export_preset_path(session_id)
    
+   
+#preCustomExport.func_dict["async"] = False
  
 def preExportSequence(info, userData):
     """
@@ -86,10 +95,52 @@ def preExportSequence(info, userData):
         app.prepare_export_structure(session_id, info["sequenceName"], info["shotNames"])
 
 
-# def preExportAsset(info, userData):
-#     print "preExportAsset!"
-#     
-#     info["namePattern"] = "<name>CUSTOM"
+def preExportAsset(info, userData):
+    """    
+    Hook called before an asset export starts. The export will be blocked
+    until this function returns.
+    
+    :param info: Dictionary with a number of parameters:
+    
+       destinationHost: Host name where the exported files will be written to.
+       destinationPath: Export path root.
+       namePattern:     List of optional naming tokens.
+       resolvedPath:    Full file pattern that will be exported with all the tokens resolved.
+       name:            Name of the exported asset.
+       sequenceName:    Name of the sequence the asset is part of.
+       shotName:        Name of the shot the asset is part of.
+       assetType:       Type of exported asset. ( 'video', 'audio', 'batch', 'openClip', 'batchOpenClip' )
+       isBackground:    True if the export of the asset happened in the background.
+       backgroundJobId: Id of the background job given by the backburner manager upon submission. 
+                        Empty if job is done in foreground.
+       width:           Frame width of the exported asset.
+       height:          Frame height of the exported asset.
+       aspectRatio:     Frame aspect ratio of the exported asset.
+       depth:           Frame depth of the exported asset. ( '8-bits', '10-bits', '12-bits', '16 fp' )
+       scanFormat:      Scan format of the exported asset. ( 'FILED_1', 'FIELD_2', 'PROGRESSIVE' )
+       fps:             Frame rate of exported asset.
+       versionName:     Current version name of export (Empty if unversioned).
+       versionNumber:   Current version number of export (0 if unversioned).
+    
+    :param userData: Dictionary that could have been populated by previous export hooks and that
+                     will be carried over into the subsequent export hooks.
+                     This can be used by the hook to pass black box data around.
+
+    """
+    # first, get the toolkit app handle
+    import sgtk
+    e = sgtk.platform.current_engine()
+    app = e.apps["tk-flame-export"]
+
+    # get the preset that the user selected
+    # note that in the case of a non-tk export, there
+    # may not be a session id.    
+    session_id = userData.get("session_id")
+    if session_id:
+        # tell the toolkit export app about this file
+        new_path = app.adjust_path(session_id, info)   
+        info["resolvedPath"] = new_path
+
 
  
 def postExportAsset(info, userData):
@@ -149,7 +200,7 @@ def postExportAsset(info, userData):
     # 'depth': '8-bit', 
     # 'isBackground': False, 
     # 'aspectRatio': 1.7777777910232544}, {})
-    
+        
     # first, get the toolkit app handle
     import sgtk
     e = sgtk.platform.current_engine()
@@ -163,7 +214,6 @@ def postExportAsset(info, userData):
         # tell the toolkit export app about this file
         app.register_publish(session_id, info)   
    
-
  
 def postCustomExport(info, userData):
     """
@@ -208,10 +258,11 @@ def getCustomExportProfiles(profiles):
     :param profiles: A dictionary of userData dictionaries where 
                      the keys are the name of the profiles to show in contextual menus.
     """
+    
     import sgtk
     e = sgtk.platform.current_engine()
     app = e.apps["tk-flame-export"]
     
     for preset_title in app.get_export_presets(): 
         profiles[preset_title] = {"preset_title": preset_title}
-
+    
