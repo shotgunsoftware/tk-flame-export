@@ -29,7 +29,7 @@ class ExportSession(object):
         
         :param profile: Configuration data for the profile. A dictionary with the following keys: 
                         - display_name
-                        - export_template
+                        - flame_export_preset
                         - video_publish_type
                         - batch_publish_type
                         - edl_publish_type
@@ -50,7 +50,9 @@ class ExportSession(object):
     
     def get_export_preset_path(self):
         
-        return self._profile["export_template"]        
+        profile_path = self._profile["flame_export_preset"]
+        self._app.log_debug("Using xml export profile '%s'" % profile_path)
+        return profile_path
         
     def prepare_export_structure(self, sequence_name, shot_names):
         
@@ -62,10 +64,13 @@ class ExportSession(object):
 
         # first, ensure that the sequence exists in Shotgun
         self._sequence = {}
-        self._sequence["shotgun"] = sg.find_one("Sequence", [["code", "is", sequence_name],
+        sg_sequence_data = sg.find_one("Sequence", [["code", "is", sequence_name],
                                                 ["project", "is", self._app.context.project]]) 
         
-        if not self._sequence:
+        if sg_sequence_data:
+            self._sequence["shotgun"] = sg_sequence_data 
+        
+        else:    
             
             # Create a new sequence in Shotgun
             # First see if we should assign a task template
@@ -91,7 +96,7 @@ class ExportSession(object):
                                        "Preparing Shot '%s'..." % shot_name)
 
             shot = sg.find_one("Shot", [["code", "is", shot_name],
-                                        ["sg_sequence", "is", self._sequence]])
+                                        ["sg_sequence", "is", self._sequence["shotgun"] ]])
             if not shot:
                 
                 # Create a new shot in Shotgun
@@ -106,7 +111,7 @@ class ExportSession(object):
 
                 shot = sg.create("Shot", {"code": shot_name, 
                                           "description": "Created by the Shotgun Toolkit Flame exporter.",
-                                          "sg_sequence": self._sequence,
+                                          "sg_sequence": self._sequence["shotgun"],
                                           "task_template": shot_template,
                                           "project": self._app.context.project})
                 

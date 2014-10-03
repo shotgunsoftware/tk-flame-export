@@ -38,31 +38,31 @@ configuration:
                 video_template:
                     description: Toolkit file system template to control where video output goes on disk
                     type: template
-                    fields: *
+                    fields: '*'
                     allows_empty: True
                                                  
                 clip_template:
                     description: Toolkit file system template to control where clip files go on disk
                     type: template
-                    fields: *
+                    fields: '*'
                     allows_empty: True
                 
                 audio_template:
                     description: Toolkit file system template to control where audio files go on disk
                     type: template
-                    fields: *
+                    fields: '*'
                     allows_empty: True
                 
                 batch_template:
                     description: Toolkit file system template to control where flame batch files go on disk
                     type: template
-                    fields: *
+                    fields: '*'
                     allows_empty: True
                                 
                 edl_template:
                     description: Toolkit file system template to control where flame edl files go on disk
                     type: template
-                    fields: *
+                    fields: '*'
                     allows_empty: True
                 
                 display_name:
