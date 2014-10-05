@@ -51,8 +51,6 @@ def preCustomExport(info, userData):
     info["destinationPath"] = app.get_destination_path(session_id)
     info["presetPath"] = app.get_export_preset_path(session_id)
    
-   
-#preCustomExport.func_dict["async"] = False
  
 def preExportSequence(info, userData):
     """
