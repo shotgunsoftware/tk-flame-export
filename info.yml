@@ -13,7 +13,11 @@
 # expected fields in the configuration file for this engine
 configuration:
 
-
+    profile_name:
+        type: str
+        description: One line description of this profile. This will appear on the 
+                     menu in Flame.
+                     
     sequence_task_template:
         type: str
         description: The Shotgun task template to assign to new sequences created
@@ -24,70 +28,65 @@ configuration:
         description: The Shotgun task template to assign to new shot created
         default_value: Basic shot template
 
+    flame_export_preset:
+        type: config_path
+        description: Path to the flame xml export preset to use
+    
+    video_template:
+        description: Toolkit file system template to control where video output goes on disk
+        type: template
+        fields: '*'
+        allows_empty: True
+                                     
+    sequence_clip_template:
+        description: Toolkit file system template to control where clip files go on disk
+        type: template
+        fields: '*'
+        allows_empty: True
+    
+    shot_clip_template:
+        description: Toolkit file system template to control where shot based clip files go on disk
+        type: template
+        fields: '*'
+        allows_empty: True
 
-    export_profiles:
-        type: list
-        description: List of export profiles
-        values:
-            type: dict
-            items:            
-                flame_export_preset:
-                    type: config_path
-                    description: Path to the flame xml export preset to use
-                
-                video_template:
-                    description: Toolkit file system template to control where video output goes on disk
-                    type: template
-                    fields: '*'
-                    allows_empty: True
-                                                 
-                clip_template:
-                    description: Toolkit file system template to control where clip files go on disk
-                    type: template
-                    fields: '*'
-                    allows_empty: True
-                
-                audio_template:
-                    description: Toolkit file system template to control where audio files go on disk
-                    type: template
-                    fields: '*'
-                    allows_empty: True
-                
-                batch_template:
-                    description: Toolkit file system template to control where flame batch files go on disk
-                    type: template
-                    fields: '*'
-                    allows_empty: True
-                                
-                edl_template:
-                    description: Toolkit file system template to control where flame edl files go on disk
-                    type: template
-                    fields: '*'
-                    allows_empty: True
-                
-                display_name:
-                    type: str
-                    description: One line description of this profile 
+    audio_template:
+        description: Toolkit file system template to control where audio files go on disk
+        type: template
+        fields: '*'
+        allows_empty: True
+    
+    batch_template:
+        description: Toolkit file system template to control where flame batch files go on disk
+        type: template
+        fields: '*'
+        allows_empty: True
                     
-                video_publish_type:
-                    type: tank_type
-                    description: The publish type for Flame plates                    
-                
-                clip_publish_type:
-                    type: tank_type
-                    description: The publish type for Flame OpenScene XML clips 
-                
-                audio_publish_type:
-                    type: tank_type
-                    description: The publish type for Flame plates
-                
-                batch_publish_type:
-                    type: tank_type
-                    description: The publish type for Flame batch scripts
-                
-                edl_publish_type:
-                    type: tank_type
-                    description: The publish type for Flame Edls
+    edl_template:
+        description: Toolkit file system template to control where flame edl files go on disk
+        type: template
+        fields: '*'
+        allows_empty: True
+        
+    video_publish_type:
+        type: tank_type
+        description: The publish type for Flame plates                    
+    
+    clip_publish_type:
+        type: tank_type
+        description: The publish type for Flame OpenScene XML clips 
+    
+    audio_publish_type:
+        type: tank_type
+        description: The publish type for Flame plates
+    
+    batch_publish_type:
+        type: tank_type
+        description: The publish type for Flame batch scripts
+    
+    edl_publish_type:
+        type: tank_type
+        description: The publish type for Flame Edls
                     
             
 
