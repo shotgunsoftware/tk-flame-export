@@ -136,7 +136,7 @@ class ExportSettings(HookBaseClass):
       </resize>
    </video>
    <name>
-      <framePadding>4</framePadding>
+      <framePadding>{FRAME_PADDING}</framePadding>
       <startFrame>1001</startFrame>
       <useTimecode>False</useTimecode>
    </name>
@@ -154,8 +154,25 @@ class ExportSettings(HookBaseClass):
    </createOpenClip>
 </preset>
         """
+        
+        # get the export template for the plates
+        template = self.parent.get_template("plate_template")
+        
+        sequence_key = template.keys["SEQ"]
+        # the format spec is something like "04"
+        format_spec = sequence_key.format_spec
+        if format_spec.startswith("0"):
+            # strip off leading zeroes
+            format_spec = format_spec[1:]
+        
+        # write in the frame padding field in the xml
+        xml = xml.replace("{FRAME_PADDING}", format_spec)
+        
+        self.parent.log_debug("Flame preset generation: Setting frame padding to %s based on "
+                              "SEQ token in template %s" % (format_spec, template))
+        
         # write it to disk
-        preset_path = self._write_content_to_file(resolved_xml, "export_preset.xml")
+        preset_path = self._write_content_to_file(xml, "export_preset.xml")
         
         return preset_path
 
