@@ -95,7 +95,16 @@ class FlameExport(Application):
         sequence_name = info["sequenceName"]
         shot_names = info["shotNames"]
         
-        # todo: validate that all shots have been named!
+        if len(shot_names) == 0:
+            from PySide import QtGui     
+            QtGui.QMessageBox.warning(None,
+                                      "Please name your shots!",
+                                      "The Shotgun integration requires you to name your shots. Please go back to "
+                                      "the time line and ensure that all clips have been given shot names before "
+                                      "proceeding!")
+            info["abort"] = True
+            info["abortMessage"] = "Cannot export due to missing shot names."
+            return
         
         self.log_debug("Preparing export structure for sequence %s and shots %s" % (sequence_name, shot_names))
         self.engine.show_busy("Preparing Shotgun...", "Preparing Shots for export...")
@@ -173,17 +182,27 @@ class FlameExport(Application):
            versionNumber:   Current version number of export (0 if unversioned).        
         """        
 
-        if info.get("assetType") == "openClip":
-            # this asset is the sequence level clip xml file
-            # for now, we don't publish this in Shotgun.
-            info["resolvedPath"] = "shotgun_%s.xml" % uuid.uuid4().hex
-            return
-        
-        if info.get("assetType") not in ["video", "batch", "batchOpenClip"]:
+        if info.get("assetType") not in ["video", "batch", "batchOpenClip", "openClip"]:
             # the review system ignores any other assets. The export profiles are defined
             # in the app's settings hook, so technically there shouldn't be any other items
             # generated - but just in case there are (because of customizations), we'll simply
             # ignore these.
+            return
+        
+        # first check that the clip has a shot name - otherwise things won't work!
+        if info["shotName"] == "":
+            QtGui.QMessageBox.warning(None,
+                                      "Missing shot name!",
+                                      ("The clip '%s' does not have a shot name and therefore cannot be exported. "
+                                      "Please ensure that all shots you wish to exports "
+                                      "have been named. " % info.get("name")) )
+            
+            # send the clip to the trash for now. no way to abort at this point
+            # but we don't have enough information to be able to proceed at this point either
+            info["resolvedPath"] = "unnamed_shot_%s" % uuid.uuid4().hex
+            
+            # TODO: can we avoid this export altogether?
+            
             return
         
         # get the appropriate file system template
@@ -194,7 +213,10 @@ class FlameExport(Application):
             template = self.get_template("batch_template")
             
         elif info.get("assetType") == "batchOpenClip":
-            template = self.get_template("clip_template")            
+            template = self.get_template("shot_clip_template")            
+
+        elif info.get("assetType") == "openClip":
+            template = self.get_template("segment_clip_template")            
         
         self.log_debug("Attempting to resolve template %s..." % template)
         
@@ -212,9 +234,27 @@ class FlameExport(Application):
             if not re_match:
                 raise TankError("Cannot find frame number token in export data!")
             fields["SEQ"] = re_match.group(1)
-                
+
+        # create some fields based on the info in the info params                
         if "versionNumber" in info:
-            fields["version"] = info["versionNumber"]
+            fields["version"] = int(info["versionNumber"])
+        
+        try:
+            # workaround for missing segment index / segment name / in the params
+            # all path patterns in the hook must be on the form
+            # 
+            (segment_index, segment_name, _) = info["resolvedPath"].split("/")
+        except:
+            raise TankError("Cannot resolve segment index and name from path pattern!")
+        
+        fields["segment_name"] = segment_name    
+        #fields["segment_index"] = segment_index
+            
+        if "width" in info:
+            fields["width"] = int(info["width"])
+
+        if "height" in info:
+            fields["height"] = int(info["height"])
         
         try:
             full_path = template.apply_fields(fields)

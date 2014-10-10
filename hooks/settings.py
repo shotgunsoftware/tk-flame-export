@@ -114,7 +114,7 @@ The generated media is 10-bit DPX and no audio.</comment>
       <fileType>Dpx</fileType>
       <codec>923680</codec>
       <codecProfile />
-      <namePattern>&lt;shot name&gt;/dpx/&lt;version name&gt;/&lt;shot name&gt;_&lt;segment name&gt;.&lt;version name&gt;.</namePattern>
+      <namePattern>&lt;segment&gt;/&lt;segment name&gt;/</namePattern>
       <compressionQuality>50</compressionQuality>
       <transferCharacteristic>2</transferCharacteristic>
       <colorimetricSpecification>4</colorimetricSpecification>
@@ -140,15 +140,15 @@ The generated media is 10-bit DPX and no audio.</comment>
       <useTimecode>False</useTimecode>
    </name>
    <createOpenClip>
-      <namePattern>&lt;shot name&gt;/flame/sources/&lt;segment name&gt;</namePattern>
+      <namePattern>&lt;segment&gt;/&lt;segment name&gt;/</namePattern>
       <version>
          <index>0</index>
          <padding>{VERSION_PADDING}</padding>
          <name>v&lt;version&gt;</name>
       </version>
       <batchSetup>
-         <namePattern>&lt;shot name&gt;/flame/batch/&lt;shot name&gt;_&lt;version name&gt;</namePattern>
-         <exportNamePattern>&lt;shot name&gt;/flame/&lt;shot name&gt;</exportNamePattern>
+         <namePattern>&lt;segment&gt;/&lt;segment name&gt;/</namePattern>
+         <exportNamePattern>&lt;segment&gt;/&lt;segment name&gt;/</exportNamePattern>
       </batchSetup>
    </createOpenClip>
    <reImport>
