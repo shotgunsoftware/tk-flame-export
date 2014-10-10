@@ -86,7 +86,8 @@ class ExportSettings(HookBaseClass):
         xml = """<?xml version="1.0" encoding="UTF-8"?>
 <preset version="4">
    <type>sequence</type>
-   <comment>12 bit DPX Files with corresponding batch and clip files</comment>
+   <comment>Creates shot directories with media, setups and clips for all shots in the sequence.
+The generated media is 10-bit DPX and no audio.</comment>
    <sequence>
       <fileType>NONE</fileType>
       <namePattern />
@@ -94,8 +95,8 @@ class ExportSettings(HookBaseClass):
       <exportVideo>True</exportVideo>
       <videoMedia>
          <mediaFileType>image</mediaFileType>
-         <commit>FX</commit>
-         <flatten>FlattenTracks</flatten>
+         <commit>Original</commit>
+         <flatten>NoChange</flatten>
          <exportHandles>True</exportHandles>
          <nbHandles>10</nbHandles>
       </videoMedia>
@@ -103,8 +104,8 @@ class ExportSettings(HookBaseClass):
       <exportAudio>False</exportAudio>
       <audioMedia>
          <mediaFileType>audio</mediaFileType>
-         <commit>FX</commit>
-         <flatten>FlattenTracks</flatten>
+         <commit>Original</commit>
+         <flatten>NoChange</flatten>
          <exportHandles>True</exportHandles>
          <nbHandles>10</nbHandles>
       </audioMedia>
@@ -113,11 +114,11 @@ class ExportSettings(HookBaseClass):
       <fileType>Dpx</fileType>
       <codec>923680</codec>
       <codecProfile />
-      <namePattern></namePattern>
+      <namePattern>&lt;shot name&gt;/dpx/&lt;version name&gt;/&lt;shot name&gt;_&lt;segment name&gt;.&lt;version name&gt;.</namePattern>
       <compressionQuality>50</compressionQuality>
       <transferCharacteristic>2</transferCharacteristic>
       <colorimetricSpecification>4</colorimetricSpecification>
-      <publishLinked>False</publishLinked>
+      <publishLinked>True</publishLinked>
       <foregroundPublish>False</foregroundPublish>
       <overwriteWithVersions>False</overwriteWithVersions>
       <resize>
@@ -125,49 +126,64 @@ class ExportSettings(HookBaseClass):
          <resizeFilter>lanczos</resizeFilter>
          <width>0</width>
          <height>0</height>
-         <bitsPerChannel>12</bitsPerChannel>
+         <bitsPerChannel>10</bitsPerChannel>
          <numChannels>3</numChannels>
          <floatingPoint>False</floatingPoint>
-         <bigEndian>False</bigEndian>
+         <bigEndian>True</bigEndian>
          <pixelRatio>1</pixelRatio>
          <scanFormat>P</scanFormat>
       </resize>
    </video>
    <name>
       <framePadding>{FRAME_PADDING}</framePadding>
-      <startFrame>1001</startFrame>
+      <startFrame>0</startFrame>
       <useTimecode>False</useTimecode>
    </name>
    <createOpenClip>
-      <namePattern>sequence_clip_file</namePattern>
+      <namePattern>&lt;shot name&gt;/flame/sources/&lt;segment name&gt;</namePattern>
       <version>
-         <index>1</index>
-         <padding>3</padding>
+         <index>0</index>
+         <padding>{VERSION_PADDING}</padding>
          <name>v&lt;version&gt;</name>
       </version>
       <batchSetup>
-         <namePattern>batch_file</namePattern>
-         <exportNamePattern>shot_clip_file</exportNamePattern>
+         <namePattern>&lt;shot name&gt;/flame/batch/&lt;shot name&gt;_&lt;version name&gt;</namePattern>
+         <exportNamePattern>&lt;shot name&gt;/flame/&lt;shot name&gt;</exportNamePattern>
       </batchSetup>
    </createOpenClip>
+   <reImport>
+      <namePattern />
+   </reImport>
 </preset>
         """
         
         # get the export template for the plates
         template = self.parent.get_template("plate_template")
-        
+
+        # now adjust some parameters in the export xml based on the template
+        # setup. First up is the padding for sequences:        
         sequence_key = template.keys["SEQ"]
         # the format spec is something like "04"
         format_spec = sequence_key.format_spec
         if format_spec.startswith("0"):
             # strip off leading zeroes
             format_spec = format_spec[1:]
-        
-        # write in the frame padding field in the xml
         xml = xml.replace("{FRAME_PADDING}", format_spec)
         
         self.parent.log_debug("Flame preset generation: Setting frame padding to %s based on "
                               "SEQ token in template %s" % (format_spec, template))
+
+        # also align the padding for versions with the definition in the version template
+        version_key = template.keys["version"]
+        # the format spec is something like "03"
+        format_spec = version_key.format_spec
+        if format_spec.startswith("0"):
+            # strip off leading zeroes
+            format_spec = format_spec[1:]        
+        xml = xml.replace("{VERSION_PADDING}", format_spec)
+        
+        self.parent.log_debug("Flame preset generation: Setting version padding to %s based on "
+                              "version token in template %s" % (format_spec, template))
         
         # write it to disk
         preset_path = self._write_content_to_file(xml, "export_preset.xml")
