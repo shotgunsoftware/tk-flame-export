@@ -47,6 +47,7 @@ class FlameExport(Application):
         callbacks["preExportSequence"] = self.prepare_export_structure
         callbacks["preExportAsset"] = self.adjust_path
         callbacks["postExportAsset"] = self.register_post_asset_job
+        callbacks["postCustomExport"] = self.display_summary
         
         # register with the engine
         self.engine.register_export_hook(menu_caption, callbacks)
@@ -93,7 +94,9 @@ class FlameExport(Application):
         """
         sequence_name = info["sequenceName"]
         shot_names = info["shotNames"]
-                
+        
+        # todo: validate that all shots have been named!
+        
         self.log_debug("Preparing export structure for sequence %s and shots %s" % (sequence_name, shot_names))
         self.engine.show_busy("Preparing Shotgun...", "Preparing Shots for export...")
         
@@ -284,10 +287,13 @@ class FlameExport(Application):
         
         # set up the arguments which we will pass (via backburner) to 
         # the target method which gets executed
-        args = {"info": info}
+        
+        context = self._shots[info["shotName"]]["context"]
+        
+        args = {"info": info, "serialized_shot_context": sgtk.context.serialize(context) }
         
         # and populate UI params
-        backburner_job_title = "Shot '%s' - Registering with Shotgun" % info.get("ShotName") 
+        backburner_job_title = "Shot '%s' - Registering with Shotgun" % info.get("shotName") 
         backburner_job_desc = "Transcoding media, registering and uploading in Shotgun."        
         
         # kick off async job
@@ -298,13 +304,15 @@ class FlameExport(Application):
                                                 "populate_shotgun",
                                                 args)
 
-    def populate_shotgun(self, info):
+    def populate_shotgun(self, info, serialized_shot_context):
         """
         Called when an item has been exported
         
         :param session_id: String which identifies which export session is being referred to
         :param info: metadata dictionary for the publish
         """
+        
+        shot_context = sgtk.context.deserialize(serialized_shot_context)
         
         if info.get("assetType") == "video":
             publish_type = self.get_setting("plate_publish_type")
@@ -387,6 +395,22 @@ class FlameExport(Application):
             self.log_debug(">>>>>>>>>>>>>>>>>>>>> VERSION")
     
         
+    def display_summary(self, session_id, info):
+        """
+        Show summary UI to user
+        
+        :param session_id: String which identifies which export session is being referred to.
+                           This parameter makes it possible to distinguish between different 
+                           export sessions running if this is needed (typically only needed for
+                           expert use cases).
+        
+        :param info: Information about the export. Contains the keys      
+                     - destinationHost: Host name where the exported files will be written to.
+                     - destinationPath: Export path root.
+                     - presetPath: Path to the preset used for the export.
+        
+        """
+        self.log_debug("Todo: pop up summary UI!")
         
         
         

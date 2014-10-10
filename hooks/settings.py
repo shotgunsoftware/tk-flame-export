@@ -72,9 +72,7 @@ class ExportSettings(HookBaseClass):
                 
                 shots[shot_name] = {"created": True, "shotgun": shot} 
             
-        
         return shots
-
 
 
 
@@ -141,15 +139,15 @@ class ExportSettings(HookBaseClass):
       <useTimecode>False</useTimecode>
    </name>
    <createOpenClip>
-      <namePattern></namePattern>
+      <namePattern>sequence_clip_file</namePattern>
       <version>
          <index>1</index>
          <padding>3</padding>
          <name>v&lt;version&gt;</name>
       </version>
       <batchSetup>
-         <namePattern>sequences/&lt;name&gt;/&lt;shot name&gt;/batch/shot.v&lt;version&gt;&lt;ext&gt;</namePattern>
-         <exportNamePattern>sequences/&lt;name&gt;/&lt;shot name&gt;/clips/shot.v&lt;version&gt;&lt;ext&gt;</exportNamePattern>
+         <namePattern>batch_file</namePattern>
+         <exportNamePattern>shot_clip_file</exportNamePattern>
       </batchSetup>
    </createOpenClip>
 </preset>
