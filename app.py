@@ -356,8 +356,14 @@ class FlameExport(Application):
                 "user_comments": self._user_comments }
         
         # and populate UI params
-        backburner_job_title = "Shot '%s' - Registering with Shotgun" % info.get("shotName") 
-        backburner_job_desc = "Transcoding media, registering and uploading in Shotgun."        
+        field_str = ", ".join(["%s %s" % (k,v) for (k,v) in fields.iteritems()])
+        field_str += ", ".join(["%s %s" % (k,v) for (k,v) in info.iteritems()])
+        
+        full_flame_path = os.path.join(info["destinationPath"], info["resolvedPath"])        
+        backburner_job_title = "Shotgun Upload: %s, %s, %s" % (info["sequenceName"], 
+                                                               info["shotName"], 
+                                                               info["assetType"])
+        backburner_job_desc = "Transcoding media, registering and uploading in Shotgun for %s" % field_str        
         
         # kick off async job
         self.engine.create_local_backburner_job(backburner_job_title, 
@@ -598,7 +604,6 @@ class FlameExport(Application):
             self.log_warning("Could not remove temporary file '%s': %s" % (tmp_quicktime, e))
     
     
-        raise TankError("foo!")
     
         
     def display_summary(self, session_id, info):
