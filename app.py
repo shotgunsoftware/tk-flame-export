@@ -429,37 +429,59 @@ class FlameExport(Application):
         else:
             raise TankError("Unsupported asset type '%s'" % info.get("assetType"))
         
+        # join together the full path, flame style        
+        full_flame_path = os.path.join(info.get("destinationPath"), info.get("resolvedPath"))
         
-        
-        # join together the full path        
-        full_path = os.path.join(info.get("destinationPath"), info.get("resolvedPath"))
-        
-        # now compile the name of the publish. Let this just be the name of the file
-        publish_name = os.path.basename(full_path)
-        
+        # also generate the same path (via templates) but with a more standard %04d encoding
+        new_fields = copy.deepcopy(fields)
+        new_fields["SEQ"] = "FORMAT: %d"
+        full_std_path = template.apply_fields(new_fields)
+                
+        # now start assemble publish parameters
         args = {
             "tk": self.sgtk,
             "context": shot_context,
             "comment": user_comments,
-            "path": full_path,
-            "name": publish_name,
+            "path": full_std_path,
+            "name": os.path.basename(full_std_path),
             "version_number": info.get("versionNumber"),
             "created_by": shot_context.user,
-            # "thumbnail_path": thumbnail_path,
-            # "task": sg_task,                            <------ todo: assign with configurable task?
-            # "dependency_paths": dependency_paths,
+            "task": shot_context.task,
             "published_file_type": publish_type,
         }
         
-        self.log_debug("Register publish in shotgun: %s" % str(args))        
-        sg_publish_data = sgtk.util.register_publish(**args)
         
-        self.log_debug("Register complete: %s" % sg_publish_data)
+        thumbnail_jpg = None
         
         if info.get("assetType") == "video":
-            self._create_version(info, shot_context, template, fields, sg_publish_data, user_comments)
+            # now try to extract a thumbnail from the asset data stream.
+            # we use the same mechanism that the quicktime generation is using - see
+            # the quicktime code below for details:
+            #    
+            input_cmd = "%s -n \"%s@CLIP\" -h %s -W %s -H %s -L" % (self.engine.get_read_frame_path(),
+                                                                    full_flame_path,
+                                                                    "localhost:Gateway",
+                                                                    info["width"],
+                                                                    info["height"])
             
-    def _create_version(self, info, context, template, fields, sg_publish_data, user_comments):
+            thumbnail_jpg = os.path.join(self.engine.get_backburner_tmp(), "tk_thumb_%s.jpg" % uuid.uuid4().hex)
+            os.system("%s > %s" % (input_cmd, thumbnail_jpg))
+            self.log_debug("Wrote thumbnail %s" % thumbnail_jpg)
+            args["thumbnail_path"] = thumbnail_jpg
+        
+
+        self.log_debug("Register publish in shotgun: %s" % str(args))        
+        sg_publish_data = sgtk.util.register_publish(**args)
+        self.log_debug("Register complete: %s" % sg_publish_data)
+        
+        if thumbnail_jpg:
+            # try to clean up
+            self.__clean_up_temp_file(thumbnail_jpg)
+                    
+        if info.get("assetType") == "video":
+            self._create_version(info, shot_context, full_std_path, sg_publish_data, user_comments)
+            
+    def _create_version(self, info, context, full_std_path, sg_publish_data, user_comments):
         """
         Process review portion of an export. 
         
@@ -502,8 +524,7 @@ class FlameExport(Application):
            
         :param context: The context for the shot that the submission is associated with, 
                         in serialized form.
-        :param template: The template objects that represents the path to the sequence
-        :param fields: Template fields data representing the location of the given asset
+        :param full_std_path: Path to frames, using %04d rather than flame style [1234,1235] notation
         :param sg_publish_data: Std shotgun dictionary (with type and id), representing the publish
                                 in Shotgun that has been carried out for this asset.
         :param user_comments: Comments entered by the user at export start.
@@ -511,11 +532,6 @@ class FlameExport(Application):
         
         # get the full flame style path
         full_flame_path = os.path.join(info["destinationPath"], info["resolvedPath"])
-        
-        # also generate the same path (via templates) but with a more standard %04d encoding
-        new_fields = copy.deepcopy(fields)
-        new_fields["SEQ"] = "FORMAT: %d"
-        full_std_path = template.apply_fields(new_fields)
         
         # note / todo: there doesn't seem to be any way to downscale the quicktime
         # as it is being generated/streamed out of wiretap and encoded by ffmpeg.
@@ -648,13 +664,20 @@ class FlameExport(Application):
         self.log_debug("Upload complete!")
         
         # clean up
-        try:
-            self.log_debug("Trying to remove temporary quicktime file...")
-            os.remove(tmp_quicktime)
-            self.log_debug("Temporary quicktime file successfully deleted.")
-        except Exception, e:
-            self.log_warning("Could not remove temporary file '%s': %s" % (tmp_quicktime, e))
+        self.__clean_up_temp_file(tmp_quicktime)
     
+
+    def __clean_up_temp_file(self, path):
+        """
+        Helper method which attemps to delete up a given temp file.
+        
+        :param path: Path to delete
+        """
+        try:
+            os.remove(path)
+            self.log_debug("Removed temporary file '%s'." % path)
+        except Exception, e:
+            self.log_warning("Could not remove temporary file '%s': %s" % (path, e))    
     
         
     def display_summary(self, session_id, info):
