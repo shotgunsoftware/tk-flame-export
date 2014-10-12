@@ -36,7 +36,10 @@ class FlameExport(Application):
         
         # shot metadata
         self._shots = {}
-
+        
+        # UI comments
+        self._user_comments = ""
+        
         # register our desired interaction with flame hooks
         menu_caption = self.get_setting("menu_name")
         
@@ -65,13 +68,27 @@ class FlameExport(Application):
                      - abort: Pass True back to flame if you want to abort
                      - abortMessage: Abort message to feed back to client
         """
-        # populate the host to use for the export. Currently hard coded to local
-        info["destinationHost"] = "localhost"
-        # let the export root path align with the primary project root
-        info["destinationPath"] = self.sgtk.project_path
-        # pick up the xml export profile from the configuration
-        info["presetPath"] = self.execute_hook_method("settings_hook", "get_export_preset")
-        self.log_debug("%s: Starting custom export session with preset '%s'" % (self, info["presetPath"]))
+        
+        from PySide import QtGui, QtCore
+        
+        # pop up a UI asking the user for description
+        submit_dialog = self.import_module("submit_dialog")        
+        (return_code, widget) = self.engine.show_modal("Submit to Shotgun", self, submit_dialog.Dialog)
+        
+        if return_code == QtGui.QDialog.Rejected:
+            # user pressed cancel
+            info["abort"] = True
+            info["abortMessage"] = "User cancelled the operation."        
+        else:
+            # get comments from user
+            self._user_comments = widget.get_comments()        
+            # populate the host to use for the export. Currently hard coded to local
+            info["destinationHost"] = "localhost"
+            # let the export root path align with the primary project root
+            info["destinationPath"] = self.sgtk.project_path
+            # pick up the xml export profile from the configuration
+            info["presetPath"] = self.execute_hook_method("settings_hook", "get_export_preset")
+            self.log_debug("%s: Starting custom export session with preset '%s'" % (self, info["presetPath"]))
 
     def prepare_export_structure(self, session_id, info):
         """
@@ -199,10 +216,9 @@ class FlameExport(Application):
             
             # send the clip to the trash for now. no way to abort at this point
             # but we don't have enough information to be able to proceed at this point either
-            info["resolvedPath"] = "unnamed_shot_%s" % uuid.uuid4().hex
+            info["resolvedPath"] = "flame_trash/unnamed_shot_%s" % uuid.uuid4().hex
             
             # TODO: can we avoid this export altogether?
-            
             return
         
         # get the appropriate file system template
@@ -270,7 +286,9 @@ class FlameExport(Application):
         self.log_debug("Chopping off root path %s -> %s" % (full_path, local_path))
         
         info["resolvedPath"] = local_path
-        
+
+        # add the template for the clip and shot
+        self._shots[info["shotName"]][info.get("assetType")] = {"template": template, "fields": fields}
         
         
     def register_post_asset_job(self, session_id, info):
@@ -313,7 +331,8 @@ class FlameExport(Application):
            versionNumber:   Current version number of export (0 if unversioned).
 
         """
-        if info.get("assetType") not in ["video", "batch", "batchOpenClip"]:
+        asset_type = info.get("assetType") 
+        if asset_type not in ["video", "batch"]:
             # the review system ignores any other assets. The export profiles are defined
             # in the app's settings hook, so technically there shouldn't be any other items
             # generated - but just in case there are (because of customizations), we'll simply
@@ -329,8 +348,12 @@ class FlameExport(Application):
         # the target method which gets executed
         
         context = self._shots[info["shotName"]]["context"]
+        fields  = self._shots[info["shotName"]][asset_type]["fields"]
         
-        args = {"info": info, "serialized_shot_context": sgtk.context.serialize(context) }
+        args = {"info": info, 
+                "serialized_shot_context": sgtk.context.serialize(context),
+                "fields": fields,
+                "user_comments": self._user_comments }
         
         # and populate UI params
         backburner_job_title = "Shot '%s' - Registering with Shotgun" % info.get("shotName") 
@@ -344,95 +367,238 @@ class FlameExport(Application):
                                                 "populate_shotgun",
                                                 args)
 
-    def populate_shotgun(self, info, serialized_shot_context):
+    def populate_shotgun(self, info, serialized_shot_context, fields, user_comments):
         """
         Called when an item has been exported
         
         :param session_id: String which identifies which export session is being referred to
         :param info: metadata dictionary for the publish
         """
-        
+
+        self.log_debug("--- Starting to populate shotgun ---")
+                
         shot_context = sgtk.context.deserialize(serialized_shot_context)
         
         if info.get("assetType") == "video":
             publish_type = self.get_setting("plate_publish_type")
+            template = self.get_template("plate_template")
             
         elif info.get("assetType") == "batch":
             publish_type = self.get_setting("batch_publish_type")
-            
-        elif info.get("assetType") == "batchOpenClip":
-            publish_type = self.get_setting("clip_publish_type")
-            
+            template = self.get_template("batch_template")
+                        
         else:
             raise TankError("Unsupported asset type '%s'" % info.get("assetType"))
         
-        # resolve the template via the context
-        context = self._get_context(info)
         
-        # now assemble the path in a toolkit friendly format
-        # we get this sort of input data
-        # 'destinationPath': '/mnt/projects/flame_testing', 
-        # 'resolvedPath': 'sequences/X-Ball_Gladiator_3/sh_0010/plates/sh_0010.[00000265-00000324].dpx', 
         
+        # join together the full path        
         full_path = os.path.join(info.get("destinationPath"), info.get("resolvedPath"))
-        # find the [xxx-xxx] pattern and replace it with %04d
         
-        # todo - hopefully we can get the frame padding option across into the hook
-        # [0265-0324].dpx -> %04d.dpx
-        # [00265-00324].dpx -> %05d.dpx
-        # [000265-000324].dpx -> %06d.dpx
-        # [0212312312365-123324].dpx -> %d.dpx
-        full_path = re.sub('\[[0-9]{4}-[0-9]{4}\]', '%04d', full_path)
-        full_path = re.sub('\[[0-9]{5}-[0-9]{5}\]', '%05d', full_path)
-        full_path = re.sub('\[[0-9]{6}-[0-9]{6}\]', '%06d', full_path)
-        full_path = re.sub('\[[0-9]{7}-[0-9]{7}\]', '%07d', full_path)
-        # and the catch-all
-        full_path = re.sub('\[[0-9]+-[0-9]+\]', '%d', full_path)
-        
-        self.log_debug("Translated paths %s %s --> %s" % (info.get("destinationPath"), 
-                                                          info.get("resolvedPath"), 
-                                                          full_path))
-        
-        # now compile the name of the publish. This is done on the form
-        # name.ext, where ext is the file extension of the published file
-        # and the name part is intelligently derived from the input data
-        if info.get("shotName"):
-            file_name = info.get("shotName")
-        elif info.get("sequenceName"):
-            file_name = info.get("sequenceName")
-        elif info.get("assetName"):
-            file_name = info.get("assetName")
-        else:
-            file_name = "unknown"
-            
-        (_, ext) = os.path.splitext(full_path)
-        publish_name = "%s.%s" % (file_name, ext)
+        # now compile the name of the publish. Let this just be the name of the file
+        publish_name = os.path.basename(full_path)
         
         args = {
             "tk": self.sgtk,
-            "context": context,
-            "comment": "Created by the Shotgun to Flame Exporter.",
+            "context": shot_context,
+            "comment": user_comments,
             "path": full_path,
             "name": publish_name,
             "version_number": info.get("versionNumber"),
+            "created_by": shot_context.user,
             # "thumbnail_path": thumbnail_path,
             # "task": sg_task,                            <------ todo: assign with configurable task?
             # "dependency_paths": dependency_paths,
             "published_file_type": publish_type,
         }
         
-        self.log_debug("Register publish in shotgun: %s" % str(args))
+        self.log_debug("Register publish in shotgun: %s" % str(args))        
+        sg_publish_data = sgtk.util.register_publish(**args)
         
-        # register publish
-        # TODO - check for existing publishes on disk!
-        #        it is possible that the publish is overriding a previous publish
-        sg_data = sgtk.util.register_publish(**args)
+        self.log_debug("Register complete: %s" % sg_publish_data)
         
-        self.log_debug("Register complete: %s" % sg_data)
         
         if info.get("assetType") == "video":
-            # register version!
-            self.log_debug(">>>>>>>>>>>>>>>>>>>>> VERSION")
+            self._create_version(info, shot_context, template, fields, sg_publish_data, user_comments)
+            
+
+
+
+
+
+
+
+
+
+
+            
+    def _create_version(self, info, context, template, fields, sg_publish_data, user_comments):
+        """
+        Create a Shotgun version entity.
+        Generate a quicktime.
+        Upload quicktime to Shotgun.
+        """
+        
+        # get the full flame style path
+        full_flame_path = os.path.join(info["destinationPath"], info["resolvedPath"])
+        
+        self.log_debug("Begin version processing for %s..." % full_flame_path)
+        
+        # shotgun transcoding guidelines suggest a height of 720 pixels, compute
+        # processing resolution using these criteria
+        source_width = info["width"]
+        source_height = info["height"]
+        self.log_debug("Plate resolution: %sx%s" % (source_width, source_height))
+        
+        if source_height < 720:
+            # don't want to upres
+            target_height = source_height
+            target_width = source_width
+            self.log_debug("Plate resolution is lower than recommended height of 720. No downscaling will occur.")
+        else:
+            # scale down resolution
+            target_height = 720
+            target_width = ( (float)(source_width) / (float)(source_height) ) * 720.0
+            target_width = int(target_width)
+            
+            # note! the h264 encoding does not support encoding of sizes which are not divisible by two
+            # check if this is the case and if so, upres:
+            if target_width % 2 != 0:
+                target_width += 1
+            
+            self.log_debug("Resolution will be downscaled to %sx%s for quicktimes." % (target_width, target_height))
+        
+            
+        
+        
+        data = {}
+        data["code"] = publish_name = os.path.basename(full_flame_path)
+        data["description"] = user_comments
+        data["project"] = context.project
+        data["entity"] = context.entity
+        data["created_by"] = context.user
+        data["sg_task"] = context.task
+
+        # link to the publish
+        if sgtk.util.get_published_file_entity_type(self.sgtk) == "PublishedFile":
+            # client is using published file entity
+            data["published_files"] = [sg_publish_data]
+        else:
+            # client is using old "TankPublishedFile" entity
+            data["tank_published_file"] = sg_publish_data
+        
+#         data["sg_path_to_frames"] = xxx
+#         data["sg_path_to_movie"] = xxx
+# 
+#         data["sg_first_frame"] = xxx
+#         data["sg_last_frame"] = xxx
+#         data["frame_count"] = xxx
+#         data["frame_range"] = xxx
+#         
+#         data["sg_frames_have_slate"] = False
+#         data["sg_movie_has_slate"] = False
+#         
+#         data["sg_frames_aspect_ratio"] = xxx
+#         data["sg_movie_aspect_ratio"] = xxx
+        
+        
+        sg_version_data = self.shotgun.create("Version", data)
+        
+        self.log_debug("Created a version in Shotgun: %s" % sg_version_data)
+        
+        
+        
+        
+        self.log_debug("Start transcoding quicktime...")
+
+        # first assemble the readframe syntax. This will use the wiretap API to emit a stream of 
+        # image data to stdout that we can pipe into ffmpeg. We use this because the ffmpeg version
+        # coming with flame is from 2009 and doesn't support dpx files but also to make sure that
+        # all file formats that flame supports (e.g. exrs) can be converted.
+        # 
+        # Syntax:
+        #
+        # Usage: ./read_frame
+        #   -n <clip node id> (if empty, generate 4x4 black media)
+        #   [ -h <Wiretap server ID> (default = localhost) ]
+        #   [ -W <display width> (default=same as source) ]
+        #   [ -H <display height> (default=same as source) ]
+        #   [ -b <output bits per pixel (24|32)> (default = 24) ]
+        #   [ -i <zero-based start frame idx> (default = 0) ]
+        #   [ -N <number of frames to output> (default = 1, -1 for all)
+        #   [ -r (output raw RGB, default=jpg) ]
+        #   [ -O (flip raw output orientation, default=bottom to top) ]
+        #   [ -L (use lowest resolution available, default=highest) ]
+        #   [ -c <compression factor [0,100]> (default = 100)
+        #   [ -p <processing options> (default = none)
+        #
+        # Command line example:
+        # 
+        # ./read_frame 
+        #  -n /path/to.dpx@CLIP   <-- append @CLIP at the end of the path 
+        #  -h localhost:Gateway   <-- connect to wiretap
+        #  -W 1280 -H 720         <-- width and height to output
+        #  -L                     <-- default to lowest resolution
+        #  -N -1                  <-- output all frames 
+        #  -r                     <-- output raw rgb stream
+        # 
+        input_cmd = "%s -n \"%s@CLIP\" -h %s -W %s -H %s -L -N -1 -r" % (self.engine.get_read_frame_path(),
+                                                                         full_flame_path,
+                                                                         "localhost:Gateway",
+                                                                         target_width,
+                                                                         target_height)
+
+        # we now pipe this image stream into ffmpeg and generate a quicktime
+        #
+        # example command line:
+        # 
+        # ./ffmpeg -f rawvideo -top -1 -pix_fmt rgb24 -s 1280x720 -i -  -y -r 25 QUICKTIME_OPTIONS /output/file.mov
+        #
+        # ./ffmpeg 
+        #  -f rawvideo         <-- tell ffmpeg to read a raw stream from stdin
+        #  -top -1             <-- automatically interpret the stream data flow direction
+        #  -pix_fmt rgb24      <-- input stream pixel data lay out
+        #  -s 1280x720         <-- input stream resolution
+        #  -i -                <-- no input file
+        #  -y                  <-- overwrite existing files
+        #  -r 25               <-- need to tell ffmpeg what the fps is 
+        #  QUICKTIME_OPTIONS   <-- quicktime codec options (comes from hook)
+        #  /output/file.mov    <-- target file
+        #
+        ffmpeg_cmd = "%s -f rawvideo -top -1 -pix_fmt rgb24 -s %sx%s -i - -y -r %s" % (self.engine.get_ffmpeg_path(),
+                                                                                       target_width,
+                                                                                       target_height,
+                                                                                       info["fps"])
+
+        ffmpeg_presets = self.execute_hook_method("settings_hook", "get_ffmpeg_quicktime_encode_parameters")
+        
+        tmp_quicktime = os.path.join(self.engine.get_backburner_tmp(), "tk_flame_%s.mov" % uuid.uuid4().hex) 
+
+        full_cmd = "%s | %s %s %s" % (input_cmd, ffmpeg_cmd, ffmpeg_presets, tmp_quicktime)
+        
+        self.log_debug("Transcoding command line: %s" % full_cmd)
+        
+        if os.system(full_cmd) != 0:
+            raise TankError("Could not transcode media. See error log for details.")
+        
+        self.log_debug("Quicktime successfully created!")
+        self.log_debug("File size is %s bytes." % os.path.getsize(tmp_quicktime))
+        
+        # upload quicktime to Shotgun
+        self.log_debug("Begin upload of quicktime to shotgun...")
+        self.shotgun.upload("Version", sg_version_data["id"], tmp_quicktime, "sg_uploaded_movie")
+        self.log_debug("Upload complete!")
+        
+        # clean up
+        try:
+            self.log_debug("Trying to remove temporary quicktime file...")
+            os.remove(tmp_quicktime)
+            self.log_debug("Temporary quicktime file successfully deleted.")
+        except Exception, e:
+            self.log_warning("Could not remove temporary file '%s': %s" % (tmp_quicktime, e))
+    
+    
+        raise TankError("foo!")
     
         
     def display_summary(self, session_id, info):

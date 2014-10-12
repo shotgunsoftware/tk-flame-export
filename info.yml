@@ -53,12 +53,7 @@ configuration:
         type: tank_type
         description: The publish type for Flame plates  
         default_value: "Flame Plate"                 
-    
-    clip_publish_type:
-        type: tank_type
-        description: The publish type for Flame OpenScene XML clips
-        default_value: "Flame Open Clip" 
-    
+        
     batch_publish_type:
         type: tank_type
         description: The publish type for Flame batch scripts
