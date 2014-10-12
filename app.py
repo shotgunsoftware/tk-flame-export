@@ -13,6 +13,7 @@ Flame content exporter.
 """
 
 import sys
+import copy
 import uuid
 import os
 import re
@@ -81,7 +82,7 @@ class FlameExport(Application):
             info["abortMessage"] = "User cancelled the operation."        
         else:
             # get comments from user
-            self._user_comments = widget.get_comments()        
+            self._user_comments = widget.get_comments()      
             # populate the host to use for the export. Currently hard coded to local
             info["destinationHost"] = "localhost"
             # let the export root path align with the primary project root
@@ -377,11 +378,43 @@ class FlameExport(Application):
         """
         Called when an item has been exported
         
-        :param session_id: String which identifies which export session is being referred to
-        :param info: metadata dictionary for the publish
+        :param info: Dictionary with a number of parameters:
+        
+           destinationHost: Host name where the exported files will be written to.
+           destinationPath: Export path root.
+           namePattern:     List of optional naming tokens.
+           resolvedPath:    Full file pattern that will be exported with all the tokens resolved.
+           name:            Name of the exported asset.
+           sequenceName:    Name of the sequence the asset is part of.
+           shotName:        Name of the shot the asset is part of.
+           assetType:       Type of exported asset. ( 'video', 'audio', 'batch', 'openClip', 'batchOpenClip' )
+           isBackground:    True if the export of the asset happened in the background.
+           backgroundJobId: Id of the background job given by the backburner manager upon submission. 
+                            Empty if job is done in foreground.
+           width:           Frame width of the exported asset.
+           height:          Frame height of the exported asset.
+           aspectRatio:     Frame aspect ratio of the exported asset.
+           depth:           Frame depth of the exported asset. ( '8-bits', '10-bits', '12-bits', '16 fp' )
+           scanFormat:      Scan format of the exported asset. ( 'FILED_1', 'FIELD_2', 'PROGRESSIVE' )
+           fps:             Frame rate of exported asset.
+           sequenceFps:     Frame rate of the sequence the asset is part of.
+           sourceIn:        Source in point in frame and asset frame rate.
+           sourceOut:       Source out point in frame and asset frame rate.
+           recordIn:        Record in point in frame and sequence frame rate.
+           recordOut:       Record out point in frame and sequence frame rate.
+           track:           ID of the sequence's track that contains the asset.
+           trackName:       Name of the sequence's track that contains the asset.
+           segmentIndex:    Asset index (1 based) in the track.       
+           versionName:     Current version name of export (Empty if unversioned).
+           versionNumber:   Current version number of export (0 if unversioned).
+           
+        :param serialized_shot_context: The context for the shot that the submission is associated with, 
+                                        in serialized form.
+        :param fields: Template fields data representing the location of the given asset
+        :param user_comments: Comments entered by the user at export start.
         """
 
-        self.log_debug("--- Starting to populate shotgun ---")
+        self.log_debug("Creating publish in Shotgun...")
                 
         shot_context = sgtk.context.deserialize(serialized_shot_context)
         
@@ -426,38 +459,76 @@ class FlameExport(Application):
         if info.get("assetType") == "video":
             self._create_version(info, shot_context, template, fields, sg_publish_data, user_comments)
             
-
-
-
-
-
-
-
-
-
-
-            
     def _create_version(self, info, context, template, fields, sg_publish_data, user_comments):
         """
-        Create a Shotgun version entity.
-        Generate a quicktime.
-        Upload quicktime to Shotgun.
+        Process review portion of an export. 
+        
+        For video assets, this method will do the following:
+        - Create a Shotgun version entity and populate as much metadata as possible
+        - Generate a quicktime by streaming the asset data via wiretap into ffmepg.
+          A h264 quicktime with shotgun-friendly settings are created, however the quicktime
+          defaults are defined in the settings hook and can be controlled by the user.
+        - Lastly, uploads the quicktime to Shotgun and then deletes it off disk.
+        
+        :param info: Dictionary with a number of parameters:
+        
+           destinationHost: Host name where the exported files will be written to.
+           destinationPath: Export path root.
+           namePattern:     List of optional naming tokens.
+           resolvedPath:    Full file pattern that will be exported with all the tokens resolved.
+           name:            Name of the exported asset.
+           sequenceName:    Name of the sequence the asset is part of.
+           shotName:        Name of the shot the asset is part of.
+           assetType:       Type of exported asset. ( 'video', 'audio', 'batch', 'openClip', 'batchOpenClip' )
+           isBackground:    True if the export of the asset happened in the background.
+           backgroundJobId: Id of the background job given by the backburner manager upon submission. 
+                            Empty if job is done in foreground.
+           width:           Frame width of the exported asset.
+           height:          Frame height of the exported asset.
+           aspectRatio:     Frame aspect ratio of the exported asset.
+           depth:           Frame depth of the exported asset. ( '8-bits', '10-bits', '12-bits', '16 fp' )
+           scanFormat:      Scan format of the exported asset. ( 'FILED_1', 'FIELD_2', 'PROGRESSIVE' )
+           fps:             Frame rate of exported asset.
+           sequenceFps:     Frame rate of the sequence the asset is part of.
+           sourceIn:        Source in point in frame and asset frame rate.
+           sourceOut:       Source out point in frame and asset frame rate.
+           recordIn:        Record in point in frame and sequence frame rate.
+           recordOut:       Record out point in frame and sequence frame rate.
+           track:           ID of the sequence's track that contains the asset.
+           trackName:       Name of the sequence's track that contains the asset.
+           segmentIndex:    Asset index (1 based) in the track.       
+           versionName:     Current version name of export (Empty if unversioned).
+           versionNumber:   Current version number of export (0 if unversioned).
+           
+        :param context: The context for the shot that the submission is associated with, 
+                        in serialized form.
+        :param template: The template objects that represents the path to the sequence
+        :param fields: Template fields data representing the location of the given asset
+        :param sg_publish_data: Std shotgun dictionary (with type and id), representing the publish
+                                in Shotgun that has been carried out for this asset.
+        :param user_comments: Comments entered by the user at export start.
         """
         
         # get the full flame style path
         full_flame_path = os.path.join(info["destinationPath"], info["resolvedPath"])
         
-        self.log_debug("Begin version processing for %s..." % full_flame_path)
+        # also generate the same path (via templates) but with a more standard %04d encoding
+        new_fields = copy.deepcopy(fields)
+        new_fields["SEQ"] = "FORMAT: %d"
+        full_std_path = template.apply_fields(new_fields)
         
         # note / todo: there doesn't seem to be any way to downscale the quicktime
-        # as it is being generated/streamed out of wiretap and encoded by ffmpeg.        
+        # as it is being generated/streamed out of wiretap and encoded by ffmpeg.
+        # ideally we would like to downrez it to height 720px prior to uploading
+        # according to the Shotgun transcoding guidelines (and to optimize bandwidth)        
         width = info["width"]
         height = info["height"]
+        aspect_ratio = (float)(width)/(float)(height)
 
-        
-        
+        self.log_debug("Begin version processing for %s..." % full_flame_path)
+
         data = {}
-        data["code"] = publish_name = os.path.basename(full_flame_path)
+        data["code"] = publish_name = os.path.basename(full_std_path)
         data["description"] = user_comments
         data["project"] = context.project
         data["entity"] = context.entity
@@ -472,27 +543,25 @@ class FlameExport(Application):
             # client is using old "TankPublishedFile" entity
             data["tank_published_file"] = sg_publish_data
         
-#         data["sg_path_to_frames"] = xxx
-#         data["sg_path_to_movie"] = xxx
-# 
-#         data["sg_first_frame"] = xxx
-#         data["sg_last_frame"] = xxx
-#         data["frame_count"] = xxx
-#         data["frame_range"] = xxx
-#         
-#         data["sg_frames_have_slate"] = False
-#         data["sg_movie_has_slate"] = False
-#         
-#         data["sg_frames_aspect_ratio"] = xxx
-#         data["sg_movie_aspect_ratio"] = xxx
-        
+        # populate the path to frames with a path which is using %4d syntax
+        data["sg_path_to_frames"] = full_std_path
+
+        # note: we don't have a quicktime on disk which we link up to.
+        # we just upload it to shotgun and the discard it
+        # data["sg_path_to_movie"] = None
+
+        data["sg_first_frame"] = info["sourceIn"]
+        data["sg_last_frame"] = info["sourceOut"]
+        data["frame_count"] = info["sourceOut"] - info["sourceIn"] + 1 
+        data["frame_range"] = "%s-%s" % (info["sourceIn"], info["sourceOut"])         
+        data["sg_frames_have_slate"] = False
+        data["sg_movie_has_slate"] = False         
+        data["sg_frames_aspect_ratio"] = aspect_ratio
+        data["sg_movie_aspect_ratio"] = aspect_ratio
         
         sg_version_data = self.shotgun.create("Version", data)
         
         self.log_debug("Created a version in Shotgun: %s" % sg_version_data)
-        
-        
-        
         
         self.log_debug("Start transcoding quicktime...")
 
@@ -550,13 +619,17 @@ class FlameExport(Application):
         #  QUICKTIME_OPTIONS   <-- quicktime codec options (comes from hook)
         #  /output/file.mov    <-- target file
         #
-        ffmpeg_cmd = "%s -f rawvideo -top -1 -pix_fmt rgb24 -s %sx%s -i - -y -r %s" % (self.engine.get_ffmpeg_path(),
-                                                                                       width,
-                                                                                       height,
-                                                                                       info["fps"])
-
-        ffmpeg_presets = self.execute_hook_method("settings_hook", "get_ffmpeg_quicktime_encode_parameters")
         
+        # note: the -r framerate argument seems to confuse ffmpeg so I am omitting that
+        # instead, quicktimes are generated at 25fps.
+        
+        ffmpeg_cmd = "%s -f rawvideo -top -1 -pix_fmt rgb24 -s %sx%s -i - -y" % (self.engine.get_ffmpeg_path(),
+                                                                                 width,
+                                                                                 height)
+                                                                                       
+        # get quicktime settings
+        ffmpeg_presets = self.execute_hook_method("settings_hook", "get_ffmpeg_quicktime_encode_parameters")
+        # generate target file
         tmp_quicktime = os.path.join(self.engine.get_backburner_tmp(), "tk_flame_%s.mov" % uuid.uuid4().hex) 
 
         full_cmd = "%s | %s %s %s" % (input_cmd, ffmpeg_cmd, ffmpeg_presets, tmp_quicktime)
@@ -582,7 +655,6 @@ class FlameExport(Application):
         except Exception, e:
             self.log_warning("Could not remove temporary file '%s': %s" % (tmp_quicktime, e))
     
-        raise TankError("foo")
     
         
     def display_summary(self, session_id, info):
