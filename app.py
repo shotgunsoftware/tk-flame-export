@@ -56,6 +56,8 @@ class FlameExport(Application):
         # register with the engine
         self.engine.register_export_hook(menu_caption, callbacks)
 
+
+
     def pre_custom_export(self, session_id, info):
         """
         Hook called before a custom export begins. The export will be blocked
@@ -71,6 +73,9 @@ class FlameExport(Application):
         """
         
         from PySide import QtGui, QtCore
+        
+        # reset export session data
+        self._shots = {}
         
         # pop up a UI asking the user for description
         submit_dialog = self.import_module("submit_dialog")        
@@ -153,7 +158,7 @@ class FlameExport(Application):
             self.engine.show_busy("Preparing Shotgun...", "Resolving Shot contexts...")
             for shot_name in shots:
                 sg_shot_id = shots[shot_name]["shotgun"]["id"]
-                shots[shot_name]["context"] = self.sgtk.context_from_entity("Shot", sg_shot_id)   
+                shots[shot_name]["context"] = self.sgtk.context_from_entity("Shot", sg_shot_id) 
         
             # and finally store the data for downstream consumption
             self._shots = shots 
@@ -345,25 +350,38 @@ class FlameExport(Application):
         else:
             run_after_job_id = None
         
-        # set up the arguments which we will pass (via backburner) to 
-        # the target method which gets executed
-        
+        # extract some shot specific parameters to pass down to the remote job
         context = self._shots[info["shotName"]]["context"]
         fields  = self._shots[info["shotName"]][asset_type]["fields"]
         
+        # figure out if the publishing process should also be setting
+        # the thumbnail for the associated shot
+        # see if the associated shot was created now
+        shot_created = self._shots[info["shotName"]]["created"]
+        # see if any other asset export as already flagged that they are doing the upload
+        thumb_uploaded = self._shots[info["shotName"]].get("thumb_uploaded", False)
+        # only consider uploading for video type assets
+        if shot_created and asset_type == "video" and not thumb_uploaded:
+            self._shots[info["shotName"]]["thumb_uploaded"] = True
+            make_shot_thumb = True
+        else:
+            make_shot_thumb = False
+        
+        # now start preparing a remote job
         args = {"info": info, 
                 "serialized_shot_context": sgtk.context.serialize(context),
                 "fields": fields,
-                "user_comments": self._user_comments }
+                "user_comments": self._user_comments,
+                "make_shot_thumb": make_shot_thumb }
         
-        # and populate UI params
+        # and populate backburner job parameters
         field_str = ", ".join(["%s %s" % (k,v) for (k,v) in fields.iteritems()])
         field_str += ", ".join(["%s %s" % (k,v) for (k,v) in info.iteritems()])
         
-        full_flame_path = os.path.join(info["destinationPath"], info["resolvedPath"])        
         backburner_job_title = "Shotgun Upload - %s, %s, %s" % (info["sequenceName"], 
                                                                info["shotName"], 
                                                                info["assetType"])
+
         backburner_job_desc = "Transcoding media, registering and uploading in Shotgun for %s" % field_str        
         
         # kick off async job
@@ -374,7 +392,7 @@ class FlameExport(Application):
                                                 "populate_shotgun",
                                                 args)
 
-    def populate_shotgun(self, info, serialized_shot_context, fields, user_comments):
+    def populate_shotgun(self, info, serialized_shot_context, fields, user_comments, make_shot_thumb):
         """
         Called when an item has been exported
         
@@ -412,6 +430,7 @@ class FlameExport(Application):
                                         in serialized form.
         :param fields: Template fields data representing the location of the given asset
         :param user_comments: Comments entered by the user at export start.
+        :param make_shot_thumb: Should a thumbnail be uploaded to the associated shot as well?
         """
 
         self.log_debug("Creating publish in Shotgun...")
@@ -443,13 +462,12 @@ class FlameExport(Application):
             "context": shot_context,
             "comment": user_comments,
             "path": full_std_path,
-            "name": os.path.basename(full_std_path),
+            "name": "foo bar",
             "version_number": info.get("versionNumber"),
             "created_by": shot_context.user,
             "task": shot_context.task,
             "published_file_type": publish_type,
         }
-        
         
         thumbnail_jpg = None
         
@@ -467,8 +485,13 @@ class FlameExport(Application):
             thumbnail_jpg = os.path.join(self.engine.get_backburner_tmp(), "tk_thumb_%s.jpg" % uuid.uuid4().hex)
             os.system("%s > %s" % (input_cmd, thumbnail_jpg))
             self.log_debug("Wrote thumbnail %s" % thumbnail_jpg)
-            args["thumbnail_path"] = thumbnail_jpg
+            
+            # check if the shot needs a thumbnail
+            if make_shot_thumb:
+                args["update_entity_thumbnail"] = True
         
+            # add the thumbnail to the publish generation
+            args["thumbnail_path"] = thumbnail_jpg
 
         self.log_debug("Register publish in shotgun: %s" % str(args))        
         sg_publish_data = sgtk.util.register_publish(**args)
