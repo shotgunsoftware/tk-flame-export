@@ -360,7 +360,7 @@ class FlameExport(Application):
         field_str += ", ".join(["%s %s" % (k,v) for (k,v) in info.iteritems()])
         
         full_flame_path = os.path.join(info["destinationPath"], info["resolvedPath"])        
-        backburner_job_title = "Shotgun Upload: %s, %s, %s" % (info["sequenceName"], 
+        backburner_job_title = "Shotgun Upload - %s, %s, %s" % (info["sequenceName"], 
                                                                info["shotName"], 
                                                                info["assetType"])
         backburner_job_desc = "Transcoding media, registering and uploading in Shotgun for %s" % field_str        
@@ -423,7 +423,6 @@ class FlameExport(Application):
         
         self.log_debug("Register complete: %s" % sg_publish_data)
         
-        
         if info.get("assetType") == "video":
             self._create_version(info, shot_context, template, fields, sg_publish_data, user_comments)
             
@@ -450,31 +449,11 @@ class FlameExport(Application):
         
         self.log_debug("Begin version processing for %s..." % full_flame_path)
         
-        # shotgun transcoding guidelines suggest a height of 720 pixels, compute
-        # processing resolution using these criteria
-        source_width = info["width"]
-        source_height = info["height"]
-        self.log_debug("Plate resolution: %sx%s" % (source_width, source_height))
-        
-        if source_height < 720:
-            # don't want to upres
-            target_height = source_height
-            target_width = source_width
-            self.log_debug("Plate resolution is lower than recommended height of 720. No downscaling will occur.")
-        else:
-            # scale down resolution
-            target_height = 720
-            target_width = ( (float)(source_width) / (float)(source_height) ) * 720.0
-            target_width = int(target_width)
-            
-            # note! the h264 encoding does not support encoding of sizes which are not divisible by two
-            # check if this is the case and if so, upres:
-            if target_width % 2 != 0:
-                target_width += 1
-            
-            self.log_debug("Resolution will be downscaled to %sx%s for quicktimes." % (target_width, target_height))
-        
-            
+        # note / todo: there doesn't seem to be any way to downscale the quicktime
+        # as it is being generated/streamed out of wiretap and encoded by ffmpeg.        
+        width = info["width"]
+        height = info["height"]
+
         
         
         data = {}
@@ -551,8 +530,8 @@ class FlameExport(Application):
         input_cmd = "%s -n \"%s@CLIP\" -h %s -W %s -H %s -L -N -1 -r" % (self.engine.get_read_frame_path(),
                                                                          full_flame_path,
                                                                          "localhost:Gateway",
-                                                                         target_width,
-                                                                         target_height)
+                                                                         width,
+                                                                         height)
 
         # we now pipe this image stream into ffmpeg and generate a quicktime
         #
@@ -572,8 +551,8 @@ class FlameExport(Application):
         #  /output/file.mov    <-- target file
         #
         ffmpeg_cmd = "%s -f rawvideo -top -1 -pix_fmt rgb24 -s %sx%s -i - -y -r %s" % (self.engine.get_ffmpeg_path(),
-                                                                                       target_width,
-                                                                                       target_height,
+                                                                                       width,
+                                                                                       height,
                                                                                        info["fps"])
 
         ffmpeg_presets = self.execute_hook_method("settings_hook", "get_ffmpeg_quicktime_encode_parameters")
@@ -603,7 +582,7 @@ class FlameExport(Application):
         except Exception, e:
             self.log_warning("Could not remove temporary file '%s': %s" % (tmp_quicktime, e))
     
-    
+        raise TankError("foo")
     
         
     def display_summary(self, session_id, info):
