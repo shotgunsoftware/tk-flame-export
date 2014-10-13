@@ -41,6 +41,9 @@ class FlameExport(Application):
         # UI comments
         self._user_comments = ""
         
+        # flag to indicate that something was actually submitted
+        self._submission_done = False     
+        
         # register our desired interaction with flame hooks
         menu_caption = self.get_setting("menu_name")
         
@@ -76,6 +79,7 @@ class FlameExport(Application):
         
         # reset export session data
         self._shots = {}
+        self._submission_done = False
         
         # pop up a UI asking the user for description
         submit_dialog = self.import_module("submit_dialog")        
@@ -382,6 +386,9 @@ class FlameExport(Application):
                                                 self, 
                                                 "populate_shotgun",
                                                 args)
+        
+        # all done - the rest will happen on the render farm.
+        self._submission_done = True
 
     def populate_shotgun(self, info, serialized_shot_context, fields, user_comments, make_shot_thumb):
         """
@@ -710,7 +717,23 @@ class FlameExport(Application):
                      - presetPath: Path to the preset used for the export.
         
         """
-        self.log_debug("Todo: pop up summary UI!")
+        # todo - replace with custom UI
+        from PySide import QtGui, QtCore
+        
+        if self._submission_done:
+            # things are cooking!
+            QtGui.QMessageBox.information(None,
+                                          "Shotgun submission complete!",
+                                          "Submission complete! Quicktimes will be generated in the background and "
+                                          "then uploaded to Shotgun.")
+
+        else:
+            # somewhere along the way, outside hooks, the process was cancelled or errored.
+            QtGui.QMessageBox.warning(None,
+                                      "Submission cancelled!",
+                                      "Shotgun submission was cancelled or aborted. Nothing will be uploaded "
+                                      "to Shotgun for review.")
+            
         
         
         

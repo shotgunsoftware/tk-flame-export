@@ -151,7 +151,7 @@ The generated media is 10-bit DPX and no audio.</comment>
       <fileType>Dpx</fileType>
       <codec>923680</codec>
       <codecProfile />
-      <namePattern>&lt;segment&gt;/&lt;segment name&gt;/</namePattern>
+      <namePattern>{VIDEO_NAME_PATTERN}</namePattern>
       <compressionQuality>50</compressionQuality>
       <transferCharacteristic>2</transferCharacteristic>
       <colorimetricSpecification>4</colorimetricSpecification>
@@ -177,15 +177,15 @@ The generated media is 10-bit DPX and no audio.</comment>
       <useTimecode>False</useTimecode>
    </name>
    <createOpenClip>
-      <namePattern>&lt;segment&gt;/&lt;segment name&gt;/</namePattern>
+      <namePattern>{SEGMENT_CLIP_NAME_PATTERN}</namePattern>
       <version>
          <index>0</index>
          <padding>{VERSION_PADDING}</padding>
          <name>v&lt;version&gt;</name>
       </version>
       <batchSetup>
-         <namePattern>&lt;segment&gt;/&lt;segment name&gt;/</namePattern>
-         <exportNamePattern>&lt;segment&gt;/&lt;segment name&gt;/</exportNamePattern>
+         <namePattern>{BATCH_NAME_PATTERN}/</namePattern>
+         <exportNamePattern>{SHOT_CLIP_NAME_PATTERN}/</exportNamePattern>
       </batchSetup>
    </createOpenClip>
    <reImport>
