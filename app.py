@@ -102,10 +102,6 @@ class FlameExport(Application):
                                                           "get_export_preset",
                                                           shot_parent_template_field=shot_parent_entity_type)
             self.log_debug("%s: Starting custom export session with preset '%s'" % (self, info["presetPath"]))
-
-
-        info["abort"] = True
-        info["abortMessage"] = "User cancelled the operation."        
         
 
 
@@ -149,7 +145,7 @@ class FlameExport(Application):
         
         try:
             # find and create objects in shotgun
-            shots = self.__resolve_sg_shot_structure(parent_name, shot_names)
+            shots = self.__resolve_sg_shot_structure(sequence_name, shot_names)
             
             # shots will be on the form
             # {"aaa_xxxx": {"created": True, "shotgun": {"type": "Shot", "id": 123}, ...}
@@ -269,7 +265,7 @@ class FlameExport(Application):
            destinationPath: Export path root.
            namePattern:     List of optional naming tokens.
            resolvedPath:    Full file pattern that will be exported with all the tokens resolved.
-           name:            Name of the exported asset.
+           assetName:       Name of the exported asset.
            sequenceName:    Name of the sequence the asset is part of.
            shotName:        Name of the shot the asset is part of.
            assetType:       Type of exported asset. ( 'video', 'audio', 'batch', 'openClip', 'batchOpenClip' )
@@ -350,7 +346,7 @@ class FlameExport(Application):
         if "versionNumber" in info:
             fields["version"] = int(info["versionNumber"])
         
-        fields["segment_name"] = info["name"]
+        fields["segment_name"] = info["assetName"]
             
         if "width" in info:
             fields["width"] = int(info["width"])
@@ -371,10 +367,15 @@ class FlameExport(Application):
         
         self.log_debug("Chopping off root path %s -> %s" % (full_path, local_path))
         
+        # pass an updated path back to the flame. This ensures that all the 
+        # character substitutions etc are handled according to the toolkit logic 
         info["resolvedPath"] = local_path
 
-        # add the template for the clip and shot
-        self._shots[info["shotName"]][info.get("assetType")] = {"template": template, "fields": fields}
+        # the template and fields are needed in the post-asset export, so add them 
+        # to our data structure that we are passing down the pipe. 
+        # key by both type and name (segment name) in order to guarantee uniqueness
+        template_key = "%s_%s" % (info["assetType"], info["assetName"])
+        self._shots[info["shotName"]][template_key] = (template, fields)
         
         
     def register_post_asset_job(self, session_id, info):
@@ -430,9 +431,17 @@ class FlameExport(Application):
         else:
             run_after_job_id = None
         
-        # extract some shot specific parameters to pass down to the remote job
+        # extract context to pass downstream to the content generation job
         context = self._shots[info["shotName"]]["context"]
-        fields  = self._shots[info["shotName"]][asset_type]["fields"]
+        
+        # given the template and fields we calculated in the pre-asset hook,
+        # compute a shotgun-friendly path where the sequence identifier has 
+        # been turned into a %04d-equivalent:
+        template_key = "%s_%s" % (info["assetType"], info["assetName"])
+        (template, fields) = self._shots[info["shotName"]][template_key]
+        new_fields = copy.deepcopy(fields)
+        new_fields["SEQ"] = "FORMAT: %d"
+        toolkit_path = template.apply_fields(new_fields)        
         
         # figure out if the publishing process should also be setting
         # the thumbnail for the associated shot
@@ -450,7 +459,7 @@ class FlameExport(Application):
         # now start preparing a remote job
         args = {"info": info, 
                 "serialized_shot_context": sgtk.context.serialize(context),
-                "fields": fields,
+                "toolkit_path": toolkit_path,
                 "user_comments": self._user_comments,
                 "make_shot_thumb": make_shot_thumb }
         
@@ -475,7 +484,7 @@ class FlameExport(Application):
         # all done - the rest will happen on the render farm.
         self._submission_done = True
 
-    def populate_shotgun(self, info, serialized_shot_context, fields, user_comments, make_shot_thumb):
+    def populate_shotgun(self, info, serialized_shot_context, toolkit_path, user_comments, make_shot_thumb):
         """
         Called when an item has been exported
         
@@ -511,7 +520,7 @@ class FlameExport(Application):
            
         :param serialized_shot_context: The context for the shot that the submission is associated with, 
                                         in serialized form.
-        :param fields: Template fields data representing the location of the given asset
+        :param toolkit_path: Path to the file or sequence, toolkit style
         :param user_comments: Comments entered by the user at export start.
         :param make_shot_thumb: Should a thumbnail be uploaded to the associated shot as well?
         """
@@ -522,29 +531,22 @@ class FlameExport(Application):
         
         if info.get("assetType") == "video":
             publish_type = self.get_setting("plate_publish_type")
-            template = self.get_template("plate_template")
             
         elif info.get("assetType") == "batch":
             publish_type = self.get_setting("batch_publish_type")
-            template = self.get_template("batch_template")
                         
         else:
             raise TankError("Unsupported asset type '%s'" % info.get("assetType"))
         
         # join together the full path, flame style        
         full_flame_path = os.path.join(info.get("destinationPath"), info.get("resolvedPath"))
-        
-        # also generate the same path (via templates) but with a more standard %04d encoding
-        new_fields = copy.deepcopy(fields)
-        new_fields["SEQ"] = "FORMAT: %d"
-        full_std_path = template.apply_fields(new_fields)
-                
+                        
         # now start assemble publish parameters
         args = {
             "tk": self.sgtk,
             "context": shot_context,
             "comment": user_comments,
-            "path": full_std_path,
+            "path": toolkit_path,
             "name": "foo bar",
             "version_number": info.get("versionNumber"),
             "created_by": shot_context.user,
@@ -587,7 +589,7 @@ class FlameExport(Application):
             self.__clean_up_temp_file(thumbnail_jpg)
                     
         if info.get("assetType") == "video":
-            self._create_version(info, shot_context, full_std_path, sg_publish_data, user_comments)
+            self._create_version(info, shot_context, toolkit_path, sg_publish_data, user_comments)
             
     def _create_version(self, info, context, full_std_path, sg_publish_data, user_comments):
         """
