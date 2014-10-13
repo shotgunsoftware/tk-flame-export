@@ -62,13 +62,15 @@ class ExportSettings(HookBaseClass):
         return params
         
 
-    def get_export_preset(self, shot_parent_template_field):
+    def get_export_preset(self, resolved_flame_templates):
         """
         Generate flame export profile settings suitable for generating image sequences
         for all shots.
         
-        :param shot_parent_template_field: The template field which contains the shot parent.
-                                           Typically, this is Sequence.
+        :param resolved_flame_templates: Dictionary of templates, named the same way that
+                                         the templates in the app settings, resolved to 
+                                         be compatible with Flame and equivalent in functionality
+                                         to the toolkit interpretation.
         :returns: path to export preset xml file
         """
         xml = """<?xml version="1.0" encoding="UTF-8"?>
@@ -145,78 +147,14 @@ The generated media is 10-bit DPX and no audio.</comment>
 </preset>
         """
         
-        # now we need to take our toolkit templates and inject them into the xml template
-        # definition that we are about to send to Flame.
-        #
-        # typically, our template defs will look something like this:
-        # plate:        'sequences/{Sequence}/{Shot}/editorial/plates/{segment_name}_{Shot}.v{version}.{SEQ}.dpx'
-        # batch:        'sequences/{Sequence}/{Shot}/editorial/flame/batch/{Shot}.v{version}.batch'
-        # segment_clip: 'sequences/{Sequence}/{Shot}/editorial/flame/sources/{segment_name}.clip'
-        # shot_clip:    'sequences/{Sequence}/{Shot}/editorial/flame/{Shot}.clip'
-        #
-        # {Sequence} may be {Scene} or {CustomEntityXX} according to the configuration and the 
-        # exact entity type to use is passed into the hook via the the shot_parent_template_field parameter.
-        #
-        # The flame export root is set to correspond to the toolkit project, meaning that both the 
-        # flame and toolkit templates share the same root point.
-        #
-        # The following replacements will be made to convert the toolkit template into Flame equivalents:
-        # 
-        # {Sequence}     ==> <name> (Note: May be {Scene} or {CustomEntityXX} according to the configuration)
-        # {Shot}         ==> <shot name>
-        # {segment_name} ==> <segment name>
-        # {version}      ==> <version>
-        # {SEQ}          ==> <frame>
-        # 
-        # and the special one <ext> which corresponds to the last part of the template. In the examples above:
-        # {segment_name}_{Shot}.v{version}.{SEQ}.dpx : <ext> is '.dpx' 
-        # {Shot}.v{version}.batch : <ext> is '.batch'
-        # etc.
-        #
-        # example substitution:
-        #
-        # Toolkit: 'sequences/{Sequence}/{Shot}/editorial/plates/{segment_name}_{Shot}.v{version}.{SEQ}.dpx'
-        #
-        # Flame:   'sequences/<name>/<shot name>/editorial/plates/<segment name>_<shot name>.v<version>.<frame><ext>'
-        #
-        #
-        
-        # get the export template defs for all our templates
-        # the definition is a string on the form 
-        # 'sequences/{Sequence}/{Shot}/editorial/plates/{segment_name}_{Shot}.v{version}.{SEQ}.dpx'
-        template_defs = {}
-        template_defs["plate_template"] = self.parent.get_template("plate_template").definition
-        template_defs["batch_template"] = self.parent.get_template("batch_template").definition        
-        template_defs["shot_clip_template"] = self.parent.get_template("shot_clip_template").definition
-        template_defs["segment_clip_template"] = self.parent.get_template("segment_clip_template").definition
-        
-        # perform substitutions
-        self.parent.log_debug("Performing field substitutions")
-        for t in template_defs:
-            
-            self.parent.log_debug("Toolkit: %s" % template_defs[t])
-            
-            template_defs[t] = template_defs[t].replace("{%s}" % shot_parent_template_field, "<name>")
-            template_defs[t] = template_defs[t].replace("{Shot}", "<shot name>")
-            template_defs[t] = template_defs[t].replace("{segment_name}", "<segment name>")
-            template_defs[t] = template_defs[t].replace("{version}", "<version>")
-            template_defs[t] = template_defs[t].replace("{SEQ}", "<frame>")
-            
-            # Now carry over the sequence token
-            (head, ext) = os.path.splitext(template_defs[t])
-            template_defs[t] = "%s<ext>" % head
-            
-            self.parent.log_debug("Flame:  %s" % template_defs[t])
-        
-        # now perform substitutions
-        xml = xml.replace("{VIDEO_NAME_PATTERN}", cgi.escape(template_defs["plate_template"]))
-        xml = xml.replace("{SEGMENT_CLIP_NAME_PATTERN}", cgi.escape(template_defs["segment_clip_template"]))
-        xml = xml.replace("{BATCH_NAME_PATTERN}", cgi.escape(template_defs["batch_template"]))
-        xml = xml.replace("{SHOT_CLIP_NAME_PATTERN}", cgi.escape(template_defs["shot_clip_template"]))
+        # now perform substitutions based on the resolved flame templates
+        # make sure we escape any < and > before we add them to the xml
+        xml = xml.replace("{VIDEO_NAME_PATTERN}",        cgi.escape(resolved_flame_templates["plate_template"]))
+        xml = xml.replace("{SEGMENT_CLIP_NAME_PATTERN}", cgi.escape(resolved_flame_templates["segment_clip_template"]))
+        xml = xml.replace("{BATCH_NAME_PATTERN}",        cgi.escape(resolved_flame_templates["batch_template"]))
+        xml = xml.replace("{SHOT_CLIP_NAME_PATTERN}",    cgi.escape(resolved_flame_templates["shot_clip_template"]))
 
-        # now adjust some parameters in the export xml based on the template
-        # setup. 
-        
+        # now adjust some parameters in the export xml based on the template setup. 
         template = self.parent.get_template("plate_template")
         
         # First up is the padding for sequences:        
