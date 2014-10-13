@@ -11,6 +11,7 @@
 import sgtk
 from sgtk import TankError
 import os
+import cgi
 import re
 
 HookBaseClass = sgtk.get_hook_baseclass()
@@ -21,58 +22,6 @@ class ExportSettings(HookBaseClass):
     prior to uploading them to Shotgun. It also lets a user control where on disk temporary
     quicktime files will be located.
     """
-
-    def resolve_sg_shot_structure(self, parent_name, shot_names, shot_task_template):
-        """
-        Resolve Shotgun Shot structure given export data from Flame.
-        
-        This default implementation assumes that the parent is a Sequence.
-        
-        """
-
-        sg = self.parent.shotgun
-        project = self.parent.context.project
-
-        # first, ensure that a sequence exists in Shotgun with the parent name
-        sg_parent = sg.find_one("Sequence", [["code", "is", parent_name], ["project", "is", project]]) 
-        
-        if not sg_parent:
-            # Create a new sequence in Shotgun
-                
-            sg_parent = sg.create("Sequence", {"code": parent_name, 
-                                               "description": "Created by the Shotgun Flame exporter.",
-                                               "project": project})
-            
-        # now resolve all the shots. Shots that don't already exists are created.
-        shots = {}
-        for shot_name in shot_names:
-
-            shot = sg.find_one("Shot", [["code", "is", shot_name], ["sg_sequence", "is", sg_parent]])
-            if shot:
-                # store it in our return data dict
-                shots[shot_name] = {"created": False, "shotgun": shot}
-            
-            else:
-                # Create a new shot in Shotgun
-                
-                # First see if we should assign a task template
-                if shot_task_template:
-                    # resolve task template
-                    sg_task_template = sg.find_one("TaskTemplate", [["code", "is", shot_task_template]])
-                    if not sg_task_template:
-                        raise TankError("The task template '%s' does not exist in Shotgun!" % shot_task_template)
-                else:
-                    sg_task_template = None
-                    
-                shot = sg.create("Shot", {"code": shot_name, 
-                                          "description": "Created by the Shotgun Flame exporter.",
-                                          "sg_sequence": sg_parent,
-                                          "task_template": sg_task_template,
-                                          "project": project})
-                
-                shots[shot_name] = {"created": True, "shotgun": shot} 
-            
-        return shots
 
     def get_ffmpeg_quicktime_encode_parameters(self):
         """
@@ -113,11 +62,13 @@ class ExportSettings(HookBaseClass):
         return params
         
 
-    def get_export_preset(self):
+    def get_export_preset(self, shot_parent_template_field):
         """
         Generate flame export profile settings suitable for generating image sequences
         for all shots.
         
+        :param shot_parent_template_field: The template field which contains the shot parent.
+                                           Typically, this is Sequence.
         :returns: path to export preset xml file
         """
         xml = """<?xml version="1.0" encoding="UTF-8"?>
@@ -194,11 +145,81 @@ The generated media is 10-bit DPX and no audio.</comment>
 </preset>
         """
         
-        # get the export template for the plates
-        template = self.parent.get_template("plate_template")
+        # now we need to take our toolkit templates and inject them into the xml template
+        # definition that we are about to send to Flame.
+        #
+        # typically, our template defs will look something like this:
+        # plate:        'sequences/{Sequence}/{Shot}/editorial/plates/{segment_name}_{Shot}.v{version}.{SEQ}.dpx'
+        # batch:        'sequences/{Sequence}/{Shot}/editorial/flame/batch/{Shot}.v{version}.batch'
+        # segment_clip: 'sequences/{Sequence}/{Shot}/editorial/flame/sources/{segment_name}.clip'
+        # shot_clip:    'sequences/{Sequence}/{Shot}/editorial/flame/{Shot}.clip'
+        #
+        # {Sequence} may be {Scene} or {CustomEntityXX} according to the configuration and the 
+        # exact entity type to use is passed into the hook via the the shot_parent_template_field parameter.
+        #
+        # The flame export root is set to correspond to the toolkit project, meaning that both the 
+        # flame and toolkit templates share the same root point.
+        #
+        # The following replacements will be made to convert the toolkit template into Flame equivalents:
+        # 
+        # {Sequence}     ==> <name> (Note: May be {Scene} or {CustomEntityXX} according to the configuration)
+        # {Shot}         ==> <shot name>
+        # {segment_name} ==> <segment name>
+        # {version}      ==> <version>
+        # {SEQ}          ==> <frame>
+        # 
+        # and the special one <ext> which corresponds to the last part of the template. In the examples above:
+        # {segment_name}_{Shot}.v{version}.{SEQ}.dpx : <ext> is '.dpx' 
+        # {Shot}.v{version}.batch : <ext> is '.batch'
+        # etc.
+        #
+        # example substitution:
+        #
+        # Toolkit: 'sequences/{Sequence}/{Shot}/editorial/plates/{segment_name}_{Shot}.v{version}.{SEQ}.dpx'
+        #
+        # Flame:   'sequences/<name>/<shot name>/editorial/plates/<segment name>_<shot name>.v<version>.<frame><ext>'
+        #
+        #
+        
+        # get the export template defs for all our templates
+        # the definition is a string on the form 
+        # 'sequences/{Sequence}/{Shot}/editorial/plates/{segment_name}_{Shot}.v{version}.{SEQ}.dpx'
+        template_defs = {}
+        template_defs["plate_template"] = self.parent.get_template("plate_template").definition
+        template_defs["batch_template"] = self.parent.get_template("batch_template").definition        
+        template_defs["shot_clip_template"] = self.parent.get_template("shot_clip_template").definition
+        template_defs["segment_clip_template"] = self.parent.get_template("segment_clip_template").definition
+        
+        # perform substitutions
+        self.parent.log_debug("Performing field substitutions")
+        for t in template_defs:
+            
+            self.parent.log_debug("Toolkit: %s" % template_defs[t])
+            
+            template_defs[t] = template_defs[t].replace("{%s}" % shot_parent_template_field, "<name>")
+            template_defs[t] = template_defs[t].replace("{Shot}", "<shot name>")
+            template_defs[t] = template_defs[t].replace("{segment_name}", "<segment name>")
+            template_defs[t] = template_defs[t].replace("{version}", "<version>")
+            template_defs[t] = template_defs[t].replace("{SEQ}", "<frame>")
+            
+            # Now carry over the sequence token
+            (head, ext) = os.path.splitext(template_defs[t])
+            template_defs[t] = "%s<ext>" % head
+            
+            self.parent.log_debug("Flame:  %s" % template_defs[t])
+        
+        # now perform substitutions
+        xml = xml.replace("{VIDEO_NAME_PATTERN}", cgi.escape(template_defs["plate_template"]))
+        xml = xml.replace("{SEGMENT_CLIP_NAME_PATTERN}", cgi.escape(template_defs["segment_clip_template"]))
+        xml = xml.replace("{BATCH_NAME_PATTERN}", cgi.escape(template_defs["batch_template"]))
+        xml = xml.replace("{SHOT_CLIP_NAME_PATTERN}", cgi.escape(template_defs["shot_clip_template"]))
 
         # now adjust some parameters in the export xml based on the template
-        # setup. First up is the padding for sequences:        
+        # setup. 
+        
+        template = self.parent.get_template("plate_template")
+        
+        # First up is the padding for sequences:        
         sequence_key = template.keys["SEQ"]
         # the format spec is something like "04"
         format_spec = sequence_key.format_spec
@@ -226,9 +247,6 @@ The generated media is 10-bit DPX and no audio.</comment>
         preset_path = self._write_content_to_file(xml, "export_preset.xml")
         
         return preset_path
-
-
-
 
 
 
@@ -265,6 +283,3 @@ The generated media is 10-bit DPX and no audio.</comment>
         self.parent.log_debug("Wrote temporary file '%s'" % file_path)
         return file_path
             
-        
-        
-        

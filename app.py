@@ -97,8 +97,19 @@ class FlameExport(Application):
             # let the export root path align with the primary project root
             info["destinationPath"] = self.sgtk.project_path
             # pick up the xml export profile from the configuration
-            info["presetPath"] = self.execute_hook_method("settings_hook", "get_export_preset")
+            shot_parent_entity_type = self.get_setting("shot_parent_entity_type")
+            info["presetPath"] = self.execute_hook_method("settings_hook", 
+                                                          "get_export_preset",
+                                                          shot_parent_template_field=shot_parent_entity_type)
             self.log_debug("%s: Starting custom export session with preset '%s'" % (self, info["presetPath"]))
+
+
+        info["abort"] = True
+        info["abortMessage"] = "User cancelled the operation."        
+        
+
+
+
 
     def prepare_export_structure(self, session_id, info):
         """
@@ -137,16 +148,8 @@ class FlameExport(Application):
         self.engine.show_busy("Preparing Shotgun...", "Preparing Shots for export...")
         
         try:
-
-            task_template = self.get_setting("task_template")
-            if task_template == "":
-                task_template = None
-    
-            shots = self.execute_hook_method("settings_hook",
-                                             "resolve_sg_shot_structure", 
-                                             parent_name = info["sequenceName"], 
-                                             shot_names = info["shotNames"], 
-                                             shot_task_template = task_template)
+            # find and create objects in shotgun
+            shots = self.__resolve_sg_shot_structure(parent_name, shot_names)
             
             # shots will be on the form
             # {"aaa_xxxx": {"created": True, "shotgun": {"type": "Shot", "id": 123}, ...}
@@ -170,6 +173,85 @@ class FlameExport(Application):
         finally:
             # kill progress indicator        
             self.engine.clear_busy()
+    
+    def __resolve_sg_shot_structure(self, parent_name, shot_names):
+        """
+        Resolve Shotgun Shot structure given export data from Flame.
+        
+        This default implementation assumes that the parent is a Sequence.
+        
+        """
+        # get some configuration settings first
+        shot_task_template = self.get_setting("task_template")
+        if shot_task_template == "":
+            shot_task_template = None
+
+        parent_task_template = self.get_setting("shot_parent_task_template")
+        if parent_task_template == "":
+            parent_task_template = None
+
+        shot_parent_entity_type = self.get_setting("shot_parent_entity_type")
+        shot_parent_link_field = self.get_setting("shot_parent_link_field")
+
+        # handy shorthand
+        project = self.context.project
+
+        # first, ensure that a parent exists in Shotgun with the parent name
+        sg_parent = self.shotgun.find_one(shot_parent_entity_type, [["code", "is", parent_name], 
+                                                                    ["project", "is", project]]) 
+        
+        if not sg_parent:
+            # Create a new parent object in Shotgun
+            
+            # First see if we should assign a task template
+            if parent_task_template:
+                # resolve task template
+                sg_task_template = self.shotgun.find_one("TaskTemplate", [["code", "is", parent_task_template]])
+                if not sg_task_template:
+                    raise TankError("The task template '%s' does not exist in Shotgun!" % parent_task_template)
+            else:
+                sg_task_template = None
+            
+            sg_parent = self.shotgun.create(shot_parent_entity_type, 
+                                            {"code": parent_name, 
+                                             "task_template": sg_task_template,
+                                             "description": "Created by the Shotgun Flame exporter.",
+                                             "project": project})
+  
+        # now resolve all the shots. Shots that don't already exists are created.
+        shots = {}
+        for shot_name in shot_names:
+
+            shot = self.shotgun.find_one("Shot", [["code", "is", shot_name], 
+                                                  [shot_parent_link_field, "is", sg_parent]])
+            if shot:
+                # store it in our return data dict
+                shots[shot_name] = {"created": False, "shotgun": shot}
+            
+            else:
+                # Create a new shot in Shotgun
+                
+                # First see if we should assign a task template
+                if shot_task_template:
+                    # resolve task template
+                    sg_task_template = self.shotgun.find_one("TaskTemplate", [["code", "is", shot_task_template]])
+                    if not sg_task_template:
+                        raise TankError("The task template '%s' does not exist in Shotgun!" % shot_task_template)
+                else:
+                    sg_task_template = None
+                    
+                shot = self.shotgun.create("Shot", {"code": shot_name, 
+                                                    "description": "Created by the Shotgun Flame exporter.",
+                                                    shot_parent_link_field: sg_parent,
+                                                    "task_template": sg_task_template,
+                                                    "project": project})
+                
+                shots[shot_name] = {"created": True, "shotgun": shot} 
+            
+        return shots
+
+    
+    
     
     
     def adjust_path(self, session_id, info):
@@ -207,7 +289,10 @@ class FlameExport(Application):
            segmentIndex:    Asset index (1 based) in the track.
            versionName:     Current version name of export (Empty if unversioned).
            versionNumber:   Current version number of export (0 if unversioned).        
-        """        
+        """
+        
+        # important notes!
+        # 
 
         if info.get("assetType") not in ["video", "batch", "batchOpenClip", "openClip"]:
             # the review system ignores any other assets. The export profiles are defined
@@ -224,7 +309,7 @@ class FlameExport(Application):
                                       "Please ensure that all shots you wish to exports "
                                       "have been named. " % info.get("name")) )
             
-            # send the clip to the trash for now. no way to abort at this point
+            # TODO: send the clip to the trash for now. no way to abort at this point
             # but we don't have enough information to be able to proceed at this point either
             info["resolvedPath"] = "flame_trash/unnamed_shot_%s" % uuid.uuid4().hex
             
@@ -265,7 +350,7 @@ class FlameExport(Application):
         if "versionNumber" in info:
             fields["version"] = int(info["versionNumber"])
         
-        fields["segment_name"] = info["name"]        
+        fields["segment_name"] = info["name"]
             
         if "width" in info:
             fields["width"] = int(info["width"])

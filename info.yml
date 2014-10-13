@@ -29,10 +29,26 @@ configuration:
         description: Contains logic to generate settings and presets for the flame export profile
                      used to generate the output. 
     
+    shot_parent_entity_type:
+        type: shotgun_entity_type
+        default_value: Sequence
+        description: The entity type which shots are parented to in the current setup.
+        
+    shot_parent_link_field:
+        type: str
+        default_value: sg_sequence
+        description: The name of a single entity link field which links shot to a the parent entity
+                     type defined in the shot_parent_entity setting
+    
+    shot_parent_task_template:
+        type: str
+        description: The Shotgun task template to assign to new shot parent entities
+        default_value: ""
+    
     plate_template:
         description: Toolkit file system template to control where video output goes on disk
         type: template
-        fields: context, SEQ, Shot, version, segment_name, [width], [height], *
+        fields: context, SEQ, Shot, version, segment_name, *
                                          
     segment_clip_template:
         description: Toolkit file system template to control where segment based clip files go on disk
