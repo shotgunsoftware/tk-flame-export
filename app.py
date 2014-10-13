@@ -731,6 +731,7 @@ class FlameExport(Application):
         data["project"] = context.project
         data["entity"] = context.entity
         data["created_by"] = context.user
+        data["user"] = context.user
         data["sg_task"] = context.task
 
         # link to the publish
