@@ -88,10 +88,11 @@ class FlameExport(Application):
         if return_code == QtGui.QDialog.Rejected:
             # user pressed cancel
             info["abort"] = True
-            info["abortMessage"] = "User cancelled the operation."        
+            info["abortMessage"] = "User cancelled the operation."
+                   
         else:
             # get comments from user
-            self._user_comments = widget.get_comments()      
+            self._user_comments = widget.get_comments()
             # populate the host to use for the export. Currently hard coded to local
             info["destinationHost"] = "localhost"
             # let the export root path align with the primary project root
@@ -491,7 +492,7 @@ class FlameExport(Application):
            versionNumber:   Current version number of export (0 if unversioned).
 
         """
-        asset_type = info.get("assetType") 
+        asset_type = info["assetType"] 
         if asset_type not in ["video", "batch"]:
             # the review system ignores any other assets. The export profiles are defined
             # in the app's settings hook, so technically there shouldn't be any other items
@@ -567,7 +568,7 @@ class FlameExport(Application):
            destinationPath: Export path root.
            namePattern:     List of optional naming tokens.
            resolvedPath:    Full file pattern that will be exported with all the tokens resolved.
-           name:            Name of the exported asset.
+           assetName:            Name of the exported asset.
            sequenceName:    Name of the sequence the asset is part of.
            shotName:        Name of the shot the asset is part of.
            assetType:       Type of exported asset. ( 'video', 'audio', 'batch', 'openClip', 'batchOpenClip' )
@@ -614,13 +615,28 @@ class FlameExport(Application):
         # join together the full path, flame style        
         full_flame_path = os.path.join(info.get("destinationPath"), info.get("resolvedPath"))
                         
+        # put together a name for the publish. This should be on a form without a version
+        # number, so that it can be used to group together publishes of the same kind, but
+        # with different versions. The logic will differ depending on asset type
+        
+        if info["assetType"] == "video":
+            # e.g. 'sequences/{Sequence}/{Shot}/editorial/plates/{segment_name}_{Shot}.v{version}.{SEQ}.dpx'
+            publish_name = "%s_%s_%s" % (info["sequenceName"], info["shotName"], info["assetName"])
+            
+        elif info["assetType"] == "batch":
+            # e.g. 'sequences/{Sequence}/{Shot}/editorial/flame/batch/{Shot}.v{version}.batch'
+            publish_name = "%s_%s" % (info["sequenceName"], info["shotName"])
+            
+        else:
+            raise TankError("Unknown asset type %s" % info["assetType"])
+        
         # now start assemble publish parameters
         args = {
             "tk": self.sgtk,
             "context": shot_context,
             "comment": user_comments,
             "path": toolkit_path,
-            "name": "foo bar",
+            "name": publish_name,
             "version_number": info.get("versionNumber"),
             "created_by": shot_context.user,
             "task": shot_context.task,
@@ -757,6 +773,10 @@ class FlameExport(Application):
         data["sg_movie_has_slate"] = False         
         data["sg_frames_aspect_ratio"] = info["aspectRatio"]
         data["sg_movie_aspect_ratio"] = info["aspectRatio"]
+        
+        # This is used to find the latest Version from the same department.
+        # todo: make this configurable?
+        data["sg_department"] = "Editorial"        
         
         sg_version_data = self.shotgun.create("Version", data)
         
