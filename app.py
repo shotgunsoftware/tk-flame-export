@@ -250,7 +250,7 @@ class FlameExport(Application):
         fields = context.as_template_fields(template)
         self.log_debug("Resolved context based fields: %s" % fields)
         
-        if info.get("assetType") == "video":        
+        if info.get("assetType") == "video":
             # handle the flame sequence token - it will come in as "[1001-1100]"
             re_match = re.search('(\[[0-9]+-[0-9]+\])\.', info["resolvedPath"])
             if not re_match:
@@ -261,16 +261,7 @@ class FlameExport(Application):
         if "versionNumber" in info:
             fields["version"] = int(info["versionNumber"])
         
-        try:
-            # workaround for missing segment index / segment name / in the params
-            # all path patterns in the hook must be on the form
-            # 
-            (segment_index, segment_name, _) = info["resolvedPath"].split("/")
-        except:
-            raise TankError("Cannot resolve segment index and name from path pattern!")
-        
-        fields["segment_name"] = segment_name    
-        #fields["segment_index"] = segment_index
+        fields["segment_name"] = info["name"]        
             
         if "width" in info:
             fields["width"] = int(info["width"])
@@ -483,15 +474,17 @@ class FlameExport(Application):
                                                                     info["height"])
             
             thumbnail_jpg = os.path.join(self.engine.get_backburner_tmp(), "tk_thumb_%s.jpg" % uuid.uuid4().hex)
-            os.system("%s > %s" % (input_cmd, thumbnail_jpg))
-            self.log_debug("Wrote thumbnail %s" % thumbnail_jpg)
+            if os.system("%s > %s" % (input_cmd, thumbnail_jpg)) != 0:
+                self.log_warning("Could not extract thumbnail! See error log for details.")
+            else:
+                self.log_debug("Wrote thumbnail %s" % thumbnail_jpg)
+                # add the thumbnail to the publish generation
+                args["thumbnail_path"] = thumbnail_jpg
             
             # check if the shot needs a thumbnail
             if make_shot_thumb:
                 args["update_entity_thumbnail"] = True
         
-            # add the thumbnail to the publish generation
-            args["thumbnail_path"] = thumbnail_jpg
 
         self.log_debug("Register publish in shotgun: %s" % str(args))        
         sg_publish_data = sgtk.util.register_publish(**args)
@@ -562,7 +555,6 @@ class FlameExport(Application):
         # according to the Shotgun transcoding guidelines (and to optimize bandwidth)        
         width = info["width"]
         height = info["height"]
-        aspect_ratio = (float)(width)/(float)(height)
 
         self.log_debug("Begin version processing for %s..." % full_flame_path)
 
@@ -595,8 +587,8 @@ class FlameExport(Application):
         data["frame_range"] = "%s-%s" % (info["sourceIn"], info["sourceOut"])         
         data["sg_frames_have_slate"] = False
         data["sg_movie_has_slate"] = False         
-        data["sg_frames_aspect_ratio"] = aspect_ratio
-        data["sg_movie_aspect_ratio"] = aspect_ratio
+        data["sg_frames_aspect_ratio"] = info["aspectRatio"]
+        data["sg_movie_aspect_ratio"] = info["aspectRatio"]
         
         sg_version_data = self.shotgun.create("Version", data)
         
