@@ -83,7 +83,7 @@ class FlameExport(Application):
         
         # pop up a UI asking the user for description
         submit_dialog = self.import_module("submit_dialog")        
-        (return_code, widget) = self.engine.show_modal("Submit to Shotgun", self, submit_dialog.Dialog)
+        (return_code, widget) = self.engine.show_modal("Export Shots", self, submit_dialog.Dialog)
         
         if return_code == QtGui.QDialog.Rejected:
             # user pressed cancel

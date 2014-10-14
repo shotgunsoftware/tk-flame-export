@@ -1,5 +1,5 @@
 <RCC>
-  <qresource prefix="res">
-    <file>logo.png</file>
+  <qresource prefix="tk-flame-export">
+    <file>ui_splash.png</file>
   </qresource>
 </RCC>

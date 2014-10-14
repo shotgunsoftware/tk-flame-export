@@ -6,41 +6,44 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>568</width>
-    <height>285</height>
+    <width>487</width>
+    <height>529</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Submit to Shotgun</string>
   </property>
-  <layout class="QGridLayout" name="gridLayout">
-   <item row="0" column="0">
-    <layout class="QVBoxLayout" name="verticalLayout">
-     <item>
-      <widget class="QLabel" name="label">
-       <property name="text">
-        <string>This will submit your selected sequences for review in Shotgun. Quicktimes will be generated for each sequence and uploaded to Shotgun. 
-
-Please enter a description of your review submission.</string>
-       </property>
-       <property name="wordWrap">
-        <bool>true</bool>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QLabel" name="label_3">
-       <property name="text">
-        <string/>
-       </property>
-       <property name="pixmap">
-        <pixmap resource="resources.qrc">:/res/logo.png</pixmap>
-       </property>
-      </widget>
-     </item>
-    </layout>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <property name="leftMargin">
+    <number>20</number>
+   </property>
+   <property name="topMargin">
+    <number>20</number>
+   </property>
+   <property name="rightMargin">
+    <number>20</number>
+   </property>
+   <item>
+    <widget class="QLabel" name="label_2">
+     <property name="text">
+      <string/>
+     </property>
+     <property name="pixmap">
+      <pixmap resource="resources.qrc">:/tk-flame-export/ui_splash.png</pixmap>
+     </property>
+    </widget>
    </item>
-   <item row="1" column="0" colspan="2">
+   <item>
+    <widget class="QPlainTextEdit" name="comments">
+     <property name="minimumSize">
+      <size>
+       <width>300</width>
+       <height>100</height>
+      </size>
+     </property>
+    </widget>
+   </item>
+   <item>
     <layout class="QHBoxLayout" name="horizontalLayout">
      <item>
       <spacer name="horizontalSpacer">
@@ -70,16 +73,6 @@ Please enter a description of your review submission.</string>
       </widget>
      </item>
     </layout>
-   </item>
-   <item row="0" column="1">
-    <widget class="QPlainTextEdit" name="comments">
-     <property name="minimumSize">
-      <size>
-       <width>300</width>
-       <height>100</height>
-      </size>
-     </property>
-    </widget>
    </item>
   </layout>
  </widget>
