@@ -10,14 +10,14 @@
 
 import sgtk
 from sgtk.platform.qt import QtCore, QtGui
-from .ui.dialog import Ui_Dialog
+from .ui.summary_dialog import Ui_SummaryDialog
 
-class Dialog(QtGui.QWidget):
+class SummaryDialog(QtGui.QWidget):
     """
-    Not found UI dialog.
+    Review submission dialog.
     """
     
-    def __init__(self):
+    def __init__(self, success):
         """
         Constructor
         """
@@ -25,14 +25,20 @@ class Dialog(QtGui.QWidget):
         QtGui.QWidget.__init__(self)
         
         # now load in the UI that was created in the UI designer
-        self.ui = Ui_Dialog() 
-        self.ui.setupUi(self) 
+        self.ui = Ui_SummaryDialog() 
+        self.ui.setupUi(self)
+        
+        if success:
+            # show success screen
+            self.ui.stackedWidget.setCurrentIndex(0)
+        else:
+            # show fail screen
+            self.ui.stackedWidget.setCurrentIndex(1)
         
         # with the tk dialogs, we need to hook up our modal 
         # dialog signals in a special way
         self.__exit_code = QtGui.QDialog.Rejected
         self.ui.submit.clicked.connect(self._on_submit_clicked)
-        self.ui.cancel.clicked.connect(self._on_cancel_clicked)
         
     @property
     def exit_code(self):
@@ -43,12 +49,13 @@ class Dialog(QtGui.QWidget):
         """
         return self.__exit_code
         
-    def get_comments(self):
+    @property
+    def hide_tk_title_bar(self):
         """
-        Returns the comments entered by the user
+        Tell the system to not show the std toolbar
         """
-        return self.ui.comments.toPlainText()
-        
+        return True
+                        
     def _on_submit_clicked(self):
         """
         Called when the 'submit' button is clicked.
@@ -56,9 +63,3 @@ class Dialog(QtGui.QWidget):
         self.__exit_code = QtGui.QDialog.Accepted
         self.close()
         
-    def _on_cancel_clicked(self):
-        """
-        Called when the 'cancel' button is clicked.
-        """
-        self.__exit_code = QtGui.QDialog.Rejected
-        self.close()

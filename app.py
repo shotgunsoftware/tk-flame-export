@@ -82,8 +82,8 @@ class FlameExport(Application):
         self._submission_done = False
         
         # pop up a UI asking the user for description
-        submit_dialog = self.import_module("submit_dialog")        
-        (return_code, widget) = self.engine.show_modal("Export Shots", self, submit_dialog.Dialog)
+        tk_flame_export = self.import_module("tk_flame_export")        
+        (return_code, widget) = self.engine.show_modal("Export Shots", self, tk_flame_export.SubmitDialog)
         
         if return_code == QtGui.QDialog.Rejected:
             # user pressed cancel
@@ -933,11 +933,7 @@ class FlameExport(Application):
                      - destinationPath: Export path root.
                      - presetPath: Path to the preset used for the export.
         
-        """
-        # todo - replace with custom UI
-        from PySide import QtGui, QtCore
-        
-        
+        """        
         # calculate the cut order for each sequence
         for seq in self._shots:
             # get a list of metadata objects for this shot
@@ -974,20 +970,9 @@ class FlameExport(Application):
             self.shotgun.batch(cut_changes)
                 
 
-        if self._submission_done:
-            # things are cooking!
-            QtGui.QMessageBox.information(None,
-                                          "Shotgun submission complete!",
-                                          "Submission complete! Quicktimes will be generated in the background and "
-                                          "then uploaded to Shotgun.")
-
-        else:
-            # somewhere along the way, outside hooks, the process was cancelled or errored.
-            QtGui.QMessageBox.warning(None,
-                                      "Submission cancelled!",
-                                      "Shotgun submission was cancelled or aborted. Nothing will be uploaded "
-                                      "to Shotgun for review.")
-            
+        # pop up a UI asking the user for description
+        tk_flame_export = self.import_module("tk_flame_export")
+        self.engine.show_modal("Submission Summary", self, tk_flame_export.SummaryDialog, self._submission_done)
         
         
         
