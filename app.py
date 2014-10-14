@@ -22,7 +22,7 @@ import sgtk
 from sgtk import TankError
 from sgtk.platform import Application
 
-
+    
 
 class FlameExport(Application):
     """
@@ -51,14 +51,13 @@ class FlameExport(Application):
         # when this profile is being triggered 
         callbacks = {}
         callbacks["preCustomExport"] = self.pre_custom_export
-        callbacks["preExportSequence"] = self.prepare_export_structure
-        callbacks["preExportAsset"] = self.adjust_path
+        callbacks["preExportSequence"] = self.pre_export_sequence
+        callbacks["preExportAsset"] = self.pre_export_asset
         callbacks["postExportAsset"] = self.register_post_asset_job
-        callbacks["postCustomExport"] = self.display_summary
+        callbacks["postCustomExport"] = self.update_cut_and_display_summary
         
         # register with the engine
         self.engine.register_export_hook(menu_caption, callbacks)
-
 
 
     def pre_custom_export(self, session_id, info):
@@ -181,7 +180,7 @@ class FlameExport(Application):
 
 
 
-    def prepare_export_structure(self, session_id, info):
+    def pre_export_sequence(self, session_id, info):
         """
         Called from the flame hooks before export.
         This is the time to set up the structure in Shotgun.
@@ -219,37 +218,44 @@ class FlameExport(Application):
         
         try:
             # find and create objects in shotgun
-            shots = self.__resolve_sg_shot_structure(sequence_name, shot_names)
+            shot_metadata_list = self.__resolve_sg_shot_structure(sequence_name, shot_names)
             
-            # shots will be on the form
-            # {"aaa_xxxx": {"created": True, "shotgun": {"type": "Shot", "id": 123}, ...}
+            # set up metadata objects grouped by sequence in our self._shots structure
+            self._shots[sequence_name] = {}
+            
+            for shot_metadata in shot_metadata_list:
+                self._shots[sequence_name][shot_metadata.name] = shot_metadata
             
             # run folder creation for our newly created shots
-            for (shot_name, data) in shots.iteritems():
+            for shot_metadata in self._shots[sequence_name].values():
                 #if data["created"]:
                 # this is a new shot    
-                self.engine.show_busy("Preparing Shotgun...", "Creating folders for Shot '%s'..." % shot_name)
-                self.sgtk.create_filesystem_structure("Shot", data["shotgun"]["id"], engine="tk-flame")
+                self.engine.show_busy("Preparing Shotgun...", "Creating folders for Shot '%s'..." % shot_metadata.name)
+                self.sgtk.create_filesystem_structure("Shot", shot_metadata.shotgun_id, engine="tk-flame")
             
-            # lastly, establish a context for all objects
+            # establish a context for all objects
             self.engine.show_busy("Preparing Shotgun...", "Resolving Shot contexts...")
-            for shot_name in shots:
-                sg_shot_id = shots[shot_name]["shotgun"]["id"]
-                shots[shot_name]["context"] = self.sgtk.context_from_entity("Shot", sg_shot_id) 
-        
-            # and finally store the data for downstream consumption
-            self._shots = shots 
-
+            for shot_metadata in self._shots[sequence_name].values():
+                shot_metadata.context = self.sgtk.context_from_entity("Shot", shot_metadata.shotgun_id)
+            
         finally:
             # kill progress indicator        
             self.engine.clear_busy()
     
     def __resolve_sg_shot_structure(self, parent_name, shot_names):
         """
-        Resolve Shotgun Shot structure given export data from Flame.
+        Ensures that Shots exists in Shotgun. Will automatically create
+        Shots and Shot parents (e.g. sequences) if necessary and assign
+        task templates. Returns a dictionary with Shot metadata
         
-        This default implementation assumes that the parent is a Sequence.
+        { "sh002": { "created": False, # Shot already existed in Shotgun
+                     "shotgun": { sg_data describing the shot, including cut in/cut out } },
+
+          "sh003": { "created": True,  # Shot was created
+                     "shotgun": { sg_data describing the shot, including cut in/cut out } }
+        }
         
+        :returns: dictionary, see above  
         """
         # get some configuration settings first
         shot_task_template = self.get_setting("task_template")
@@ -289,14 +295,24 @@ class FlameExport(Application):
                                              "project": project})
   
         # now resolve all the shots. Shots that don't already exists are created.
-        shots = {}
+        shots = []
         for shot_name in shot_names:
 
-            shot = self.shotgun.find_one("Shot", [["code", "is", shot_name], 
-                                                  [shot_parent_link_field, "is", sg_parent]])
+            shot = self.shotgun.find_one("Shot", 
+                                         [["code", "is", shot_name], [shot_parent_link_field, "is", sg_parent]],
+                                         ["sg_cut_in", "sg_cut_out", "sg_cut_order"])
+            
+            metadata = ShotMetadata()
+            metadata.name = shot_name
+            metadata.parent_name = parent_name
+            metadata.shotgun_parent = sg_parent
+            shots.append(metadata)
+            
             if shot:
                 # store it in our return data dict
-                shots[shot_name] = {"created": False, "shotgun": shot}
+                metadata.shotgun_id = shot["id"]
+                metadata.shotgun_cut_in = shot["sg_cut_in"]
+                metadata.shotgun_cut_out = shot["sg_cut_out"]
             
             else:
                 # Create a new shot in Shotgun
@@ -316,15 +332,14 @@ class FlameExport(Application):
                                                     "task_template": sg_task_template,
                                                     "project": project})
                 
-                shots[shot_name] = {"created": True, "shotgun": shot} 
+                # store it in our return data dict
+                metadata.created_this_session = True
+                metadata.shotgun_id = shot["id"]
             
         return shots
 
     
-    
-    
-    
-    def adjust_path(self, session_id, info):
+    def pre_export_asset(self, session_id, info):
         """
         Called when an item is about to be exported and a path needs to be computed.
  
@@ -361,10 +376,12 @@ class FlameExport(Application):
            versionNumber:   Current version number of export (0 if unversioned).        
         """
         
-        # important notes!
-        # 
+        asset_type = info["assetType"]
+        asset_name = info["assetName"]
+        shot_name = info["shotName"]
+        sequence_name = info["sequenceName"]
 
-        if info.get("assetType") not in ["video", "batch", "batchOpenClip", "openClip"]:
+        if asset_type not in ["video", "batch", "batchOpenClip", "openClip"]:
             # the review system ignores any other assets. The export profiles are defined
             # in the app's settings hook, so technically there shouldn't be any other items
             # generated - but just in case there are (because of customizations), we'll simply
@@ -372,12 +389,12 @@ class FlameExport(Application):
             return
         
         # first check that the clip has a shot name - otherwise things won't work!
-        if info["shotName"] == "":
+        if shot_name == "":
             QtGui.QMessageBox.warning(None,
                                       "Missing shot name!",
                                       ("The clip '%s' does not have a shot name and therefore cannot be exported. "
                                       "Please ensure that all shots you wish to exports "
-                                      "have been named. " % info.get("name")) )
+                                      "have been named. " % asset_name) )
             
             # TODO: send the clip to the trash for now. no way to abort at this point
             # but we don't have enough information to be able to proceed at this point either
@@ -386,30 +403,56 @@ class FlameExport(Application):
             # TODO: can we avoid this export altogether?
             return
         
+        # first, calculate cut data fields
+        if asset_type == "video":
+            # get the cut in and out point for this clip
+            clip_in = int(info["sourceIn"])
+            clip_out = int(info["sourceOut"])
+            
+            if self._shots[sequence_name][shot_name].new_cut_in is None:
+                # no value yet
+                self._shots[sequence_name][shot_name].new_cut_in = clip_in
+            
+            elif self._shots[sequence_name][shot_name].new_cut_in > clip_in:
+                # we got a value but our current clip started before
+                # the other. We want to capture the maximum range of 
+                # the shot, so update
+                self._shots[sequence_name][shot_name].new_cut_in = clip_in
+                
+            if self._shots[sequence_name][shot_name].new_cut_out is None:
+                # no value yet
+                self._shots[sequence_name][shot_name].new_cut_out = clip_out
+                
+            elif self._shots[sequence_name][shot_name].new_cut_out < clip_out:
+                # we got a value but our current clip ended after
+                # the other. We want to capture the maximum range of 
+                # the shot, so update
+                self._shots[sequence_name][shot_name].new_cut_out = clip_out
+                
         # get the appropriate file system template
-        if info.get("assetType") == "video":
+        if asset_type == "video":
             template = self.get_template("plate_template")
             
-        elif info.get("assetType") == "batch":
+        elif asset_type == "batch":
             template = self.get_template("batch_template")
             
-        elif info.get("assetType") == "batchOpenClip":
+        elif asset_type == "batchOpenClip":
             template = self.get_template("shot_clip_template")            
 
-        elif info.get("assetType") == "openClip":
+        elif asset_type == "openClip":
             template = self.get_template("segment_clip_template")            
         
         self.log_debug("Attempting to resolve template %s..." % template)
         
         # resolve the template via the context
-        context = self._shots[info["shotName"]]["context"]
+        context = self._shots[sequence_name][shot_name].context
 
         # resolve the fields out of the context
         self.log_debug("Resolving template %s using context %s" % (template, context))
         fields = context.as_template_fields(template)
         self.log_debug("Resolved context based fields: %s" % fields)
         
-        if info.get("assetType") == "video":
+        if asset_type == "video":
             # handle the flame sequence token - it will come in as "[1001-1100]"
             re_match = re.search('(\[[0-9]+-[0-9]+\])\.', info["resolvedPath"])
             if not re_match:
@@ -420,7 +463,7 @@ class FlameExport(Application):
         if "versionNumber" in info:
             fields["version"] = int(info["versionNumber"])
         
-        fields["segment_name"] = info["assetName"]
+        fields["segment_name"] = asset_name
             
         if "width" in info:
             fields["width"] = int(info["width"])
@@ -447,9 +490,7 @@ class FlameExport(Application):
 
         # the template and fields are needed in the post-asset export, so add them 
         # to our data structure that we are passing down the pipe. 
-        # key by both type and name (segment name) in order to guarantee uniqueness
-        template_key = "%s_%s" % (info["assetType"], info["assetName"])
-        self._shots[info["shotName"]][template_key] = (template, fields)
+        self._shots[sequence_name][shot_name].set_template(asset_type, asset_name, template, fields)
         
         
     def register_post_asset_job(self, session_id, info):
@@ -493,6 +534,10 @@ class FlameExport(Application):
 
         """
         asset_type = info["assetType"] 
+        asset_name = info["assetName"]
+        shot_name = info["shotName"]
+        sequence_name = info["sequenceName"]        
+        
         if asset_type not in ["video", "batch"]:
             # the review system ignores any other assets. The export profiles are defined
             # in the app's settings hook, so technically there shouldn't be any other items
@@ -506,29 +551,15 @@ class FlameExport(Application):
             run_after_job_id = None
         
         # extract context to pass downstream to the content generation job
-        context = self._shots[info["shotName"]]["context"]
+        context = self._shots[sequence_name][shot_name].context
         
-        # given the template and fields we calculated in the pre-asset hook,
-        # compute a shotgun-friendly path where the sequence identifier has 
-        # been turned into a %04d-equivalent:
-        template_key = "%s_%s" % (info["assetType"], info["assetName"])
-        (template, fields) = self._shots[info["shotName"]][template_key]
-        new_fields = copy.deepcopy(fields)
-        new_fields["SEQ"] = "FORMAT: %d"
-        toolkit_path = template.apply_fields(new_fields)        
+        # get a shotgun-friendly path where the sequence identifier is %xd 
+        toolkit_path = self._shots[sequence_name][shot_name].get_std_sequence_path(asset_type, asset_name)        
         
-        # figure out if the publishing process should also be setting
-        # the thumbnail for the associated shot
-        # see if the associated shot was created now
-        shot_created = self._shots[info["shotName"]]["created"]
-        # see if any other asset export as already flagged that they are doing the upload
-        thumb_uploaded = self._shots[info["shotName"]].get("thumb_uploaded", False)
-        # only consider uploading for video type assets
-        if shot_created and asset_type == "video" and not thumb_uploaded:
-            self._shots[info["shotName"]]["thumb_uploaded"] = True
-            make_shot_thumb = True
-        else:
-            make_shot_thumb = False
+        # check if we should push a thumbnail to the shot
+        make_shot_thumb = False
+        if asset_type == "video":
+            make_shot_thumb = self._shots[sequence_name][shot_name].needs_shotgun_thumb()        
         
         # now start preparing a remote job
         args = {"info": info, 
@@ -538,14 +569,8 @@ class FlameExport(Application):
                 "make_shot_thumb": make_shot_thumb }
         
         # and populate backburner job parameters
-        field_str = ", ".join(["%s %s" % (k,v) for (k,v) in fields.iteritems()])
-        field_str += ", ".join(["%s %s" % (k,v) for (k,v) in info.iteritems()])
-        
-        backburner_job_title = "Shotgun Upload - %s, %s, %s" % (info["sequenceName"], 
-                                                               info["shotName"], 
-                                                               info["assetType"])
-
-        backburner_job_desc = "Transcoding media, registering and uploading in Shotgun for %s" % field_str        
+        backburner_job_title = "Shotgun Upload - %s, %s, %s" % (sequence_name, shot_name, asset_type)
+        backburner_job_desc = "Transcoding media, registering and uploading."         
         
         # kick off async job
         self.engine.create_local_backburner_job(backburner_job_title, 
@@ -637,7 +662,7 @@ class FlameExport(Application):
             "comment": user_comments,
             "path": toolkit_path,
             "name": publish_name,
-            "version_number": info.get("versionNumber"),
+            "version_number": int(info["versionNumber"]),
             "created_by": shot_context.user,
             "task": shot_context.task,
             "published_file_type": publish_type,
@@ -883,7 +908,7 @@ class FlameExport(Application):
             self.log_warning("Could not remove temporary file '%s': %s" % (path, e))    
     
         
-    def display_summary(self, session_id, info):
+    def update_cut_and_display_summary(self, session_id, info):
         """
         Show summary UI to user
         
@@ -901,6 +926,43 @@ class FlameExport(Application):
         # todo - replace with custom UI
         from PySide import QtGui, QtCore
         
+        
+        # calculate the cut order for each sequence
+        for seq in self._shots:
+            # get a list of metadata objects for this shot
+            shot_metadata = self._shots[seq].values()
+            # sort it by cut in
+            shot_metadata.sort(key=lambda x: x.new_cut_in)
+            # now loop over all items and set an incrementing cut order
+            cut_index = 1
+            for sm in shot_metadata:
+                sm.new_cut_order = cut_index
+                cut_index += 1
+                
+        # now push cut changes to Shotgun as a single batch op
+        cut_changes = []
+        for seq in self._shots:
+            for sm in self._shots[seq].values():
+                
+                if sm.shotgun_cut_in != sm.new_cut_in or sm.shotgun_cut_out != sm.new_cut_out or \
+                   sm.shotgun_cut_order != sm.new_cut_order:
+                    
+                    duration = sm.new_cut_out - sm.new_cut_in + 1
+                    
+                    cut_changes.append( {"request_type":"update", 
+                                         "entity_type": "Shot",
+                                         "entity_id": sm.shotgun_id,
+                                         "data":{ "sg_cut_in": sm.new_cut_in,
+                                                  "sg_cut_out": sm.new_cut_out,
+                                                  "sg_cut_duration": duration, 
+                                                  "sg_cut_order": sm.new_cut_order }} )
+
+
+        self.log_debug("Sending cut order changes to Shotgun: %s" % cut_changes)
+        if len(cut_changes) > 0:
+            self.shotgun.batch(cut_changes)
+                
+
         if self._submission_done:
             # things are cooking!
             QtGui.QMessageBox.information(None,
@@ -919,4 +981,67 @@ class FlameExport(Application):
         
         
         
+class ShotMetadata(object):
+    """
+    Value wrapper class which holds various properties associated with a shot.
+    This object is passed down the export pipeline
+    """
+
+    def __init__(self):
         
+        self.name = None
+        self.parent_name = None
+        self.shotgun_parent = None
+        
+        self.created_this_session = False
+
+        self.shotgun_id = None
+        
+        self.shotgun_cut_in = None
+        self.shotgun_cut_out = None
+        self.shotgun_cut_order = None
+        
+        self.new_cut_in = None
+        self.new_cut_out = None
+        self.new_cut_order = None
+        
+        self.context = None
+        
+        self.__templates = {}
+        self.__thumb_upload_handled = False
+        
+    def set_template(self, asset_type, asset_name, template, fields):
+        
+        self.__templates["%s_%s" % (asset_type, asset_name)] = (template, fields)
+
+    def get_std_sequence_path(self, asset_type, asset_name):
+        
+        # given the template and fields we calculated in the pre-asset hook,
+        # compute a shotgun-friendly path where the sequence identifier has 
+        # been turned into a %04d-equivalent:
+        
+        lookup = "%s_%s" % (asset_type, asset_name)
+        if lookup not in self.__templates:
+            raise TankError("Could not look up sequence path in metadata %s" % self)
+        (template, fields) =  self.__templates[lookup]
+        new_fields = copy.deepcopy(fields)
+        new_fields["SEQ"] = "FORMAT: %d"
+        return template.apply_fields(new_fields)        
+        
+    def needs_shotgun_thumb(self):
+        """
+        Returns true if it needs a shotgun thumbnail uploaded
+        """
+        if self.created_this_session == False:
+            # no need for old items
+            return False
+        
+        if self.__thumb_upload_handled:
+            # some 
+            return False
+        
+        # we handle the upload
+        self.__thumb_upload_handled = True
+        return True
+    
+    
