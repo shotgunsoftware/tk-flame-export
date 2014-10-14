@@ -18,6 +18,7 @@ import uuid
 import os
 import re
 import sgtk
+import datetime
 
 from sgtk import TankError
 from sgtk.platform import Application
@@ -168,7 +169,16 @@ class FlameExport(Application):
             template_defs[t] = template_defs[t].replace("{Shot}", "<shot name>")
             template_defs[t] = template_defs[t].replace("{segment_name}", "<segment name>")
             template_defs[t] = template_defs[t].replace("{version}", "<version>")
+            
             template_defs[t] = template_defs[t].replace("{SEQ}", "<frame>")
+            
+            template_defs[t] = template_defs[t].replace("{YYYY}", "<YYYY>")
+            template_defs[t] = template_defs[t].replace("{MM}", "<MM>")
+            template_defs[t] = template_defs[t].replace("{DD}", "<DD>")
+            template_defs[t] = template_defs[t].replace("{hh}", "<hh>")
+            template_defs[t] = template_defs[t].replace("{mm}", "<mm>")
+            template_defs[t] = template_defs[t].replace("{width}", "<width>")
+            template_defs[t] = template_defs[t].replace("{height}", "<height>")
             
             # Now carry over the sequence token
             (head, ext) = os.path.splitext(template_defs[t])
@@ -248,14 +258,7 @@ class FlameExport(Application):
         Shots and Shot parents (e.g. sequences) if necessary and assign
         task templates. Returns a dictionary with Shot metadata
         
-        { "sh002": { "created": False, # Shot already existed in Shotgun
-                     "shotgun": { sg_data describing the shot, including cut in/cut out } },
-
-          "sh003": { "created": True,  # Shot was created
-                     "shotgun": { sg_data describing the shot, including cut in/cut out } }
-        }
-        
-        :returns: dictionary, see above  
+        :returns: List of ShotMetadata objects  
         """
         # get some configuration settings first
         shot_task_template = self.get_setting("task_template")
@@ -471,6 +474,14 @@ class FlameExport(Application):
         if "height" in info:
             fields["height"] = int(info["height"])
         
+        # populate the time field metadata
+        now = datetime.datetime.now()
+        fields["YYYY"] = now.year
+        fields["MM"] = now.month
+        fields["DD"] = now.day
+        fields["hh"] = now.hour
+        fields["mm"] = now.minute
+
         try:
             full_path = template.apply_fields(fields)
         except Exception, e:
@@ -646,11 +657,11 @@ class FlameExport(Application):
         
         if info["assetType"] == "video":
             # e.g. 'sequences/{Sequence}/{Shot}/editorial/plates/{segment_name}_{Shot}.v{version}.{SEQ}.dpx'
-            publish_name = "%s_%s_%s" % (info["sequenceName"], info["shotName"], info["assetName"])
+            publish_name = "%s, %s, %s" % (info["sequenceName"], info["shotName"], info["assetName"])
             
         elif info["assetType"] == "batch":
             # e.g. 'sequences/{Sequence}/{Shot}/editorial/flame/batch/{Shot}.v{version}.batch'
-            publish_name = "%s_%s" % (info["sequenceName"], info["shotName"])
+            publish_name = "%s, %s" % (info["sequenceName"], info["shotName"])
             
         else:
             raise TankError("Unknown asset type %s" % info["assetType"])
@@ -984,37 +995,61 @@ class FlameExport(Application):
 class ShotMetadata(object):
     """
     Value wrapper class which holds various properties associated with a shot.
-    This object is passed down the export pipeline
+    This object is passed down the export pipeline.
     """
 
     def __init__(self):
+        """
+        Constructor
+        """
+        # set up the basic properties of this value wrapper
         
-        self.name = None
-        self.parent_name = None
-        self.shotgun_parent = None
+        self.name = None                    # shot name
+        self.parent_name = None             # parent (sequence) name
+        self.shotgun_parent = None          # shotgun parent entity dictionary
         
-        self.created_this_session = False
+        self.created_this_session = False   # was the shotgun shot created in this session?
 
-        self.shotgun_id = None
+        self.shotgun_id = None              # shotgun shot id
         
-        self.shotgun_cut_in = None
-        self.shotgun_cut_out = None
-        self.shotgun_cut_order = None
+        self.shotgun_cut_in = None          # shotgun cut in 
+        self.shotgun_cut_out = None         # shotgun cut out
+        self.shotgun_cut_order = None       # shotgun cut order
         
-        self.new_cut_in = None
-        self.new_cut_out = None
-        self.new_cut_order = None
+        self.new_cut_in = None              # calculated cut in
+        self.new_cut_out = None             # calculated cut out
+        self.new_cut_order = None           # calculated cut order
         
-        self.context = None
+        self.context = None                 # context object for the shot
         
-        self.__templates = {}
+        # internal members
+        self.__templates = {}           
         self.__thumb_upload_handled = False
         
     def set_template(self, asset_type, asset_name, template, fields):
+        """
+        Associate a template and some fields with a given asset belonging to this shot. 
         
+        :param asset_type: flame asset type to associate with
+        :param asset_name: flame asset name to associate with 
+        :param template: template object to store
+        :param fields: fields dictionary (matching template) to store
+        """
         self.__templates["%s_%s" % (asset_type, asset_name)] = (template, fields)
 
     def get_std_sequence_path(self, asset_type, asset_name):
+        """
+        Used in conjunction with set_template().
+        
+        Given an asset type and an asset name,
+        resolve the associated template and fields into a path
+        and return the path. Paths with sequence markers {SEQ}
+        will be normalized on a %d-style sequence form.
+
+        :param asset_type: flame asset type to associate with
+        :param asset_name: flame asset name to associate with 
+        :returns: resolved template, e.g. a path
+        """
         
         # given the template and fields we calculated in the pre-asset hook,
         # compute a shotgun-friendly path where the sequence identifier has 
@@ -1030,7 +1065,13 @@ class ShotMetadata(object):
         
     def needs_shotgun_thumb(self):
         """
-        Returns true if it needs a shotgun thumbnail uploaded
+        Returns true if it needs a shotgun thumbnail uploaded.
+        
+        For existing shotgun shots, this method will always return False.
+        For new shotgun shots, this method will return True the first time
+        it is being called and False after that.
+        
+        :returns: Boolean to indicate if a thumbnail is needed
         """
         if self.created_this_session == False:
             # no need for old items

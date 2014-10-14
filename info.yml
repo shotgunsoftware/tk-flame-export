@@ -48,22 +48,22 @@ configuration:
     plate_template:
         description: Toolkit file system template to control where video output goes on disk
         type: template
-        fields: context, SEQ, Shot, version, segment_name, *
+        fields: context, SEQ, Shot, version, segment_name, [YYYY], [MM], [DD], [hh], [mm], [width], [height], *
                                          
     segment_clip_template:
         description: Toolkit file system template to control where segment based clip files go on disk
         type: template
-        fields: context, Shot, segment_name, *
+        fields: context, Shot, segment_name, [YYYY], [MM], [DD], [hh], [mm], *
 
     shot_clip_template:
         description: Toolkit file system template to control where shot based clip files go on disk
         type: template
-        fields: context, Shot, *
+        fields: context, Shot, [YYYY], [MM], [DD], [hh], [mm], *
 
     batch_template:
         description: Toolkit file system template to control where flame batch files go on disk
         type: template
-        fields: context, Shot, version, *
+        fields: context, Shot, version, [YYYY], [MM], [DD], [hh], [mm], *
                     
     plate_publish_type:
         type: tank_type
