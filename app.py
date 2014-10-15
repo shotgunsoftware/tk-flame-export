@@ -177,6 +177,7 @@ class FlameExport(Application):
             template_defs[t] = template_defs[t].replace("{DD}", "<DD>")
             template_defs[t] = template_defs[t].replace("{hh}", "<hh>")
             template_defs[t] = template_defs[t].replace("{mm}", "<mm>")
+            template_defs[t] = template_defs[t].replace("{ss}", "<ss>")
             template_defs[t] = template_defs[t].replace("{width}", "<width>")
             template_defs[t] = template_defs[t].replace("{height}", "<height>")
             
@@ -482,6 +483,7 @@ class FlameExport(Application):
         fields["DD"] = now.day
         fields["hh"] = now.hour
         fields["mm"] = now.minute
+        fields["ss"] = now.second
 
         try:
             full_path = template.apply_fields(fields)
