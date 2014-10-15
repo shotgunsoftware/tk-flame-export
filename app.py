@@ -393,6 +393,7 @@ class FlameExport(Application):
         
         # first check that the clip has a shot name - otherwise things won't work!
         if shot_name == "":
+            from PySide import QtGui, QtCore
             QtGui.QMessageBox.warning(None,
                                       "Missing shot name!",
                                       ("The clip '%s' does not have a shot name and therefore cannot be exported. "
@@ -409,8 +410,8 @@ class FlameExport(Application):
         # first, calculate cut data fields
         if asset_type == "video":
             # get the cut in and out point for this clip
-            clip_in = int(info["sourceIn"])
-            clip_out = int(info["sourceOut"])
+            clip_in = int(info["recordIn"])
+            clip_out = int(info["recordOut"])
             
             if self._shots[sequence_name][shot_name].new_cut_in is None:
                 # no value yet
