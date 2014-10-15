@@ -94,7 +94,7 @@ class FlameExport(Application):
             # get comments from user
             self._user_comments = widget.get_comments()
             # populate the host to use for the export. Currently hard coded to local
-            info["destinationHost"] = "localhost"
+            info["destinationHost"] = self.engine.get_server_hostname()
             # let the export root path align with the primary project root
             info["destinationPath"] = self.sgtk.project_path
             # pick up the xml export profile from the configuration
@@ -691,7 +691,7 @@ class FlameExport(Application):
             #    
             input_cmd = "%s -n \"%s@CLIP\" -h %s -W %s -H %s -L" % (self.engine.get_read_frame_path(),
                                                                     full_flame_path,
-                                                                    "localhost:Gateway",
+                                                                    "%s:Gateway" % self.engine.get_server_hostname(), 
                                                                     info["width"],
                                                                     info["height"])
             
@@ -780,8 +780,19 @@ class FlameExport(Application):
 
         self.log_debug("Begin version processing for %s..." % full_flame_path)
 
+        
+        
+        
         data = {}
-        data["code"] = publish_name = os.path.basename(full_std_path)
+        
+        # let the version name be the main file name of the plate
+        # /path/to/filename -> filename
+        # /path/to/filename.ext -> filename
+        # /path/to/filename.%04d.ext -> filename
+        file_name = os.path.basename(full_std_path)
+        version_name = os.path.splitext(os.path.splitext(file_name)[0])
+        data["code"] = version_name
+        
         data["description"] = user_comments
         data["project"] = context.project
         data["entity"] = context.entity
@@ -856,7 +867,7 @@ class FlameExport(Application):
         # 
         input_cmd = "%s -n \"%s@CLIP\" -h %s -W %s -H %s -L -N -1 -r" % (self.engine.get_read_frame_path(),
                                                                          full_flame_path,
-                                                                         "localhost:Gateway",
+                                                                         "%s:Gateway" % self.engine.get_server_hostname(),
                                                                          width,
                                                                          height)
 
