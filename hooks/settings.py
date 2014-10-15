@@ -137,8 +137,8 @@ The generated media is 10-bit DPX and no audio.</comment>
          <name>v&lt;version&gt;</name>
       </version>
       <batchSetup>
-         <namePattern>{BATCH_NAME_PATTERN}/</namePattern>
-         <exportNamePattern>{SHOT_CLIP_NAME_PATTERN}/</exportNamePattern>
+         <namePattern>{BATCH_NAME_PATTERN}</namePattern>
+         <exportNamePattern>{SHOT_CLIP_NAME_PATTERN}</exportNamePattern>
       </batchSetup>
    </createOpenClip>
    <reImport>
