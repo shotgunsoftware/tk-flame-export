@@ -790,7 +790,7 @@ class FlameExport(Application):
         # /path/to/filename.ext -> filename
         # /path/to/filename.%04d.ext -> filename
         file_name = os.path.basename(full_std_path)
-        version_name = os.path.splitext(os.path.splitext(file_name)[0])
+        version_name = os.path.splitext(os.path.splitext(file_name)[0])[0]
         data["code"] = version_name
         
         data["description"] = user_comments
