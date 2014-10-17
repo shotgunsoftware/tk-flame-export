@@ -42,7 +42,7 @@ class FlameExport(Application):
         self._shots = {}
         
         # batch render tracking
-        self._do_batch_post_processing = False
+        self._send_batch_render_to_review = False
         
         # UI comments
         self._user_comments = ""
@@ -66,6 +66,7 @@ class FlameExport(Application):
         # also register this app so that it runs after export
         batch_callbacks = {}
         batch_callbacks["batchExportEnd"] = self.submit_post_batch_backburner_job
+        batch_callbacks["batchExportBegin"] = self.pre_batch_render_checks
         self.engine.register_batch_hook(batch_callbacks)
         
 
@@ -530,6 +531,96 @@ class FlameExport(Application):
         # all done - the rest will happen on the render farm.
         self._submission_done = True
 
+
+    def __is_rendering_tk_session(self, batch_path, render_path):
+        """
+        Determines if a batch export is outputting to file locations
+        known to the current tk export app. In that case, the context
+        is returned.
+        
+        :param batch_path: Path to the exported batch file
+        :param render_path: Path to the current render (w flame sequence markers)
+        :returns: Context or None if path isn't recognized 
+        """
+        
+        # first check if the resolved paths match our templates in the settings.
+        # otherwise ignore the export
+        plate_template = self.get_template("plate_template")
+        if not plate_template.validate(render_path):
+            self.log_debug("The path '%s' does not match the template '%s'. Ignoring." % (render_path, plate_template))
+            return None
+        
+        batch_template = self.get_template("batch_template")
+        if not batch_template.validate(batch_path):
+            self.log_debug("The path '%s' does not match the template '%s'. Ignoring." % (batch_path, batch_template))
+            return None
+
+        # now extract the context for the currently worked on thing
+        context = self.sgtk.context_from_path(batch_path)
+        return context
+
+
+    def pre_batch_render_checks(self, info):
+        """
+        Called before rendering starts in batch/flare.
+        
+        This pops up a UI asking the user if they want to send things to review.
+        
+        :param info: Dictionary with a number of parameters:
+        
+            nodeName:             Name of the export node.   
+            exportPath:           Export path as entered in the application UI.
+                                  Can be modified by the hook to change where the file are written.
+            namePattern:          List of optional naming tokens as entered in the application UI.
+            resolvedPath:         Full file pattern that will be exported with all the tokens resolved.
+            firstFrame:           Frame number of the first frame that will be exported.
+            lastFrame:            Frame number of the last frame that will be exported.
+            versionName:          Current version name of export (Empty if unversioned).
+            versionNumber:        Current version number of export (0 if unversioned).
+            openClipNamePattern:  List of optional naming tokens pointing to the open clip created if any
+                                  as entered in the application UI. This is only available if versioning
+                                  is enabled.
+            openClipResolvedPath: Full path to the open clip created if any with all the tokens resolved.
+                                  This is only available if versioning is enabled.
+            setupNamePattern:     List of optional naming tokens pointing to the setup created if any
+                                  as entered in the application UI. This is only available if versioning
+                                  is enabled.
+            setupResolvedPath:    Full path to the setup created if any with all the tokens resolved.
+                                  This is only available if versioning is enabled.
+            aborted:              Indicate if the export has been aborted by the user.
+            lastFrame:            Last frame rendered
+            firstFrame:           First frame rendered
+            fps:                  Frame rate of render
+            aspectRatio:          Frame aspect ratio
+            width:                Frame width
+            height:               Frame height
+            depth:                Frame depth ( '8-bits', '10-bits', '12-bits', '16 fp' )
+            scanForamt:           Scan format ( 'FILED_1', 'FIELD_2', 'PROGRESSIVE' )        
+        """
+        self._send_batch_render_to_review = False
+        self._user_comments = None
+        
+        plate_path = os.path.join(info.get("exportPath"), info.get("resolvedPath"))
+        batch_path = info.get("setupResolvedPath")
+        ctx = self.__is_rendering_tk_session(batch_path, plate_path)
+        if ctx is None:
+            # not known by this app
+            return
+        
+        # ok so this looks like one of our renders - check with the user 
+        # if they want to submit to review!
+        from PySide import QtGui, QtCore
+         
+        # pop up a UI asking the user for description
+        tk_flame_export = self.import_module("tk_flame_export")        
+        (return_code, widget) = self.engine.show_modal("Send to Review", self, tk_flame_export.BatchRenderDialog)
+        
+        if return_code != QtGui.QDialog.Rejected:
+            # user wants review!
+            self._send_batch_render_to_review = True
+            self._user_comments = widget.get_comments()
+
+
     def submit_post_batch_backburner_job(self, info):
         """
         Called when batch rendering has finished.
@@ -563,7 +654,7 @@ class FlameExport(Application):
             width:                Frame width
             height:               Frame height
             depth:                Frame depth ( '8-bits', '10-bits', '12-bits', '16 fp' )
-            scanForamt:           Scan format ( 'FILED_1', 'FIELD_2', 'PROGRESSIVE' )
+            scanFormat:           Scan format ( 'FILED_1', 'FIELD_2', 'PROGRESSIVE' )
             aborted:              Indicate if the export has been aborted by the user.
         """
         
@@ -571,25 +662,18 @@ class FlameExport(Application):
             self.log_debug("Rendering was aborted. Will not push to Shotgun.")
             return 
         
-        # first check if the resolved paths match our templates in the settings.
-        # otherwise ignore the export
-        plate_template = self.get_template("plate_template")
         plate_path = os.path.join(info.get("exportPath"), info.get("resolvedPath"))
-        if not plate_template.validate(plate_path):
-            self.log_debug("The path '%s' does not match the template '%s'. Ignoring." % (plate_path, plate_template))
-            return
-        
-        batch_template = self.get_template("batch_template")
         batch_path = info.get("setupResolvedPath")
-        if not batch_template.validate(batch_path):
-            self.log_debug("The path '%s' does not match the template '%s'. Ignoring." % (batch_path, batch_template))
+        ctx = self.__is_rendering_tk_session(batch_path, plate_path)
+        if ctx is None:
+            # not known by this app
             return
-
-        # now extract the context for the currently worked on thing
-        context = self.sgtk.context_from_path(batch_path)
         
         # now start preparing a remote job
-        args = {"info": info, "serialized_context": sgtk.context.serialize(context) }
+        args = {"info": info, 
+                "serialized_context": sgtk.context.serialize(ctx), 
+                "comments": self._user_comments,
+                "send_to_review": self._send_batch_render_to_review }
         
         # and populate backburner job parameters
         job_title = "Shotgun Batch Render Upload - %s" % info.get("nodeName")
@@ -603,7 +687,7 @@ class FlameExport(Application):
                                                 "backburner_process_rendered_batch", 
                                                 args)
 
-    def backburner_process_rendered_batch(self, info, serialized_context):
+    def backburner_process_rendered_batch(self, info, serialized_context, comments, send_to_review):
         """
         :param info: Dictionary with a number of parameters:
         
@@ -636,33 +720,39 @@ class FlameExport(Application):
             depth:                Frame depth ( '8-bits', '10-bits', '12-bits', '16 fp' )
             scanForamt:           Scan format ( 'FILED_1', 'FIELD_2', 'PROGRESSIVE' ) 
             
-        :param serialized_context: The context for the shot that the submission is associated with, in serialized form.            
+        :param serialized_context: The context for the shot that the submission 
+                                   is associated with, in serialized form.
+        :param comments: User comments, as a string
+        :param send_to_review: Boolean to indicate that we should send to sg review.            
         """
         context = sgtk.context.deserialize(serialized_context)
         version_number = int(info["versionNumber"])
+        description = comments or "Automatic Flame batch render"
+        
         
         # first register the batch file as a publish in Shotgun
         batch_path = info.get("setupResolvedPath")
-        self._sg_submit_helper.register_batch_publish(context, batch_path, "Batch Render", version_number)
+        self._sg_submit_helper.register_batch_publish(context, batch_path, description, version_number)
 
         # Now register the rendered images as a published plate in Shotgun
         full_flame_plate_path = os.path.join(info.get("exportPath"), info.get("resolvedPath"))
         sg_data = self._sg_submit_helper.register_video_publish(context, 
                                                                 full_flame_plate_path, 
-                                                                "Batch Render",
+                                                                description,
                                                                 version_number, 
                                                                 info["width"], 
                                                                 info["height"], 
                                                                 make_shot_thumb=False)
         
         # Finally, create a version record in Shotgun, generate a quicktime and upload it
-        self._sg_submit_helper.create_version(context, 
-                                              full_flame_plate_path,
-                                              "Batch Render",
-                                              sg_data, 
-                                              info["width"], 
-                                              info["height"],
-                                              info["aspectRatio"])        
+        if send_to_review:
+            self._sg_submit_helper.create_version(context, 
+                                                  full_flame_plate_path,
+                                                  description,
+                                                  sg_data, 
+                                                  info["width"], 
+                                                  info["height"],
+                                                  info["aspectRatio"])        
 
 
     def backburner_process_exported_asset(self, info, serialized_context, user_comments, make_shot_thumb):

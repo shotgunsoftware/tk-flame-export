@@ -1,7 +1,8 @@
 <RCC>
   <qresource prefix="tk-flame-export">
+    <file>batch_render_splash.png</file>
     <file>ui_splash.png</file>
     <file>submission_complete.png</file>
-    <file>submission_failed.png</file>    
+    <file>submission_failed.png</file>
   </qresource>
 </RCC>

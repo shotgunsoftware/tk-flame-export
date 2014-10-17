@@ -37,6 +37,7 @@ function build_res {
 # build UI's:
 echo "building user interfaces..."
 build_ui submit_dialog
+build_ui batch_render_dialog
 build_ui summary_dialog
 # add any additional .ui files you want converted here!
 
