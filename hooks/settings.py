@@ -12,7 +12,6 @@ import sgtk
 from sgtk import TankError
 import os
 import cgi
-import re
 
 HookBaseClass = sgtk.get_hook_baseclass()
 
@@ -126,7 +125,7 @@ The generated media is 10-bit DPX and no audio.</comment>
    </video>
    <name>
       <framePadding>{FRAME_PADDING}</framePadding>
-      <startFrame>0</startFrame>
+      <startFrame>100</startFrame>
       <useTimecode>False</useTimecode>
    </name>
    <createOpenClip>

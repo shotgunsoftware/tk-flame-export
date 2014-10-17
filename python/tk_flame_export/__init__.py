@@ -10,3 +10,5 @@
 
 from .submit_dialog import SubmitDialog
 from .summary_dialog import SummaryDialog
+from .shotgun_submit import ShotgunSubmitter
+from .shot_metadata import ShotMetadata

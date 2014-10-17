@@ -12,11 +12,10 @@
 Flame content exporter.
 """
 
-import sys
-import copy
 import uuid
 import os
 import re
+import xml.etree.ElementTree
 import sgtk
 import datetime
 
@@ -36,14 +35,20 @@ class FlameExport(Application):
         """
         self.log_debug("%s: Initializing" % self)
         
+        tk_flame_export = self.import_module("tk_flame_export")
+        self._sg_submit_helper = tk_flame_export.ShotgunSubmitter()
+        
         # shot metadata
         self._shots = {}
+        
+        # batch render tracking
+        self._do_batch_post_processing = False
         
         # UI comments
         self._user_comments = ""
         
         # flag to indicate that something was actually submitted
-        self._submission_done = False     
+        self._submission_done = False
         
         # register our desired interaction with flame hooks
         menu_caption = self.get_setting("menu_name")
@@ -54,11 +59,15 @@ class FlameExport(Application):
         callbacks["preCustomExport"] = self.pre_custom_export
         callbacks["preExportSequence"] = self.pre_export_sequence
         callbacks["preExportAsset"] = self.pre_export_asset
-        callbacks["postExportAsset"] = self.register_post_asset_job
+        callbacks["postExportAsset"] = self.submit_post_asset_backburner_job
         callbacks["postCustomExport"] = self.update_cut_and_display_summary
-        
-        # register with the engine
         self.engine.register_export_hook(menu_caption, callbacks)
+        
+        # also register this app so that it runs after export
+        batch_callbacks = {}
+        batch_callbacks["batchExportEnd"] = self.submit_post_batch_backburner_job
+        self.engine.register_batch_hook(batch_callbacks)
+        
 
 
     def pre_custom_export(self, session_id, info):
@@ -99,10 +108,46 @@ class FlameExport(Application):
             info["destinationPath"] = self.sgtk.project_path
             # pick up the xml export profile from the configuration
             flame_templates = self.__resolve_flame_templates()
-            info["presetPath"] = self.execute_hook_method("settings_hook", 
-                                                          "get_export_preset",
-                                                          resolved_flame_templates=flame_templates)
+            preset_xml_path = self.execute_hook_method("settings_hook", 
+                                                       "get_export_preset",
+                                                       resolved_flame_templates=flame_templates)
+                        
+            # tell flame about it
+            info["presetPath"] = preset_xml_path
+            
             self.log_debug("%s: Starting custom export session with preset '%s'" % (self, info["presetPath"]))
+        
+ 
+#     This doesn't seem to be needed at the moment, but may came in handy later...
+#
+#     def __resolve_profile_start_frame(self, profile_xml_path):
+#         """
+#         Given an export xml file, return start frame and handle parameters
+#         
+#         :param profile_xml_path: path to xml settings file
+#         :returns: start frame for all image sequences, as defined in the export preset.
+#         """
+#         fh = open(profile_xml_path, "rt")
+#         try:
+#             xml_content = fh.read()
+#         finally:
+#             fh.close()
+#         
+#         root = xml.etree.ElementTree.fromstring(xml_content)
+#         
+#         start_frame_nodes = root.findall("./name/startFrame")
+#         if len(start_frame_nodes) == 0:
+#             raise TankError("Could not find start frame node in %s" % profile_xml_path)
+#         start_frame_str = start_frame_nodes[0].text
+#         start_frame = int(start_frame_str)
+#         
+#         handle_nodes = root.findall("./sequence/videoMedia/nbHandles")
+#         if len(handle_nodes) == 0:
+#             raise TankError("Could not find video handle frame node in %s" % profile_xml_path)
+#         handle_node_str = handle_nodes[0].text
+#         handle = int(handle_node_str)
+#         
+#         return (start_frame, handle)
         
 
     def __resolve_flame_templates(self):
@@ -229,7 +274,7 @@ class FlameExport(Application):
         
         try:
             # find and create objects in shotgun
-            shot_metadata_list = self.__resolve_sg_shot_structure(sequence_name, shot_names)
+            shot_metadata_list = self._sg_submit_helper.resolve_sg_shot_structure(sequence_name, shot_names)
             
             # set up metadata objects grouped by sequence in our self._shots structure
             self._shots[sequence_name] = {}
@@ -253,94 +298,6 @@ class FlameExport(Application):
             # kill progress indicator        
             self.engine.clear_busy()
     
-    def __resolve_sg_shot_structure(self, parent_name, shot_names):
-        """
-        Ensures that Shots exists in Shotgun. Will automatically create
-        Shots and Shot parents (e.g. sequences) if necessary and assign
-        task templates. Returns a dictionary with Shot metadata
-        
-        :returns: List of ShotMetadata objects  
-        """
-        # get some configuration settings first
-        shot_task_template = self.get_setting("task_template")
-        if shot_task_template == "":
-            shot_task_template = None
-
-        parent_task_template = self.get_setting("shot_parent_task_template")
-        if parent_task_template == "":
-            parent_task_template = None
-
-        shot_parent_entity_type = self.get_setting("shot_parent_entity_type")
-        shot_parent_link_field = self.get_setting("shot_parent_link_field")
-
-        # handy shorthand
-        project = self.context.project
-
-        # first, ensure that a parent exists in Shotgun with the parent name
-        sg_parent = self.shotgun.find_one(shot_parent_entity_type, [["code", "is", parent_name], 
-                                                                    ["project", "is", project]]) 
-        
-        if not sg_parent:
-            # Create a new parent object in Shotgun
-            
-            # First see if we should assign a task template
-            if parent_task_template:
-                # resolve task template
-                sg_task_template = self.shotgun.find_one("TaskTemplate", [["code", "is", parent_task_template]])
-                if not sg_task_template:
-                    raise TankError("The task template '%s' does not exist in Shotgun!" % parent_task_template)
-            else:
-                sg_task_template = None
-            
-            sg_parent = self.shotgun.create(shot_parent_entity_type, 
-                                            {"code": parent_name, 
-                                             "task_template": sg_task_template,
-                                             "description": "Created by the Shotgun Flame exporter.",
-                                             "project": project})
-  
-        # now resolve all the shots. Shots that don't already exists are created.
-        shots = []
-        for shot_name in shot_names:
-
-            shot = self.shotgun.find_one("Shot", 
-                                         [["code", "is", shot_name], [shot_parent_link_field, "is", sg_parent]],
-                                         ["sg_cut_in", "sg_cut_out", "sg_cut_order"])
-            
-            metadata = ShotMetadata()
-            metadata.name = shot_name
-            metadata.parent_name = parent_name
-            metadata.shotgun_parent = sg_parent
-            shots.append(metadata)
-            
-            if shot:
-                # store it in our return data dict
-                metadata.shotgun_id = shot["id"]
-                metadata.shotgun_cut_in = shot["sg_cut_in"]
-                metadata.shotgun_cut_out = shot["sg_cut_out"]
-            
-            else:
-                # Create a new shot in Shotgun
-                
-                # First see if we should assign a task template
-                if shot_task_template:
-                    # resolve task template
-                    sg_task_template = self.shotgun.find_one("TaskTemplate", [["code", "is", shot_task_template]])
-                    if not sg_task_template:
-                        raise TankError("The task template '%s' does not exist in Shotgun!" % shot_task_template)
-                else:
-                    sg_task_template = None
-                    
-                shot = self.shotgun.create("Shot", {"code": shot_name, 
-                                                    "description": "Created by the Shotgun Flame exporter.",
-                                                    shot_parent_link_field: sg_parent,
-                                                    "task_template": sg_task_template,
-                                                    "project": project})
-                
-                # store it in our return data dict
-                metadata.created_this_session = True
-                metadata.shotgun_id = shot["id"]
-            
-        return shots
 
     
     def pre_export_asset(self, session_id, info):
@@ -410,41 +367,23 @@ class FlameExport(Application):
         
         # first, calculate cut data fields
         if asset_type == "video":
-            # get the cut in and out point for this clip
-            clip_in = int(info["recordIn"])
-            clip_out = int(info["recordOut"])
-            
-            if self._shots[sequence_name][shot_name].new_cut_in is None:
-                # no value yet
-                self._shots[sequence_name][shot_name].new_cut_in = clip_in
-            
-            elif self._shots[sequence_name][shot_name].new_cut_in > clip_in:
-                # we got a value but our current clip started before
-                # the other. We want to capture the maximum range of 
-                # the shot, so update
-                self._shots[sequence_name][shot_name].new_cut_in = clip_in
-                
-            if self._shots[sequence_name][shot_name].new_cut_out is None:
-                # no value yet
-                self._shots[sequence_name][shot_name].new_cut_out = clip_out
-                
-            elif self._shots[sequence_name][shot_name].new_cut_out < clip_out:
-                # we got a value but our current clip ended after
-                # the other. We want to capture the maximum range of 
-                # the shot, so update
-                self._shots[sequence_name][shot_name].new_cut_out = clip_out
+            self._shots[sequence_name][shot_name].update_new_cut_info(int(info["recordIn"]), int(info["recordOut"]))
                 
         # get the appropriate file system template
         if asset_type == "video":
+            # exported plates or video
             template = self.get_template("plate_template")
             
         elif asset_type == "batch":
+            # batch file
             template = self.get_template("batch_template")
             
         elif asset_type == "batchOpenClip":
+            # shot level open scene clip xml
             template = self.get_template("shot_clip_template")            
 
         elif asset_type == "openClip":
+            # segment level open scene clip xml
             template = self.get_template("segment_clip_template")            
         
         self.log_debug("Attempting to resolve template %s..." % template)
@@ -459,7 +398,7 @@ class FlameExport(Application):
         
         if asset_type == "video":
             # handle the flame sequence token - it will come in as "[1001-1100]"
-            re_match = re.search('(\[[0-9]+-[0-9]+\])\.', info["resolvedPath"])
+            re_match = re.search("(\[[0-9]+-[0-9]+\])\.", info["resolvedPath"])
             if not re_match:
                 raise TankError("Cannot find frame number token in export data!")
             fields["SEQ"] = re_match.group(1)
@@ -500,14 +439,9 @@ class FlameExport(Application):
         
         # pass an updated path back to the flame. This ensures that all the 
         # character substitutions etc are handled according to the toolkit logic 
-        info["resolvedPath"] = local_path
-
-        # the template and fields are needed in the post-asset export, so add them 
-        # to our data structure that we are passing down the pipe. 
-        self._shots[sequence_name][shot_name].set_template(asset_type, asset_name, template, fields)
+        info["resolvedPath"] = local_path        
         
-        
-    def register_post_asset_job(self, session_id, info):
+    def submit_post_asset_backburner_job(self, session_id, info):
         """
         Called when an item has been exported.
         
@@ -565,39 +499,173 @@ class FlameExport(Application):
             run_after_job_id = None
         
         # extract context to pass downstream to the content generation job
+        # note - we have cached the context object for performance - could have
         context = self._shots[sequence_name][shot_name].context
-        
-        # get a shotgun-friendly path where the sequence identifier is %xd 
-        toolkit_path = self._shots[sequence_name][shot_name].get_std_sequence_path(asset_type, asset_name)        
-        
-        # check if we should push a thumbnail to the shot
+                
+        # check if we should push a thumbnail to the shot entity
+        # (this is typically done for newly created shots)
+        # note: with upcoming changes in shotgun, this may not be necessary
         make_shot_thumb = False
         if asset_type == "video":
             make_shot_thumb = self._shots[sequence_name][shot_name].needs_shotgun_thumb()        
         
         # now start preparing a remote job
         args = {"info": info, 
-                "serialized_shot_context": sgtk.context.serialize(context),
-                "toolkit_path": toolkit_path,
+                "serialized_context": sgtk.context.serialize(context),
                 "user_comments": self._user_comments,
                 "make_shot_thumb": make_shot_thumb }
         
         # and populate backburner job parameters
-        backburner_job_title = "Shotgun Upload - %s, %s, %s" % (sequence_name, shot_name, asset_type)
-        backburner_job_desc = "Transcoding media, registering and uploading."         
+        job_title = "Shotgun Upload - %s, %s, %s" % (sequence_name, shot_name, asset_type)
+        job_desc = "Transcoding media, registering and uploading."         
         
-        # kick off async job
-        self.engine.create_local_backburner_job(backburner_job_title, 
-                                                backburner_job_desc, 
-                                                run_after_job_id,
+        # kick off backburner job
+        self.engine.create_local_backburner_job(job_title, 
+                                                job_desc, 
+                                                run_after_job_id, 
                                                 self, 
-                                                "populate_shotgun",
+                                                "backburner_process_exported_asset", 
                                                 args)
         
         # all done - the rest will happen on the render farm.
         self._submission_done = True
 
-    def populate_shotgun(self, info, serialized_shot_context, toolkit_path, user_comments, make_shot_thumb):
+    def submit_post_batch_backburner_job(self, info):
+        """
+        Called when batch rendering has finished.
+        
+        :param info: Dictionary with a number of parameters:
+        
+            nodeName:             Name of the export node.   
+            exportPath:           Export path as entered in the application UI.
+                                  Can be modified by the hook to change where the file are written.
+            namePattern:          List of optional naming tokens as entered in the application UI.
+            resolvedPath:         Full file pattern that will be exported with all the tokens resolved.
+            firstFrame:           Frame number of the first frame that will be exported.
+            lastFrame:            Frame number of the last frame that will be exported.
+            versionName:          Current version name of export (Empty if unversioned).
+            versionNumber:        Current version number of export (0 if unversioned).
+            openClipNamePattern:  List of optional naming tokens pointing to the open clip created if any
+                                  as entered in the application UI. This is only available if versioning
+                                  is enabled.
+            openClipResolvedPath: Full path to the open clip created if any with all the tokens resolved.
+                                  This is only available if versioning is enabled.
+            setupNamePattern:     List of optional naming tokens pointing to the setup created if any
+                                  as entered in the application UI. This is only available if versioning
+                                  is enabled.
+            setupResolvedPath:    Full path to the setup created if any with all the tokens resolved.
+                                  This is only available if versioning is enabled.
+            aborted:              Indicate if the export has been aborted by the user.
+            lastFrame:            Last frame rendered
+            firstFrame:           First frame rendered
+            fps:                  Frame rate of render
+            aspectRatio:          Frame aspect ratio
+            width:                Frame width
+            height:               Frame height
+            depth:                Frame depth ( '8-bits', '10-bits', '12-bits', '16 fp' )
+            scanForamt:           Scan format ( 'FILED_1', 'FIELD_2', 'PROGRESSIVE' )
+            aborted:              Indicate if the export has been aborted by the user.
+        """
+        
+        if "aborted" in info and info["aborted"]:
+            self.log_debug("Rendering was aborted. Will not push to Shotgun.")
+            return 
+        
+        # first check if the resolved paths match our templates in the settings.
+        # otherwise ignore the export
+        plate_template = self.get_template("plate_template")
+        plate_path = os.path.join(info.get("exportPath"), info.get("resolvedPath"))
+        if not plate_template.validate(plate_path):
+            self.log_debug("The path '%s' does not match the template '%s'. Ignoring." % (plate_path, plate_template))
+            return
+        
+        batch_template = self.get_template("batch_template")
+        batch_path = info.get("setupResolvedPath")
+        if not batch_template.validate(batch_path):
+            self.log_debug("The path '%s' does not match the template '%s'. Ignoring." % (batch_path, batch_template))
+            return
+
+        # now extract the context for the currently worked on thing
+        context = self.sgtk.context_from_path(batch_path)
+        
+        # now start preparing a remote job
+        args = {"info": info, "serialized_context": sgtk.context.serialize(context) }
+        
+        # and populate backburner job parameters
+        job_title = "Shotgun Batch Render Upload - %s" % info.get("nodeName")
+        job_desc = "Making quicktimes and uploading to Shotgun."
+        
+        # kick off async job
+        self.engine.create_local_backburner_job(job_title, 
+                                                job_desc, 
+                                                None, # run_after_job_id 
+                                                self, 
+                                                "backburner_process_rendered_batch", 
+                                                args)
+
+    def backburner_process_rendered_batch(self, info, serialized_context):
+        """
+        :param info: Dictionary with a number of parameters:
+        
+            nodeName:             Name of the export node.   
+            exportPath:           Export path as entered in the application UI.
+                                  Can be modified by the hook to change where the file are written.
+            namePattern:          List of optional naming tokens as entered in the application UI.
+            resolvedPath:         Full file pattern that will be exported with all the tokens resolved.
+            firstFrame:           Frame number of the first frame that will be exported.
+            lastFrame:            Frame number of the last frame that will be exported.
+            versionName:          Current version name of export (Empty if unversioned).
+            versionNumber:        Current version number of export (0 if unversioned).
+            openClipNamePattern:  List of optional naming tokens pointing to the open clip created if any
+                                  as entered in the application UI. This is only available if versioning
+                                  is enabled.
+            openClipResolvedPath: Full path to the open clip created if any with all the tokens resolved.
+                                  This is only available if versioning is enabled.
+            setupNamePattern:     List of optional naming tokens pointing to the setup created if any
+                                  as entered in the application UI. This is only available if versioning
+                                  is enabled.
+            setupResolvedPath:    Full path to the setup created if any with all the tokens resolved.
+                                  This is only available if versioning is enabled.
+            aborted:              Indicate if the export has been aborted by the user.
+            lastFrame:            Last frame rendered
+            firstFrame:           First frame rendered
+            fps:                  Frame rate of render
+            aspectRatio:          Frame aspect ratio
+            width:                Frame width
+            height:               Frame height
+            depth:                Frame depth ( '8-bits', '10-bits', '12-bits', '16 fp' )
+            scanForamt:           Scan format ( 'FILED_1', 'FIELD_2', 'PROGRESSIVE' ) 
+            
+        :param serialized_context: The context for the shot that the submission is associated with, in serialized form.            
+        """
+        context = sgtk.context.deserialize(serialized_context)
+        version_number = int(info["versionNumber"])
+        
+        # first register the batch file as a publish in Shotgun
+        batch_path = info.get("setupResolvedPath")
+        self._sg_submit_helper.register_batch_publish(context, batch_path, "Batch Render", version_number)
+
+        # Now register the rendered images as a published plate in Shotgun
+        full_flame_plate_path = os.path.join(info.get("exportPath"), info.get("resolvedPath"))
+        sg_data = self._sg_submit_helper.register_video_publish(context, 
+                                                                full_flame_plate_path, 
+                                                                "Batch Render",
+                                                                version_number, 
+                                                                info["width"], 
+                                                                info["height"], 
+                                                                make_shot_thumb=False)
+        
+        # Finally, create a version record in Shotgun, generate a quicktime and upload it
+        self._sg_submit_helper.create_version(context, 
+                                              full_flame_plate_path,
+                                              "Batch Render",
+                                              sg_data, 
+                                              info["width"], 
+                                              info["height"],
+                                              info["aspectRatio"])        
+
+
+    def backburner_process_exported_asset(self, info, serialized_context, user_comments, make_shot_thumb):
         """
         Called when an item has been exported
         
@@ -631,308 +699,44 @@ class FlameExport(Application):
            versionName:     Current version name of export (Empty if unversioned).
            versionNumber:   Current version number of export (0 if unversioned).
            
-        :param serialized_shot_context: The context for the shot that the submission is associated with, 
-                                        in serialized form.
-        :param toolkit_path: Path to the file or sequence, toolkit style
+        :param serialized_context: The context for the shot that the submission is associated with, in serialized form.
         :param user_comments: Comments entered by the user at export start.
         :param make_shot_thumb: Should a thumbnail be uploaded to the associated shot as well?
         """
-
-        self.log_debug("Creating publish in Shotgun...")
-                
-        shot_context = sgtk.context.deserialize(serialized_shot_context)
+        
+        path = os.path.join(info.get("destinationPath"), info.get("resolvedPath"))
+        context = sgtk.context.deserialize(serialized_context)
+        version_number = int(info["versionNumber"])
         
         if info.get("assetType") == "video":
-            publish_type = self.get_setting("plate_publish_type")
+            
+            # first register a publish record in Shotgun for the plates
+            sg_data = self._sg_submit_helper.register_video_publish(context,
+                                                                    path,
+                                                                    user_comments,
+                                                                    version_number,
+                                                                    info["width"],
+                                                                    info["height"],
+                                                                    make_shot_thumb)
+
+            # now create a version record, generate a quicktime and upload it            
+            self._sg_submit_helper.create_version(context,
+                                                  path,
+                                                  user_comments,
+                                                  sg_data,
+                                                  info["width"],
+                                                  info["height"],
+                                                  info["aspectRatio"])
             
         elif info.get("assetType") == "batch":
-            publish_type = self.get_setting("batch_publish_type")
+            
+            # register a publish record in Shotgun for the batch file
+            self._sg_submit_helper.register_batch_publish(context, path, user_comments, version_number)
                         
         else:
             raise TankError("Unsupported asset type '%s'" % info.get("assetType"))
         
-        # join together the full path, flame style        
-        full_flame_path = os.path.join(info.get("destinationPath"), info.get("resolvedPath"))
                         
-        # put together a name for the publish. This should be on a form without a version
-        # number, so that it can be used to group together publishes of the same kind, but
-        # with different versions. The logic will differ depending on asset type
-        
-        if info["assetType"] == "video":
-            # e.g. 'sequences/{Sequence}/{Shot}/editorial/plates/{segment_name}_{Shot}.v{version}.{SEQ}.dpx'
-            publish_name = "%s, %s, %s" % (info["sequenceName"], info["shotName"], info["assetName"])
-            
-        elif info["assetType"] == "batch":
-            # e.g. 'sequences/{Sequence}/{Shot}/editorial/flame/batch/{Shot}.v{version}.batch'
-            publish_name = "%s, %s" % (info["sequenceName"], info["shotName"])
-            
-        else:
-            raise TankError("Unknown asset type %s" % info["assetType"])
-        
-        # now start assemble publish parameters
-        args = {
-            "tk": self.sgtk,
-            "context": shot_context,
-            "comment": user_comments,
-            "path": toolkit_path,
-            "name": publish_name,
-            "version_number": int(info["versionNumber"]),
-            "created_by": shot_context.user,
-            "task": shot_context.task,
-            "published_file_type": publish_type,
-        }
-        
-        thumbnail_jpg = None
-        
-        if info.get("assetType") == "video":
-            # now try to extract a thumbnail from the asset data stream.
-            # we use the same mechanism that the quicktime generation is using - see
-            # the quicktime code below for details:
-            #    
-            input_cmd = "%s -n \"%s@CLIP\" -h %s -W %s -H %s -L" % (self.engine.get_read_frame_path(),
-                                                                    full_flame_path,
-                                                                    "%s:Gateway" % self.engine.get_server_hostname(), 
-                                                                    info["width"],
-                                                                    info["height"])
-            
-            thumbnail_jpg = os.path.join(self.engine.get_backburner_tmp(), "tk_thumb_%s.jpg" % uuid.uuid4().hex)
-            if os.system("%s > %s" % (input_cmd, thumbnail_jpg)) != 0:
-                self.log_warning("Could not extract thumbnail! See error log for details.")
-            else:
-                self.log_debug("Wrote thumbnail %s" % thumbnail_jpg)
-                # add the thumbnail to the publish generation
-                args["thumbnail_path"] = thumbnail_jpg
-            
-            # check if the shot needs a thumbnail
-            if make_shot_thumb:
-                args["update_entity_thumbnail"] = True
-        
-
-        self.log_debug("Register publish in shotgun: %s" % str(args))        
-        sg_publish_data = sgtk.util.register_publish(**args)
-        self.log_debug("Register complete: %s" % sg_publish_data)
-        
-        if thumbnail_jpg:
-            # try to clean up
-            self.__clean_up_temp_file(thumbnail_jpg)
-                    
-        if info.get("assetType") == "video":
-            self._create_version(info, shot_context, toolkit_path, sg_publish_data, user_comments)
-            
-    def _create_version(self, info, context, full_std_path, sg_publish_data, user_comments):
-        """
-        Process review portion of an export. 
-        
-        For video assets, this method will do the following:
-        - Create a Shotgun version entity and populate as much metadata as possible
-        - Generate a quicktime by streaming the asset data via wiretap into ffmepg.
-          A h264 quicktime with shotgun-friendly settings are created, however the quicktime
-          defaults are defined in the settings hook and can be controlled by the user.
-        - Lastly, uploads the quicktime to Shotgun and then deletes it off disk.
-        
-        :param info: Dictionary with a number of parameters:
-        
-           destinationHost: Host name where the exported files will be written to.
-           destinationPath: Export path root.
-           namePattern:     List of optional naming tokens.
-           resolvedPath:    Full file pattern that will be exported with all the tokens resolved.
-           name:            Name of the exported asset.
-           sequenceName:    Name of the sequence the asset is part of.
-           shotName:        Name of the shot the asset is part of.
-           assetType:       Type of exported asset. ( 'video', 'audio', 'batch', 'openClip', 'batchOpenClip' )
-           isBackground:    True if the export of the asset happened in the background.
-           backgroundJobId: Id of the background job given by the backburner manager upon submission. 
-                            Empty if job is done in foreground.
-           width:           Frame width of the exported asset.
-           height:          Frame height of the exported asset.
-           aspectRatio:     Frame aspect ratio of the exported asset.
-           depth:           Frame depth of the exported asset. ( '8-bits', '10-bits', '12-bits', '16 fp' )
-           scanFormat:      Scan format of the exported asset. ( 'FILED_1', 'FIELD_2', 'PROGRESSIVE' )
-           fps:             Frame rate of exported asset.
-           sequenceFps:     Frame rate of the sequence the asset is part of.
-           sourceIn:        Source in point in frame and asset frame rate.
-           sourceOut:       Source out point in frame and asset frame rate.
-           recordIn:        Record in point in frame and sequence frame rate.
-           recordOut:       Record out point in frame and sequence frame rate.
-           track:           ID of the sequence's track that contains the asset.
-           trackName:       Name of the sequence's track that contains the asset.
-           segmentIndex:    Asset index (1 based) in the track.       
-           versionName:     Current version name of export (Empty if unversioned).
-           versionNumber:   Current version number of export (0 if unversioned).
-           
-        :param context: The context for the shot that the submission is associated with, 
-                        in serialized form.
-        :param full_std_path: Path to frames, using %04d rather than flame style [1234,1235] notation
-        :param sg_publish_data: Std shotgun dictionary (with type and id), representing the publish
-                                in Shotgun that has been carried out for this asset.
-        :param user_comments: Comments entered by the user at export start.
-        """
-        
-        # get the full flame style path
-        full_flame_path = os.path.join(info["destinationPath"], info["resolvedPath"])
-        
-        # note / todo: there doesn't seem to be any way to downscale the quicktime
-        # as it is being generated/streamed out of wiretap and encoded by ffmpeg.
-        # ideally we would like to downrez it to height 720px prior to uploading
-        # according to the Shotgun transcoding guidelines (and to optimize bandwidth)        
-        width = info["width"]
-        height = info["height"]
-
-        self.log_debug("Begin version processing for %s..." % full_flame_path)
-
-        
-        
-        
-        data = {}
-        
-        # let the version name be the main file name of the plate
-        # /path/to/filename -> filename
-        # /path/to/filename.ext -> filename
-        # /path/to/filename.%04d.ext -> filename
-        file_name = os.path.basename(full_std_path)
-        version_name = os.path.splitext(os.path.splitext(file_name)[0])[0]
-        data["code"] = version_name
-        
-        data["description"] = user_comments
-        data["project"] = context.project
-        data["entity"] = context.entity
-        data["created_by"] = context.user
-        data["user"] = context.user
-        data["sg_task"] = context.task
-
-        # link to the publish
-        if sgtk.util.get_published_file_entity_type(self.sgtk) == "PublishedFile":
-            # client is using published file entity
-            data["published_files"] = [sg_publish_data]
-        else:
-            # client is using old "TankPublishedFile" entity
-            data["tank_published_file"] = sg_publish_data
-        
-        # populate the path to frames with a path which is using %4d syntax
-        data["sg_path_to_frames"] = full_std_path
-
-        # note: we don't have a quicktime on disk which we link up to.
-        # we just upload it to shotgun and the discard it
-        # data["sg_path_to_movie"] = None
-
-        data["sg_first_frame"] = info["sourceIn"]
-        data["sg_last_frame"] = info["sourceOut"]
-        data["frame_count"] = info["sourceOut"] - info["sourceIn"] + 1 
-        data["frame_range"] = "%s-%s" % (info["sourceIn"], info["sourceOut"])         
-        data["sg_frames_have_slate"] = False
-        data["sg_movie_has_slate"] = False         
-        data["sg_frames_aspect_ratio"] = info["aspectRatio"]
-        data["sg_movie_aspect_ratio"] = info["aspectRatio"]
-        
-        # This is used to find the latest Version from the same department.
-        # todo: make this configurable?
-        data["sg_department"] = "Editorial"        
-        
-        sg_version_data = self.shotgun.create("Version", data)
-        
-        self.log_debug("Created a version in Shotgun: %s" % sg_version_data)
-        
-        self.log_debug("Start transcoding quicktime...")
-
-        # first assemble the readframe syntax. This will use the wiretap API to emit a stream of 
-        # image data to stdout that we can pipe into ffmpeg. We use this because the ffmpeg version
-        # coming with flame is from 2009 and doesn't support dpx files but also to make sure that
-        # all file formats that flame supports (e.g. exrs) can be converted.
-        # 
-        # Syntax:
-        #
-        # Usage: ./read_frame
-        #   -n <clip node id> (if empty, generate 4x4 black media)
-        #   [ -h <Wiretap server ID> (default = localhost) ]
-        #   [ -W <display width> (default=same as source) ]
-        #   [ -H <display height> (default=same as source) ]
-        #   [ -b <output bits per pixel (24|32)> (default = 24) ]
-        #   [ -i <zero-based start frame idx> (default = 0) ]
-        #   [ -N <number of frames to output> (default = 1, -1 for all)
-        #   [ -r (output raw RGB, default=jpg) ]
-        #   [ -O (flip raw output orientation, default=bottom to top) ]
-        #   [ -L (use lowest resolution available, default=highest) ]
-        #   [ -c <compression factor [0,100]> (default = 100)
-        #   [ -p <processing options> (default = none)
-        #
-        # Command line example:
-        # 
-        # ./read_frame 
-        #  -n /path/to.dpx@CLIP   <-- append @CLIP at the end of the path 
-        #  -h localhost:Gateway   <-- connect to wiretap
-        #  -W 1280 -H 720         <-- width and height to output
-        #  -L                     <-- default to lowest resolution
-        #  -N -1                  <-- output all frames 
-        #  -r                     <-- output raw rgb stream
-        # 
-        input_cmd = "%s -n \"%s@CLIP\" -h %s -W %s -H %s -L -N -1 -r" % (self.engine.get_read_frame_path(),
-                                                                         full_flame_path,
-                                                                         "%s:Gateway" % self.engine.get_server_hostname(),
-                                                                         width,
-                                                                         height)
-
-        # we now pipe this image stream into ffmpeg and generate a quicktime
-        #
-        # example command line:
-        # 
-        # ./ffmpeg -f rawvideo -top -1 -pix_fmt rgb24 -s 1280x720 -i -  -y -r 25 QUICKTIME_OPTIONS /output/file.mov
-        #
-        # ./ffmpeg 
-        #  -f rawvideo         <-- tell ffmpeg to read a raw stream from stdin
-        #  -top -1             <-- automatically interpret the stream data flow direction
-        #  -pix_fmt rgb24      <-- input stream pixel data lay out
-        #  -s 1280x720         <-- input stream resolution
-        #  -i -                <-- no input file
-        #  -y                  <-- overwrite existing files
-        #  -r 25               <-- need to tell ffmpeg what the fps is 
-        #  QUICKTIME_OPTIONS   <-- quicktime codec options (comes from hook)
-        #  /output/file.mov    <-- target file
-        #
-        
-        # note: the -r framerate argument seems to confuse ffmpeg so I am omitting that
-        # instead, quicktimes are generated at 25fps.
-        
-        ffmpeg_cmd = "%s -f rawvideo -top -1 -pix_fmt rgb24 -s %sx%s -i - -y" % (self.engine.get_ffmpeg_path(),
-                                                                                 width,
-                                                                                 height)
-                                                                                       
-        # get quicktime settings
-        ffmpeg_presets = self.execute_hook_method("settings_hook", "get_ffmpeg_quicktime_encode_parameters")
-        # generate target file
-        tmp_quicktime = os.path.join(self.engine.get_backburner_tmp(), "tk_flame_%s.mov" % uuid.uuid4().hex) 
-
-        full_cmd = "%s | %s %s %s" % (input_cmd, ffmpeg_cmd, ffmpeg_presets, tmp_quicktime)
-        
-        self.log_debug("Transcoding command line: %s" % full_cmd)
-        
-        if os.system(full_cmd) != 0:
-            raise TankError("Could not transcode media. See error log for details.")
-        
-        self.log_debug("Quicktime successfully created!")
-        self.log_debug("File size is %s bytes." % os.path.getsize(tmp_quicktime))
-        
-        # upload quicktime to Shotgun
-        self.log_debug("Begin upload of quicktime to shotgun...")
-        self.shotgun.upload("Version", sg_version_data["id"], tmp_quicktime, "sg_uploaded_movie")
-        self.log_debug("Upload complete!")
-        
-        # clean up
-        self.__clean_up_temp_file(tmp_quicktime)
-    
-
-    def __clean_up_temp_file(self, path):
-        """
-        Helper method which attemps to delete up a given temp file.
-        
-        :param path: Path to delete
-        """
-        try:
-            os.remove(path)
-            self.log_debug("Removed temporary file '%s'." % path)
-        except Exception, e:
-            self.log_warning("Could not remove temporary file '%s': %s" % (path, e))    
-    
-        
     def update_cut_and_display_summary(self, session_id, info):
         """
         Show summary UI to user
@@ -948,6 +752,7 @@ class FlameExport(Application):
                      - presetPath: Path to the preset used for the export.
         
         """        
+        
         # calculate the cut order for each sequence
         for seq in self._shots:
             # get a list of metadata objects for this shot
@@ -965,7 +770,8 @@ class FlameExport(Application):
         for seq in self._shots:
             for sm in self._shots[seq].values():
                 
-                if sm.shotgun_cut_in != sm.new_cut_in or sm.shotgun_cut_out != sm.new_cut_out or \
+                if sm.shotgun_cut_in != sm.new_cut_in or \
+                   sm.shotgun_cut_out != sm.new_cut_out or \
                    sm.shotgun_cut_order != sm.new_cut_order:
                     
                     duration = sm.new_cut_out - sm.new_cut_in + 1
@@ -990,98 +796,3 @@ class FlameExport(Application):
         
         
         
-        
-class ShotMetadata(object):
-    """
-    Value wrapper class which holds various properties associated with a shot.
-    This object is passed down the export pipeline.
-    """
-
-    def __init__(self):
-        """
-        Constructor
-        """
-        # set up the basic properties of this value wrapper
-        
-        self.name = None                    # shot name
-        self.parent_name = None             # parent (sequence) name
-        self.shotgun_parent = None          # shotgun parent entity dictionary
-        
-        self.created_this_session = False   # was the shotgun shot created in this session?
-
-        self.shotgun_id = None              # shotgun shot id
-        
-        self.shotgun_cut_in = None          # shotgun cut in 
-        self.shotgun_cut_out = None         # shotgun cut out
-        self.shotgun_cut_order = None       # shotgun cut order
-        
-        self.new_cut_in = None              # calculated cut in
-        self.new_cut_out = None             # calculated cut out
-        self.new_cut_order = None           # calculated cut order
-        
-        self.context = None                 # context object for the shot
-        
-        # internal members
-        self.__templates = {}           
-        self.__thumb_upload_handled = False
-        
-    def set_template(self, asset_type, asset_name, template, fields):
-        """
-        Associate a template and some fields with a given asset belonging to this shot. 
-        
-        :param asset_type: flame asset type to associate with
-        :param asset_name: flame asset name to associate with 
-        :param template: template object to store
-        :param fields: fields dictionary (matching template) to store
-        """
-        self.__templates["%s_%s" % (asset_type, asset_name)] = (template, fields)
-
-    def get_std_sequence_path(self, asset_type, asset_name):
-        """
-        Used in conjunction with set_template().
-        
-        Given an asset type and an asset name,
-        resolve the associated template and fields into a path
-        and return the path. Paths with sequence markers {SEQ}
-        will be normalized on a %d-style sequence form.
-
-        :param asset_type: flame asset type to associate with
-        :param asset_name: flame asset name to associate with 
-        :returns: resolved template, e.g. a path
-        """
-        
-        # given the template and fields we calculated in the pre-asset hook,
-        # compute a shotgun-friendly path where the sequence identifier has 
-        # been turned into a %04d-equivalent:
-        
-        lookup = "%s_%s" % (asset_type, asset_name)
-        if lookup not in self.__templates:
-            raise TankError("Could not look up sequence path in metadata %s" % self)
-        (template, fields) =  self.__templates[lookup]
-        new_fields = copy.deepcopy(fields)
-        new_fields["SEQ"] = "FORMAT: %d"
-        return template.apply_fields(new_fields)        
-        
-    def needs_shotgun_thumb(self):
-        """
-        Returns true if it needs a shotgun thumbnail uploaded.
-        
-        For existing shotgun shots, this method will always return False.
-        For new shotgun shots, this method will return True the first time
-        it is being called and False after that.
-        
-        :returns: Boolean to indicate if a thumbnail is needed
-        """
-        if self.created_this_session == False:
-            # no need for old items
-            return False
-        
-        if self.__thumb_upload_handled:
-            # some 
-            return False
-        
-        # we handle the upload
-        self.__thumb_upload_handled = True
-        return True
-    
-    
