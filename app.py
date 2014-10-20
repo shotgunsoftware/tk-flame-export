@@ -498,7 +498,9 @@ class FlameExport(Application):
             return None
 
         # now extract the context for the currently worked on thing
+        self.log_debug("Getting context from path '%s'" % batch_path)
         context = self.sgtk.context_from_path(batch_path)
+        self.log_debug("Context: %s" % context)
         return context
 
 
@@ -786,6 +788,7 @@ class FlameExport(Application):
         """        
         
         # calculate the cut order for each sequence
+        num_created_shots = 0
         for seq in self._shots:
             # get a list of metadata objects for this shot
             shot_metadata = self._shots[seq].values()
@@ -794,10 +797,13 @@ class FlameExport(Application):
             # now loop over all items and set an incrementing cut order
             cut_index = 1
             for sm in shot_metadata:
+                if sm.created_this_session:
+                    num_created_shots += 1
                 sm.new_cut_order = cut_index
                 cut_index += 1
                 
         # now push cut changes to Shotgun as a single batch op
+        num_cut_changes = 0
         cut_changes = []
         for seq in self._shots:
             for sm in self._shots[seq].values():
@@ -807,7 +813,7 @@ class FlameExport(Application):
                    sm.shotgun_cut_order != sm.new_cut_order:
                     
                     duration = sm.new_cut_out - sm.new_cut_in + 1
-                    
+                    num_cut_changes += 1
                     cut_changes.append( {"request_type":"update", 
                                          "entity_type": "Shot",
                                          "entity_id": sm.shotgun_id,
@@ -820,11 +826,29 @@ class FlameExport(Application):
         self.log_debug("Sending cut order changes to Shotgun: %s" % cut_changes)
         if len(cut_changes) > 0:
             self.shotgun.batch(cut_changes)
+        
+        comments = ("Your export has been pushed to the Backburner queue for processing "
+                    "and should reach Shotgun in no time at all.<br><br>")
+        
+        if num_created_shots == 1:
+            comments += "- A new shot was created in Shotgun. <br>"
+        elif num_created_shots > 1:
+            comments += "- %d new shots were created in Shotgun. <br>" % num_created_shots 
+            
+        num_cut_updates = (num_cut_changes - num_created_shots)
+        if num_cut_updates == 1:
+            comments += "- One shot had its cut information updated. <br>"
+        elif num_cut_updates > 1:
+            comments += "- %d shots had their cut information updated. <br>" % num_cut_updates 
                 
 
         # pop up a UI asking the user for description
         tk_flame_export = self.import_module("tk_flame_export")
-        self.engine.show_modal("Submission Summary", self, tk_flame_export.SummaryDialog, self._submission_done)
+        self.engine.show_modal("Submission Summary", 
+                               self, 
+                               tk_flame_export.SummaryDialog, 
+                               comments,
+                               self._submission_done)
         
         
         

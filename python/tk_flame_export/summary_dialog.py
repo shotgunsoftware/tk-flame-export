@@ -17,7 +17,7 @@ class SummaryDialog(QtGui.QWidget):
     Review submission dialog.
     """
     
-    def __init__(self, success):
+    def __init__(self, message, success):
         """
         Constructor
         """
@@ -27,6 +27,8 @@ class SummaryDialog(QtGui.QWidget):
         # now load in the UI that was created in the UI designer
         self.ui = Ui_SummaryDialog() 
         self.ui.setupUi(self)
+        
+        self.ui.status.setText(message)
         
         if success:
             # show success screen

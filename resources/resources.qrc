@@ -1,5 +1,6 @@
 <RCC>
   <qresource prefix="tk-flame-export">
+    <file>success.png</file>
     <file>batch_render_splash.png</file>
     <file>ui_splash.png</file>
     <file>submission_complete.png</file>
