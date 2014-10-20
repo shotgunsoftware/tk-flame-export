@@ -175,15 +175,24 @@ class ShotgunSubmitter(object):
         :returns: Shotgun data for the created item
         """
         self._app.log_debug("Creating video publish in Shotgun...")
-        publish_type = self._app.get_setting("plate_publish_type")
                                     
         # put together a name for the publish. This should be on a form without a version
         # number, so that it can be used to group together publishes of the same kind, but
         # with different versions. 
         # e.g. 'sequences/{Sequence}/{Shot}/editorial/plates/{segment_name}_{Shot}.v{version}.{SEQ}.dpx'
-        plate_template = self._app.get_template("plate_template")
-        fields = plate_template.get_fields(path)            
-        publish_name = "%s, %s" % (fields.get("Shot"), fields.get("segment_name"))
+        # 
+        # In order to determine this, loop over all the plate presets, find the matching profile
+        # and use that
+        publish_name = "unknown"
+        publish_type = "Unknown"
+        for preset in self._app.get_setting("plate_presets"):
+            plate_template_name = preset["template"]
+            template = self._app.get_template_by_name(plate_template_name)
+            if template.validate(path):
+                fields = template.get_fields(path)
+                publish_name = "%s, %s" % (fields.get("Shot"), fields.get("segment_name"))
+                publish_type = preset["publish_type"]
+                break
         
         # now start assemble publish parameters
         args = {
@@ -197,8 +206,6 @@ class ShotgunSubmitter(object):
             "task": context.task,
             "published_file_type": publish_type,
         }
-        
-        thumbnail_jpg = None
         
         # now try to extract a thumbnail from the asset data stream.
         # we use the same mechanism that the quicktime generation is using - see
@@ -433,10 +440,10 @@ class ShotgunSubmitter(object):
         :param flame_path: flame style plate path (must match the plate template)
         :returns: tk equivalent
         """
-        plate_template = self._app.get_template("plate_template")
-        fields = plate_template.get_fields(flame_path)    
+        template = self._app.sgtk.template_from_path(flame_path)
+        fields = template.get_fields(flame_path)    
         fields["SEQ"] = "FORMAT: %d"
-        return plate_template.apply_fields(fields)        
+        return template.apply_fields(fields)        
 
 
     def __clean_up_temp_file(self, path):

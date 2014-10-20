@@ -11,9 +11,8 @@ from tank.platform.qt import QtCore, QtGui
 class Ui_SubmitDialog(object):
     def setupUi(self, SubmitDialog):
         SubmitDialog.setObjectName("SubmitDialog")
-        SubmitDialog.resize(487, 529)
+        SubmitDialog.resize(487, 577)
         self.verticalLayout = QtGui.QVBoxLayout(SubmitDialog)
-        self.verticalLayout.setContentsMargins(20, 20, 20, -1)
         self.verticalLayout.setObjectName("verticalLayout")
         self.label_2 = QtGui.QLabel(SubmitDialog)
         self.label_2.setText("")
@@ -24,6 +23,20 @@ class Ui_SubmitDialog(object):
         self.comments.setMinimumSize(QtCore.QSize(300, 100))
         self.comments.setObjectName("comments")
         self.verticalLayout.addWidget(self.comments)
+        self.horizontalLayout_2 = QtGui.QHBoxLayout()
+        self.horizontalLayout_2.setObjectName("horizontalLayout_2")
+        self.label = QtGui.QLabel(SubmitDialog)
+        self.label.setObjectName("label")
+        self.horizontalLayout_2.addWidget(self.label)
+        self.export_presets = QtGui.QComboBox(SubmitDialog)
+        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Fixed)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.export_presets.sizePolicy().hasHeightForWidth())
+        self.export_presets.setSizePolicy(sizePolicy)
+        self.export_presets.setObjectName("export_presets")
+        self.horizontalLayout_2.addWidget(self.export_presets)
+        self.verticalLayout.addLayout(self.horizontalLayout_2)
         self.horizontalLayout = QtGui.QHBoxLayout()
         self.horizontalLayout.setObjectName("horizontalLayout")
         spacerItem = QtGui.QSpacerItem(368, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum)
@@ -41,6 +54,7 @@ class Ui_SubmitDialog(object):
 
     def retranslateUi(self, SubmitDialog):
         SubmitDialog.setWindowTitle(QtGui.QApplication.translate("SubmitDialog", "Submit to Shotgun", None, QtGui.QApplication.UnicodeUTF8))
+        self.label.setText(QtGui.QApplication.translate("SubmitDialog", "Use Export Preset", None, QtGui.QApplication.UnicodeUTF8))
         self.cancel.setText(QtGui.QApplication.translate("SubmitDialog", "Cancel", None, QtGui.QApplication.UnicodeUTF8))
         self.submit.setText(QtGui.QApplication.translate("SubmitDialog", "Submit to Shotgun", None, QtGui.QApplication.UnicodeUTF8))
 

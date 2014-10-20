@@ -13,3 +13,4 @@ from .batch_render_dialog import BatchRenderDialog
 from .summary_dialog import SummaryDialog
 from .shotgun_submit import ShotgunSubmitter
 from .shot_metadata import ShotMetadata
+from .export_preset import ExportPreset

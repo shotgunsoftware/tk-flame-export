@@ -21,7 +21,6 @@ import datetime
 
 from sgtk import TankError
 from sgtk.platform import Application
-
     
 
 class FlameExport(Application):
@@ -44,8 +43,9 @@ class FlameExport(Application):
         # batch render tracking
         self._send_batch_render_to_review = False
         
-        # UI comments
+        # UI input
         self._user_comments = ""
+        self._video_preset = None
         
         # flag to indicate that something was actually submitted
         self._submission_done = False
@@ -84,16 +84,21 @@ class FlameExport(Application):
                      - abort: Pass True back to flame if you want to abort
                      - abortMessage: Abort message to feed back to client
         """
-        
-        from PySide import QtGui, QtCore
+        from PySide import QtGui
         
         # reset export session data
         self._shots = {}
         self._submission_done = False
         
+        # get video preset names from config
+        video_preset_names = [preset["name"] for preset in self.get_setting("plate_presets")]
+        
         # pop up a UI asking the user for description
-        tk_flame_export = self.import_module("tk_flame_export")        
-        (return_code, widget) = self.engine.show_modal("Export Shots", self, tk_flame_export.SubmitDialog)
+        tk_flame_export = self.import_module("tk_flame_export")                
+        (return_code, widget) = self.engine.show_modal("Export Shots",
+                                                       self,
+                                                       tk_flame_export.SubmitDialog, 
+                                                       video_preset_names)
         
         if return_code == QtGui.QDialog.Rejected:
             # user pressed cancel
@@ -103,22 +108,20 @@ class FlameExport(Application):
         else:
             # get comments from user
             self._user_comments = widget.get_comments()
+            self._video_preset = widget.get_video_preset()
             # populate the host to use for the export. Currently hard coded to local
             info["destinationHost"] = self.engine.get_server_hostname()
             # let the export root path align with the primary project root
             info["destinationPath"] = self.sgtk.project_path
             # pick up the xml export profile from the configuration
-            flame_templates = self.__resolve_flame_templates()
-            preset_xml_path = self.execute_hook_method("settings_hook", 
-                                                       "get_export_preset",
-                                                       resolved_flame_templates=flame_templates)
-                        
-            # tell flame about it
-            info["presetPath"] = preset_xml_path
+            export_preset = tk_flame_export.ExportPreset()
+            info["presetPath"] = export_preset.get_xml_path(self._video_preset)
             
             self.log_debug("%s: Starting custom export session with preset '%s'" % (self, info["presetPath"]))
         
- 
+        
+    
+        
 #     This doesn't seem to be needed at the moment, but may came in handy later...
 #
 #     def __resolve_profile_start_frame(self, profile_xml_path):
@@ -150,92 +153,21 @@ class FlameExport(Application):
 #         
 #         return (start_frame, handle)
         
-
-    def __resolve_flame_templates(self):
+    def get_plate_template_for_preset(self, plate_preset):
         """
-        Convert the toolkit templates defined in the app settings to 
-        Flame equivalents.
+        Helper method.
         
-        :returns: Dictionary of flame template definition strings, keyed by
-                  the same names as are being used for the templates in the app settings.
+        Returns the plate tepmplate for a given a preset
         """
-        # now we need to take our toolkit templates and inject them into the xml template
-        # definition that we are about to send to Flame.
-        #
-        # typically, our template defs will look something like this:
-        # plate:        'sequences/{Sequence}/{Shot}/editorial/plates/{segment_name}_{Shot}.v{version}.{SEQ}.dpx'
-        # batch:        'sequences/{Sequence}/{Shot}/editorial/flame/batch/{Shot}.v{version}.batch'
-        # segment_clip: 'sequences/{Sequence}/{Shot}/editorial/flame/sources/{segment_name}.clip'
-        # shot_clip:    'sequences/{Sequence}/{Shot}/editorial/flame/{Shot}.clip'
-        #
-        # {Sequence} may be {Scene} or {CustomEntityXX} according to the configuration and the 
-        # exact entity type to use is passed into the hook via the the shot_parent_entity_type setting.
-        #
-        # The flame export root is set to correspond to the toolkit project, meaning that both the 
-        # flame and toolkit templates share the same root point.
-        #
-        # The following replacements will be made to convert the toolkit template into Flame equivalents:
-        # 
-        # {Sequence}     ==> <name> (Note: May be {Scene} or {CustomEntityXX} according to the configuration)
-        # {Shot}         ==> <shot name>
-        # {segment_name} ==> <segment name>
-        # {version}      ==> <version>
-        # {SEQ}          ==> <frame>
-        # 
-        # and the special one <ext> which corresponds to the last part of the template. In the examples above:
-        # {segment_name}_{Shot}.v{version}.{SEQ}.dpx : <ext> is '.dpx' 
-        # {Shot}.v{version}.batch : <ext> is '.batch'
-        # etc.
-        #
-        # example substitution:
-        #
-        # Toolkit: 'sequences/{Sequence}/{Shot}/editorial/plates/{segment_name}_{Shot}.v{version}.{SEQ}.dpx'
-        #
-        # Flame:   'sequences/<name>/<shot name>/editorial/plates/<segment name>_<shot name>.v<version>.<frame><ext>'
-        #
-        #
-        shot_parent_entity_type = self.get_setting("shot_parent_entity_type")
         
-        # get the export template defs for all our templates
-        # the definition is a string on the form 
-        # 'sequences/{Sequence}/{Shot}/editorial/plates/{segment_name}_{Shot}.v{version}.{SEQ}.dpx'
-        template_defs = {}
-        template_defs["plate_template"] = self.get_template("plate_template").definition
-        template_defs["batch_template"] = self.get_template("batch_template").definition        
-        template_defs["shot_clip_template"] = self.get_template("shot_clip_template").definition
-        template_defs["segment_clip_template"] = self.get_template("segment_clip_template").definition
-        
-        # perform substitutions
-        self.log_debug("Performing Toolkit -> Flame template field substitutions:")
-        for t in template_defs:
-            
-            self.log_debug("Toolkit: %s" % template_defs[t])
-            
-            template_defs[t] = template_defs[t].replace("{%s}" % shot_parent_entity_type, "<name>")
-            template_defs[t] = template_defs[t].replace("{Shot}", "<shot name>")
-            template_defs[t] = template_defs[t].replace("{segment_name}", "<segment name>")
-            template_defs[t] = template_defs[t].replace("{version}", "<version>")
-            
-            template_defs[t] = template_defs[t].replace("{SEQ}", "<frame>")
-            
-            template_defs[t] = template_defs[t].replace("{YYYY}", "<YYYY>")
-            template_defs[t] = template_defs[t].replace("{MM}", "<MM>")
-            template_defs[t] = template_defs[t].replace("{DD}", "<DD>")
-            template_defs[t] = template_defs[t].replace("{hh}", "<hh>")
-            template_defs[t] = template_defs[t].replace("{mm}", "<mm>")
-            template_defs[t] = template_defs[t].replace("{ss}", "<ss>")
-            template_defs[t] = template_defs[t].replace("{width}", "<width>")
-            template_defs[t] = template_defs[t].replace("{height}", "<height>")
-            
-            # Now carry over the sequence token
-            (head, ext) = os.path.splitext(template_defs[t])
-            template_defs[t] = "%s<ext>" % head
-            
-            self.log_debug("Flame:  %s" % template_defs[t])
-        
-        return template_defs
-
-
+        template = None
+        for preset in self.get_setting("plate_presets"):
+            if preset["name"] == self._video_preset:
+                plate_template_name = preset["template"]
+                template = self.get_template_by_name(plate_template_name) 
+        if template is None:
+            raise TankError("Cannot find preset '%s' in configuration!" % preset)
+        return template
 
     def pre_export_sequence(self, session_id, info):
         """
@@ -352,7 +284,7 @@ class FlameExport(Application):
         
         # first check that the clip has a shot name - otherwise things won't work!
         if shot_name == "":
-            from PySide import QtGui, QtCore
+            from PySide import QtGui
             QtGui.QMessageBox.warning(None,
                                       "Missing shot name!",
                                       ("The clip '%s' does not have a shot name and therefore cannot be exported. "
@@ -373,7 +305,7 @@ class FlameExport(Application):
         # get the appropriate file system template
         if asset_type == "video":
             # exported plates or video
-            template = self.get_template("plate_template")
+            template = self.get_plate_template_for_preset(self._video_preset)
             
         elif asset_type == "batch":
             # batch file
@@ -424,7 +356,7 @@ class FlameExport(Application):
         fields["hh"] = now.hour
         fields["mm"] = now.minute
         fields["ss"] = now.second
-
+        
         try:
             full_path = template.apply_fields(fields)
         except Exception, e:
@@ -482,8 +414,7 @@ class FlameExport(Application):
            versionNumber:   Current version number of export (0 if unversioned).
 
         """
-        asset_type = info["assetType"] 
-        asset_name = info["assetName"]
+        asset_type = info["assetType"]
         shot_name = info["shotName"]
         sequence_name = info["sequenceName"]        
         
@@ -545,10 +476,21 @@ class FlameExport(Application):
         
         # first check if the resolved paths match our templates in the settings.
         # otherwise ignore the export
-        plate_template = self.get_template("plate_template")
-        if not plate_template.validate(render_path):
-            self.log_debug("The path '%s' does not match the template '%s'. Ignoring." % (render_path, plate_template))
+        self.log_debug("Checking if the render path '%s' is recognized by toolkit..." % render_path)
+        matching = False
+        for preset in self.get_setting("plate_presets"):
+            plate_template_name = preset["template"]
+            template = self.get_template_by_name(plate_template_name)
+            if template.validate(render_path):
+                matching |= True
+                self.log_debug("    Matching: '%s'" % template)
+            else:
+                self.log_debug("    Not matching: '%s'" % template)
+
+        if not matching:
+            self.log_debug("This path does not appear to match any toolkit render paths. Ignoring.")
             return None
+
         
         batch_template = self.get_template("batch_template")
         if not batch_template.validate(batch_path):

@@ -17,7 +17,7 @@ class SubmitDialog(QtGui.QWidget):
     Not found UI dialog.
     """
     
-    def __init__(self):
+    def __init__(self, presets):
         """
         Constructor
         """
@@ -34,6 +34,9 @@ class SubmitDialog(QtGui.QWidget):
         self.ui.submit.clicked.connect(self._on_submit_clicked)
         self.ui.cancel.clicked.connect(self._on_cancel_clicked)
         
+        # load up the export presets
+        self.ui.export_presets.addItems(presets)
+        
     @property
     def exit_code(self):
         """
@@ -48,6 +51,12 @@ class SubmitDialog(QtGui.QWidget):
         Returns the comments entered by the user
         """
         return self.ui.comments.toPlainText()
+    
+    def get_video_preset(self):
+        """
+        Returns the name of the selected video preset 
+        """
+        return self.ui.export_presets.currentText()
         
     def _on_submit_clicked(self):
         """

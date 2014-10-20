@@ -59,164 +59,75 @@ class ExportSettings(HookBaseClass):
         params += "-crf 15 " 
         
         return params
-        
-
-    def get_export_preset(self, resolved_flame_templates):
+                
+    def get_video_preset(self, preset_name, name_pattern, publish_linked):
         """
-        Generate flame export profile settings suitable for generating image sequences
-        for all shots.
+        Returns a chunk of video xml export profile given a preset name.
+        Certain fields need to be pre-populated.
+        """ 
         
-        :param resolved_flame_templates: Dictionary of templates, named the same way that
-                                         the templates in the app settings, resolved to 
-                                         be compatible with Flame and equivalent in functionality
-                                         to the toolkit interpretation.
-        :returns: path to export preset xml file
-        """
-        xml = """<?xml version="1.0" encoding="UTF-8"?>
-<preset version="4">
-   <type>sequence</type>
-   <comment>Creates shot directories with media, setups and clips for all shots in the sequence.
-The generated media is 10-bit DPX and no audio.</comment>
-   <sequence>
-      <fileType>NONE</fileType>
-      <namePattern />
-      <includeVideo>True</includeVideo>
-      <exportVideo>True</exportVideo>
-      <videoMedia>
-         <mediaFileType>image</mediaFileType>
-         <commit>Original</commit>
-         <flatten>NoChange</flatten>
-         <exportHandles>True</exportHandles>
-         <nbHandles>10</nbHandles>
-      </videoMedia>
-      <includeAudio>True</includeAudio>
-      <exportAudio>False</exportAudio>
-      <audioMedia>
-         <mediaFileType>audio</mediaFileType>
-         <commit>Original</commit>
-         <flatten>NoChange</flatten>
-         <exportHandles>True</exportHandles>
-         <nbHandles>10</nbHandles>
-      </audioMedia>
-   </sequence>
-   <video>
-      <fileType>Dpx</fileType>
-      <codec>923680</codec>
-      <codecProfile />
-      <namePattern>{VIDEO_NAME_PATTERN}</namePattern>
-      <compressionQuality>50</compressionQuality>
-      <transferCharacteristic>2</transferCharacteristic>
-      <colorimetricSpecification>4</colorimetricSpecification>
-      <publishLinked>True</publishLinked>
-      <foregroundPublish>False</foregroundPublish>
-      <overwriteWithVersions>False</overwriteWithVersions>
-      <resize>
-         <resizeType>fit</resizeType>
-         <resizeFilter>lanczos</resizeFilter>
-         <width>0</width>
-         <height>0</height>
-         <bitsPerChannel>10</bitsPerChannel>
-         <numChannels>3</numChannels>
-         <floatingPoint>False</floatingPoint>
-         <bigEndian>True</bigEndian>
-         <pixelRatio>1</pixelRatio>
-         <scanFormat>P</scanFormat>
-      </resize>
-   </video>
-   <name>
-      <framePadding>{FRAME_PADDING}</framePadding>
-      <startFrame>100</startFrame>
-      <useTimecode>False</useTimecode>
-   </name>
-   <createOpenClip>
-      <namePattern>{SEGMENT_CLIP_NAME_PATTERN}</namePattern>
-      <version>
-         <index>0</index>
-         <padding>{VERSION_PADDING}</padding>
-         <name>v&lt;version&gt;</name>
-      </version>
-      <batchSetup>
-         <namePattern>{BATCH_NAME_PATTERN}</namePattern>
-         <exportNamePattern>{SHOT_CLIP_NAME_PATTERN}</exportNamePattern>
-      </batchSetup>
-   </createOpenClip>
-   <reImport>
-      <namePattern />
-   </reImport>
-</preset>
-        """
-        
-        # now perform substitutions based on the resolved flame templates
-        # make sure we escape any < and > before we add them to the xml
-        xml = xml.replace("{VIDEO_NAME_PATTERN}",        cgi.escape(resolved_flame_templates["plate_template"]))
-        xml = xml.replace("{SEGMENT_CLIP_NAME_PATTERN}", cgi.escape(resolved_flame_templates["segment_clip_template"]))
-        xml = xml.replace("{BATCH_NAME_PATTERN}",        cgi.escape(resolved_flame_templates["batch_template"]))
-        xml = xml.replace("{SHOT_CLIP_NAME_PATTERN}",    cgi.escape(resolved_flame_templates["shot_clip_template"]))
-
-        # now adjust some parameters in the export xml based on the template setup. 
-        template = self.parent.get_template("plate_template")
-        
-        # First up is the padding for sequences:        
-        sequence_key = template.keys["SEQ"]
-        # the format spec is something like "04"
-        format_spec = sequence_key.format_spec
-        if format_spec.startswith("0"):
-            # strip off leading zeroes
-            format_spec = format_spec[1:]
-        xml = xml.replace("{FRAME_PADDING}", format_spec)
-        
-        self.parent.log_debug("Flame preset generation: Setting frame padding to %s based on "
-                              "SEQ token in template %s" % (format_spec, template))
-
-        # also align the padding for versions with the definition in the version template
-        version_key = template.keys["version"]
-        # the format spec is something like "03"
-        format_spec = version_key.format_spec
-        if format_spec.startswith("0"):
-            # strip off leading zeroes
-            format_spec = format_spec[1:]        
-        xml = xml.replace("{VERSION_PADDING}", format_spec)
-        
-        self.parent.log_debug("Flame preset generation: Setting version padding to %s based on "
-                              "version token in template %s" % (format_spec, template))
-        
-        # write it to disk
-        preset_path = self._write_content_to_file(xml, "export_preset.xml")
-        
-        return preset_path
-
-
-
-    ###############################################################################################
-    # helper methods and internals
-    
-    def _write_content_to_file(self, content, file_name):
-        """
-        Helper method. Writes content to file and returns the path.
-        The content will be written to the app specific cache location 
-        on disk, organized by app instance name. The rationale is that 
-        each app instance holds its own configuration, and the configuration
-        generates one set of unique xml files.
-        
-        :param content: Data to write to the file
-        :param file_name: The name of the file to create
-        :returns: path to the created file
-        """
-        # determine location
-        file_path = os.path.join(self.parent.cache_location, self.parent.instance_name, file_name)
-        folder = os.path.dirname(file_path)
-
-        # create folders
-        if not os.path.exists(folder):
-            old_umask = os.umask(0)
-            os.makedirs(folder, 0777)
-            os.umask(old_umask)
-        
-        # write data
-        fh = open(file_path, "wt")
-        fh.write(content)
-        fh.close()
-        
-        self.parent.log_debug("Wrote temporary file '%s'" % file_path)
-        return file_path
+        if preset_name == "10 bit DPX":
+            xml = """
+                   <video>
+                      <fileType>Dpx</fileType>
+                      <codec>923680</codec>
+                      <codecProfile />
+                      <namePattern>{VIDEO_NAME_PATTERN}</namePattern>
+                      <compressionQuality>50</compressionQuality>
+                      <transferCharacteristic>2</transferCharacteristic>
+                      <colorimetricSpecification>4</colorimetricSpecification>
+                      <publishLinked>{PUBLISH_LINKED}</publishLinked>
+                      <foregroundPublish>False</foregroundPublish>
+                      <overwriteWithVersions>False</overwriteWithVersions>
+                      <resize>
+                         <resizeType>fit</resizeType>
+                         <resizeFilter>lanczos</resizeFilter>
+                         <width>0</width>
+                         <height>0</height>
+                         <bitsPerChannel>10</bitsPerChannel>
+                         <numChannels>3</numChannels>
+                         <floatingPoint>False</floatingPoint>
+                         <bigEndian>True</bigEndian>
+                         <pixelRatio>1</pixelRatio>
+                         <scanFormat>P</scanFormat>
+                      </resize>
+                   </video>
+                """        
             
+        elif preset_name == "16 bit OpenEXR":
+            xml = """
+                   <video>
+                      <fileType>OpenEXR</fileType>
+                      <codec>596088</codec>
+                      <codecProfile />
+                      <namePattern>{VIDEO_NAME_PATTERN}</namePattern>
+                      <compressionQuality>50</compressionQuality>
+                      <transferCharacteristic>2</transferCharacteristic>
+                      <colorimetricSpecification>4</colorimetricSpecification>
+                      <publishLinked>{PUBLISH_LINKED}</publishLinked>
+                      <foregroundPublish>False</foregroundPublish>
+                      <overwriteWithVersions>False</overwriteWithVersions>
+                      <resize>
+                         <resizeType>fit</resizeType>
+                         <resizeFilter>lanczos</resizeFilter>
+                         <width>0</width>
+                         <height>0</height>
+                         <bitsPerChannel>16</bitsPerChannel>
+                         <numChannels>3</numChannels>
+                         <floatingPoint>True</floatingPoint>
+                         <bigEndian>False</bigEndian>
+                         <pixelRatio>1</pixelRatio>
+                         <scanFormat>P</scanFormat>
+                      </resize>
+                   </video>
+                """
+                
+        else:
+            raise TankError("Unknown video export preset '%s'!" % preset_name)
+        
+        xml = xml.replace("{VIDEO_NAME_PATTERN}", name_pattern)
+        xml = xml.replace("{PUBLISH_LINKED}", str(publish_linked))
+        
+        return xml
+        
+        

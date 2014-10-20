@@ -45,11 +45,25 @@ configuration:
         description: The Shotgun task template to assign to new shot parent entities
         default_value: ""
     
-    plate_template:
-        description: Toolkit file system template to control where video output goes on disk
-        type: template
-        fields: context, SEQ, Shot, version, segment_name, [YYYY], [MM], [DD], [hh], [mm], [ss], [width], [height], *
-                                         
+    plate_presets:
+        type: list
+        description: A list of dictionaries in which you define the various export presets to 
+                     appear on the profiles dropdown in the user interface.
+        allows_empty: False
+        values:
+            type: dict
+            items:
+                name:
+                    type: str
+                publish_type:
+                    type: tank_type
+                    description: The publish type for Flame plates  
+                    default_value: "Flame Plate"                 
+                template:
+                    description: Toolkit file system template to control where video output goes on disk
+                    type: template
+                    fields: context, SEQ, Shot, version, segment_name, [YYYY], [MM], [DD], [hh], [mm], [ss], [width], [height], *
+                    
     segment_clip_template:
         description: Toolkit file system template to control where segment based clip files go on disk
         type: template
@@ -63,12 +77,7 @@ configuration:
     batch_template:
         description: Toolkit file system template to control where flame batch files go on disk
         type: template
-        fields: context, Shot, version, [YYYY], [MM], [DD], [hh], [mm], [ss], *
-                    
-    plate_publish_type:
-        type: tank_type
-        description: The publish type for Flame plates  
-        default_value: "Flame Plate"                 
+        fields: context, Shot, version, [YYYY], [MM], [DD], [hh], [mm], [ss], *            
         
     batch_publish_type:
         type: tank_type
@@ -90,7 +99,7 @@ description: "App that adds Shotgun awareness to Flame's sequence export."
 
 # Required minimum versions for this item to run
 requires_shotgun_version:
-requires_core_version: "v0.14.76"
+requires_core_version: "v0.14.77"
 requires_engine_version:
 
 # the frameworks required to run this app
