@@ -33,12 +33,13 @@ class FlameExport(Application):
         Called as the application is being initialized.
         """
         self.log_debug("%s: Initializing" % self)
-        
-        tk_flame_export = self.import_module("tk_flame_export")
-        self._sg_submit_helper = tk_flame_export.ShotgunSubmitter()
-        
+                
         # shot metadata
         self._shots = {}
+        
+        # create a submit helper        
+        tk_flame_export = self.import_module("tk_flame_export_no_ui")
+        self._sg_submit_helper = tk_flame_export.ShotgunSubmitter()
         
         # batch render tracking
         self._send_batch_render_to_review = False
@@ -94,7 +95,9 @@ class FlameExport(Application):
         video_preset_names = [preset["name"] for preset in self.get_setting("plate_presets")]
         
         # pop up a UI asking the user for description
-        tk_flame_export = self.import_module("tk_flame_export")                
+        tk_flame_export = self.import_module("tk_flame_export")  
+        tk_flame_export_no_ui = self.import_module("tk_flame_export_no_ui")
+                      
         (return_code, widget) = self.engine.show_modal("Export Shots",
                                                        self,
                                                        tk_flame_export.SubmitDialog, 
@@ -114,7 +117,7 @@ class FlameExport(Application):
             # let the export root path align with the primary project root
             info["destinationPath"] = self.sgtk.project_path
             # pick up the xml export profile from the configuration
-            export_preset = tk_flame_export.ExportPreset()
+            export_preset = tk_flame_export_no_ui.ExportPreset()
             info["presetPath"] = export_preset.get_xml_path(self._video_preset)
             
             self.log_debug("%s: Starting custom export session with preset '%s'" % (self, info["presetPath"]))
