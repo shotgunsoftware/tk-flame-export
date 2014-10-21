@@ -85,7 +85,12 @@ class ShotMetadata(object):
         # another frame :)
         cut_in = record_in - app.engine.get_default_clip_start_frame() + 1
         cut_out = record_out - app.engine.get_default_clip_start_frame() + 1
-                        
+        
+        # now, note that flame is cut-out-exclusive, meaning that the out frame
+        # is actually not the last frame played back but the frame after that.
+        # in the shotgun universe, we want last frame *inclusive* instead
+        cut_out = cut_out - 1
+        
         # now it is time to update the *SHOT* lengths. With Flame's collating,
         # a single shot may be made up of several *segments*. The cut information
         # we are getting from flame is per segment. We need to "grow" the shot range
