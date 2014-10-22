@@ -811,9 +811,14 @@ class FlameExport(Application):
         for seq in self._shots:
             for sm in self._shots[seq].values():
                 
-                if sm.shotgun_cut_in != sm.new_cut_in or \
-                   sm.shotgun_cut_out != sm.new_cut_out or \
-                   sm.shotgun_cut_order != sm.new_cut_order:
+                # ensure that we actually have frame ranges for this shot
+                if sm.new_cut_in is None or sm.new_cut_out is None:
+                    self.log_warning("No frame ranges calculated for Shot %s!" % sm.shotgun_id)
+                
+                # has the frame range changed?
+                elif sm.shotgun_cut_in != sm.new_cut_in or \
+                     sm.shotgun_cut_out != sm.new_cut_out or \
+                     sm.shotgun_cut_order != sm.new_cut_order:
                     
                     duration = sm.new_cut_out - sm.new_cut_in + 1
                     num_cut_changes += 1
