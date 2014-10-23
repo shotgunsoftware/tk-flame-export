@@ -1,4 +1,4 @@
-# Copyright (c) 2013 Shotgun Software Inc.
+# Copyright (c) 2014 Shotgun Software Inc.
 # 
 # CONFIDENTIAL AND PROPRIETARY
 # 
@@ -9,13 +9,34 @@
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
 """
-Flame content exporter.
+Flame Shot Exporter.
+
+This app takes a sequence in flame and generates lots of Shotgun related content.
+It is similar to the Hiero exporter. The following items are generated:
+
+- New Shots in Shotgun, with tasks
+- Cut information in Shotgun
+- New versions (with uploaded quicktimes) for all segments
+- Plates on disk for each segment
+- Batch files for each shot
+- Clip xml files for shots and clips.
+
+The exporter is effectively a wrapper around the flame custom export process 
+with some bindings to Shotgun.
+
+This app implements two different sets of callbacks - both utilizing the same 
+configuration and essentially parts of the same workflow (this is why they are not
+split across two different apps).
+
+- The flame Shot export runs via a context menu item on the sequence right-click menu
+- A flare / batch mode render hook allows Shotgun to intercept the rendering process and
+  ask the user if they want to submit to shotgun review whenever they render out in flame. 
+
 """
 
 import uuid
 import os
 import re
-import xml.etree.ElementTree
 import sgtk
 import datetime
 
@@ -34,28 +55,33 @@ class FlameExport(Application):
         """
         self.log_debug("%s: Initializing" % self)
                 
-        # shot metadata
+        # shot metadata. As the exporter steps through its various callbacks,
+        # this data structure will be populated and used to pass information
+        # down between methods.
         self._shots = {}
         
-        # create a submit helper        
-        tk_flame_export = self.import_module("tk_flame_export_no_ui")
-        self._sg_submit_helper = tk_flame_export.ShotgunSubmitter()
+        # create a submit helper
+        # because parts of this app runs on the farm, which doesn't have a UI,
+        # there are two distinct modules on disk, one which is QT dependent and
+        # one which isn't.
+        tk_flame_export_no_ui = self.import_module("tk_flame_export_no_ui")
+        self._sg_submit_helper = tk_flame_export_no_ui.ShotgunSubmitter()
         
-        # batch render tracking
+        # batch render tracking - when doing a batch render, 
+        # this is used to indicate that the user wants to send the render to review.
         self._send_batch_render_to_review = False
         
-        # UI input
+        # Shot export user UI input
         self._user_comments = ""
         self._video_preset = None
         
-        # flag to indicate that something was actually submitted
+        # flag to indicate that something was actually submitted by the export process
         self._submission_done = False
         
         # register our desired interaction with flame hooks
-        menu_caption = self.get_setting("menu_name")
-        
         # set up callbacks for the engine to trigger 
-        # when this profile is being triggered 
+        # when this profile is being triggered
+        menu_caption = self.get_setting("menu_name")        
         callbacks = {}
         callbacks["preCustomExport"] = self.pre_custom_export
         callbacks["preExportSequence"] = self.pre_export_sequence
@@ -69,7 +95,6 @@ class FlameExport(Application):
         batch_callbacks["batchExportEnd"] = self.submit_post_batch_backburner_job
         batch_callbacks["batchExportBegin"] = self.pre_batch_render_checks
         self.engine.register_batch_hook(batch_callbacks)
-        
 
 
     def pre_custom_export(self, session_id, info):
@@ -112,57 +137,26 @@ class FlameExport(Application):
             # get comments from user
             self._user_comments = widget.get_comments()
             self._video_preset = widget.get_video_preset()
+            
             # populate the host to use for the export. Currently hard coded to local
             info["destinationHost"] = self.engine.get_server_hostname()
+            
             # let the export root path align with the primary project root
             info["destinationPath"] = self.sgtk.project_path
+            
             # pick up the xml export profile from the configuration
             export_preset = tk_flame_export_no_ui.ExportPreset()
-            info["presetPath"] = export_preset.get_xml_path(self._video_preset)
-            
+            info["presetPath"] = export_preset.get_xml_path(self._video_preset)    
             self.log_debug("%s: Starting custom export session with preset '%s'" % (self, info["presetPath"]))
         
         
-    
-        
-#     This doesn't seem to be needed at the moment, but may came in handy later...
-#
-#     def __resolve_profile_start_frame(self, profile_xml_path):
-#         """
-#         Given an export xml file, return start frame and handle parameters
-#         
-#         :param profile_xml_path: path to xml settings file
-#         :returns: start frame for all image sequences, as defined in the export preset.
-#         """
-#         fh = open(profile_xml_path, "rt")
-#         try:
-#             xml_content = fh.read()
-#         finally:
-#             fh.close()
-#         
-#         root = xml.etree.ElementTree.fromstring(xml_content)
-#         
-#         start_frame_nodes = root.findall("./name/startFrame")
-#         if len(start_frame_nodes) == 0:
-#             raise TankError("Could not find start frame node in %s" % profile_xml_path)
-#         start_frame_str = start_frame_nodes[0].text
-#         start_frame = int(start_frame_str)
-#         
-#         handle_nodes = root.findall("./sequence/videoMedia/nbHandles")
-#         if len(handle_nodes) == 0:
-#             raise TankError("Could not find video handle frame node in %s" % profile_xml_path)
-#         handle_node_str = handle_nodes[0].text
-#         handle = int(handle_node_str)
-#         
-#         return (start_frame, handle)
-        
     def get_plate_template_for_preset(self, plate_preset):
         """
-        Helper method.
+        Helper method. Returns the plate template for a given a configuration preset.
         
-        Returns the plate tepmplate for a given a preset
+        :param plate_preset: preset name, as defined in the app settings (e.g. 10 bit DPX)
+        :returns: template associated with this plate preset in the configuration.
         """
-        
         template = None
         for preset in self.get_setting("plate_presets"):
             if preset["name"] == self._video_preset:
@@ -171,6 +165,7 @@ class FlameExport(Application):
         if template is None:
             raise TankError("Cannot find preset '%s' in configuration!" % preset)
         return template
+
 
     def pre_export_sequence(self, session_id, info):
         """
@@ -220,7 +215,6 @@ class FlameExport(Application):
             
             # run folder creation for our newly created shots
             for shot_metadata in self._shots[sequence_name].values():
-                #if data["created"]:
                 # this is a new shot    
                 self.engine.show_busy("Preparing Shotgun...", "Creating folders for Shot '%s'..." % shot_metadata.name)
                 self.sgtk.create_filesystem_structure("Shot", shot_metadata.shotgun_id, engine="tk-flame")
@@ -486,9 +480,9 @@ class FlameExport(Application):
             template = self.get_template_by_name(plate_template_name)
             if template.validate(render_path):
                 matching |= True
-                self.log_debug("    Matching: '%s'" % template)
+                self.log_debug(" - Matching: '%s'" % template)
             else:
-                self.log_debug("    Not matching: '%s'" % template)
+                self.log_debug(" - Not matching: '%s'" % template)
 
         if not matching:
             self.log_debug("This path does not appear to match any toolkit render paths. Ignoring.")
@@ -501,6 +495,7 @@ class FlameExport(Application):
             return None
 
         # now extract the context for the currently worked on thing
+        # we do this based on the path to the batch file
         self.log_debug("Getting context from path '%s'" % batch_path)
         context = self.sgtk.context_from_path(batch_path)
         self.log_debug("Context: %s" % context)
@@ -633,6 +628,7 @@ class FlameExport(Application):
                                                 self, 
                                                 "backburner_process_rendered_batch", 
                                                 args)
+
 
     def backburner_process_rendered_batch(self, info, serialized_context, comments, send_to_review):
         """
@@ -812,6 +808,9 @@ class FlameExport(Application):
             for sm in self._shots[seq].values():
                 
                 # ensure that we actually have frame ranges for this shot
+                # it seems sometimes there are shots that don't actually contain any clips.
+                # I think this is anomaly in Flame, but since we have spotted it in QA,
+                # it's good to do this extra check in this code.
                 if sm.new_cut_in is None or sm.new_cut_out is None:
                     self.log_warning("No frame ranges calculated for Shot %s!" % sm.shotgun_id)
                 
@@ -835,6 +834,9 @@ class FlameExport(Application):
         if len(cut_changes) > 0:
             self.shotgun.batch(cut_changes)
         
+        # now, as a very last step, show a summary UI to the user, including a 
+        # very brief overview of what changes have been carried out.
+        
         comments = ("Your export has been pushed to the Backburner queue for processing "
                     "and should reach Shotgun in no time at all.<br><br>")
         
@@ -849,8 +851,6 @@ class FlameExport(Application):
         elif num_cut_updates > 1:
             comments += "- %d shots had their cut information updated. <br>" % num_cut_updates 
                 
-
-        # pop up a UI asking the user for description
         tk_flame_export = self.import_module("tk_flame_export")
         self.engine.show_modal("Submission Summary", 
                                self, 

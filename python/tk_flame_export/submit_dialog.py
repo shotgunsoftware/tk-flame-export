@@ -1,4 +1,4 @@
-# Copyright (c) 2013 Shotgun Software Inc.
+# Copyright (c) 2014 Shotgun Software Inc.
 # 
 # CONFIDENTIAL AND PROPRIETARY
 # 
@@ -14,7 +14,10 @@ from .ui.submit_dialog import Ui_SubmitDialog
 
 class SubmitDialog(QtGui.QWidget):
     """
-    Not found UI dialog.
+    Main UI dialog for the custom Shot Export. This will 
+    give the user an overview of what is going to happen,
+    ask the user to enter comments and choose an export preset
+    for the generated plates.
     """
     
     def __init__(self, presets):

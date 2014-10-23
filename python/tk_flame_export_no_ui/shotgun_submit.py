@@ -1,4 +1,4 @@
-# Copyright (c) 2013 Shotgun Software Inc.
+# Copyright (c) 2014 Shotgun Software Inc.
 # 
 # CONFIDENTIAL AND PROPRIETARY
 # 
@@ -210,7 +210,7 @@ class ShotgunSubmitter(object):
         # now try to extract a thumbnail from the asset data stream.
         # we use the same mechanism that the quicktime generation is using - see
         # the quicktime code below for details:
-        #    
+        #
         input_cmd = "%s -n \"%s@CLIP\" -h %s -W %s -H %s -L" % (self._app.engine.get_read_frame_path(),
                                                                 path,
                                                                 "%s:Gateway" % self._app.engine.get_server_hostname(), 
@@ -265,8 +265,7 @@ class ShotgunSubmitter(object):
         # note / todo: there doesn't seem to be any way to downscale the quicktime
         # as it is being generated/streamed out of wiretap and encoded by ffmpeg.
         # ideally we would like to downrez it to height 720px prior to uploading
-        # according to the Shotgun transcoding guidelines (and to optimize bandwidth)        
-
+        # according to the Shotgun transcoding guidelines (and to optimize bandwidth)
         self._app.log_debug("Begin version processing for %s..." % path)
 
         data = {}
@@ -444,7 +443,6 @@ class ShotgunSubmitter(object):
         fields = template.get_fields(flame_path)    
         fields["SEQ"] = "FORMAT: %d"
         return template.apply_fields(fields)        
-
 
     def __clean_up_temp_file(self, path):
         """

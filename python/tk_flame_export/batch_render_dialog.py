@@ -1,4 +1,4 @@
-# Copyright (c) 2013 Shotgun Software Inc.
+# Copyright (c) 2014 Shotgun Software Inc.
 # 
 # CONFIDENTIAL AND PROPRIETARY
 # 
@@ -14,7 +14,9 @@ from .ui.batch_render_dialog import Ui_BatchRenderDialog
 
 class BatchRenderDialog(QtGui.QWidget):
     """
-    Not found UI dialog.
+    UI popping up before a Flare/Batch render happens,
+    asking the user if they want to submit the render for 
+    review in Shotgun and in that case to enter some comments.
     """
     
     def __init__(self):

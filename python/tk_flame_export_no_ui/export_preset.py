@@ -1,4 +1,4 @@
-# Copyright (c) 2013 Shotgun Software Inc.
+# Copyright (c) 2014 Shotgun Software Inc.
 # 
 # CONFIDENTIAL AND PROPRIETARY
 # 
@@ -16,7 +16,14 @@ import os
         
 class ExportPreset(object):
     """
-    Wraps around an export preset 
+    Wrapper class that handles the Flame export preset.
+    
+    This class contains the key method get_xml_path(), which will return a path
+    on disk where an xml export preset is located.
+    
+    This preset is combined by loading various sources - some of the main scaffold
+    xml is in this file, the export dpx plate presets are loaded in via a hook, paths
+    are converted from toolkit templates and resolved.
     """
 
     def __init__(self):
@@ -30,12 +37,11 @@ class ExportPreset(object):
         Generate flame export profile settings suitable for generating image sequences
         for all shots.
         
-
+        :param video_preset: The name of the video preset name that should be used.
         :returns: path to export preset xml file
         """
         
         resolved_flame_templates = self.__resolve_flame_templates(video_preset)
-        
         
         xml = """<?xml version="1.0" encoding="UTF-8"?>
             <preset version="4">
@@ -89,7 +95,6 @@ class ExportPreset(object):
             </preset>
         """
         
-        
         # merge in the video preset via a hook
         video_name_pattern = cgi.escape(resolved_flame_templates["plate_template"])
         video_preset_xml = self._app.execute_hook_method("settings_hook", 
@@ -97,8 +102,6 @@ class ExportPreset(object):
                                                          preset_name=video_preset, 
                                                          name_pattern=video_name_pattern, 
                                                          publish_linked=True)
-        
-        
         
         xml = xml.replace("{VIDEO_EXPORT_PRESET}", video_preset_xml)
         
@@ -134,14 +137,6 @@ class ExportPreset(object):
         
         self._app.log_debug("Flame preset generation: Setting version padding to %s based on "
                             "version token in template %s" % (format_spec, template))
-        
-        
-        self._app.log_debug("---------------------------------------------------------------------------------")
-        
-        self._app.log_debug(xml)
-        
-        
-        self._app.log_debug("---------------------------------------------------------------------------------")
         
         # write it to disk
         preset_path = self.__write_content_to_file(xml, "export_preset.xml")

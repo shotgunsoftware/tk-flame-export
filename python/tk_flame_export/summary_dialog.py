@@ -1,4 +1,4 @@
-# Copyright (c) 2013 Shotgun Software Inc.
+# Copyright (c) 2014 Shotgun Software Inc.
 # 
 # CONFIDENTIAL AND PROPRIETARY
 # 
@@ -14,7 +14,7 @@ from .ui.summary_dialog import Ui_SummaryDialog
 
 class SummaryDialog(QtGui.QWidget):
     """
-    Review submission dialog.
+    Summary dialog popping up after a Shot export has completed.
     """
     
     def __init__(self, message, success):
@@ -54,7 +54,7 @@ class SummaryDialog(QtGui.QWidget):
     @property
     def hide_tk_title_bar(self):
         """
-        Tell the system to not show the std toolbar
+        Tell the system to not show the std toolbar.
         """
         return True
                         

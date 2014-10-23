@@ -1,4 +1,4 @@
-# Copyright (c) 2013 Shotgun Software Inc.
+# Copyright (c) 2014 Shotgun Software Inc.
 # 
 # CONFIDENTIAL AND PROPRIETARY
 # 
@@ -21,7 +21,6 @@
 
 # system wide stuff - always import
 from . import tk_flame_export_no_ui
-
 
 # only needed for UIs - don't import if we don't have QT:
 from sgtk.platform.qt import QtCore
