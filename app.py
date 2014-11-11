@@ -837,19 +837,18 @@ class FlameExport(Application):
         # now, as a very last step, show a summary UI to the user, including a 
         # very brief overview of what changes have been carried out.
         
-        comments = ("Your export has been pushed to the Backburner queue for processing "
-                    "and should reach Shotgun in no time at all.<br><br>")
+        comments = "Your export has been pushed to the Backburner queue for processing.<br><br>"
         
         if num_created_shots == 1:
-            comments += "- A new shot was created in Shotgun. <br>"
+            comments += "- A new Shot was created in Shotgun. <br>"
         elif num_created_shots > 1:
-            comments += "- %d new shots were created in Shotgun. <br>" % num_created_shots 
+            comments += "- %d new Shots were created in Shotgun. <br>" % num_created_shots 
             
         num_cut_updates = (num_cut_changes - num_created_shots)
         if num_cut_updates == 1:
-            comments += "- One shot had its cut information updated. <br>"
+            comments += "- One Shot had its cut information updated. <br>"
         elif num_cut_updates > 1:
-            comments += "- %d shots had their cut information updated. <br>" % num_cut_updates 
+            comments += "- %d Shots had their cut information updated. <br>" % num_cut_updates 
                 
         tk_flame_export = self.import_module("tk_flame_export")
         self.engine.show_modal("Submission Summary", 
