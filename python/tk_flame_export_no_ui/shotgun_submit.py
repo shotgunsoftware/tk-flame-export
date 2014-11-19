@@ -54,11 +54,16 @@ class ShotgunSubmitter(object):
         project = self._app.context.project
 
         # first, ensure that a parent exists in Shotgun with the parent name
+        self._app.engine.show_busy("Preparing Shotgun...", 
+                                   "Locating %s %s..." % (shot_parent_entity_type, parent_name))
+        
         sg_parent = self._app.shotgun.find_one(shot_parent_entity_type, 
                                                [["code", "is", parent_name], ["project", "is", project]]) 
         
         if not sg_parent:
             # Create a new parent object in Shotgun
+            self._app.engine.show_busy("Preparing Shotgun...", 
+                                       "Creating %s %s..." % (shot_parent_entity_type, parent_name))
             
             # First see if we should assign a task template
             if parent_task_template:
@@ -75,9 +80,21 @@ class ShotgunSubmitter(object):
                                                   "description": "Created by the Shotgun Flame exporter.",
                                                   "project": project})
   
+        # First locate a task template for shots
+        if shot_task_template:
+            # resolve task template
+            self._app.engine.show_busy("Preparing Shotgun...", "Locating Shot task template...")
+            sg_task_template = self._app.shotgun.find_one("TaskTemplate", [["code", "is", shot_task_template]])
+            if not sg_task_template:
+                raise TankError("The task template '%s' does not exist in Shotgun!" % shot_task_template)
+        else:
+            sg_task_template = None
+  
         # now resolve all the shots. Shots that don't already exists are created.
         shots = []
         for shot_name in shot_names:
+
+            self._app.engine.show_busy("Preparing Shotgun...", "Locating Shot %s..." % shot_name)
 
             shot = self._app.shotgun.find_one("Shot", 
                                               [["code", "is", shot_name], [shot_parent_link_field, "is", sg_parent]],
@@ -97,16 +114,8 @@ class ShotgunSubmitter(object):
             
             else:
                 # Create a new shot in Shotgun
-                
-                # First see if we should assign a task template
-                if shot_task_template:
-                    # resolve task template
-                    sg_task_template = self._app.shotgun.find_one("TaskTemplate", [["code", "is", shot_task_template]])
-                    if not sg_task_template:
-                        raise TankError("The task template '%s' does not exist in Shotgun!" % shot_task_template)
-                else:
-                    sg_task_template = None
-                    
+                self._app.engine.show_busy("Preparing Shotgun...", "Creating Shot %s..." % shot_name)
+                                    
                 shot = self._app.shotgun.create("Shot", {"code": shot_name, 
                                                     "description": "Created by the Shotgun Flame exporter.",
                                                     shot_parent_link_field: sg_parent,
