@@ -159,7 +159,7 @@ class FlameExport(Application):
         """
         template = None
         for preset in self.get_setting("plate_presets"):
-            if preset["name"] == self._video_preset:
+            if preset["name"] == plate_preset:
                 plate_template_name = preset["template"]
                 template = self.get_template_by_name(plate_template_name) 
         if template is None:
