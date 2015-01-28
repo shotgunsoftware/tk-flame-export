@@ -43,8 +43,19 @@ class ExportPreset(object):
         
         resolved_flame_templates = self.__resolve_flame_templates(video_preset)
         
+        # a note on xml file formats: 
+        # Each major version of flame typically implements a particular 
+        # version of the preset xml protocol. This is denoted by a preset version
+        # number in the xml file. In order for the integration to run smoothly across
+        # multiple versions of flame, flame ideally needs to be presented with a preset
+        # which matches the current preset version. If you present an older version, a
+        # warning dialog may pop up which is confusing to users. Therefore, make sure that
+        # we always generate xmls with a matching preset version.   
+        preset_version = self._app.engine.preset_version
+        
+        
         xml = """<?xml version="1.0" encoding="UTF-8"?>
-            <preset version="4">
+            <preset version="%s">
                <type>sequence</type>
                <comment>Export profile for the Shotgun Flame export</comment>
                <sequence>
@@ -93,7 +104,7 @@ class ExportPreset(object):
                   <namePattern />
                </reImport>
             </preset>
-        """
+        """ % preset_version
         
         # merge in the video preset via a hook
         video_name_pattern = cgi.escape(resolved_flame_templates["plate_template"])
