@@ -79,12 +79,11 @@ class ShotMetadata(object):
         
         app = sgtk.platform.current_bundle()
         
-        # flame keeps a global offset for all clients in a setting.
-        # make sure we subtract this (it is normally 10 hours or 1080000 frames)
-        # the offset is zero based where we think of frames as one based, so add
-        # another frame :)
-        cut_in = record_in - app.engine.get_default_clip_start_frame() + 1
-        cut_out = record_out - app.engine.get_default_clip_start_frame() + 1
+        # the cut in and cut out are reflected by the values stored in the conform
+        # in flame. These are sometimes defaulted to 10:00:00.00 so there may be some
+        # large numbers here.
+        cut_in = record_in 
+        cut_out = record_out 
         
         # now, note that flame is cut-out-exclusive, meaning that the out frame
         # is actually not the last frame played back but the frame after that.
