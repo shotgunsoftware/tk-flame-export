@@ -9,6 +9,7 @@
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
 import sgtk
+import math
 import uuid
 from sgtk import TankError
 import os
@@ -351,6 +352,12 @@ class ShotgunSubmitter(object):
         sg_version_data = self._app.shotgun.create("Version", data)
         self._app.log_debug("Created a version in Shotgun: %s" % sg_version_data)        
         
+        # now calculate the closest res to with 720px
+        (scaled_down_width, scaled_down_height) = self.__calculate_aspect_ratio(720, width, height) 
+        self._app.log_debug("The media will be scaled from %sx%s -> %sx%s as part " 
+                            "of the quicktime generation" % (width, height, scaled_down_width, scaled_down_height))
+        
+        
         self._app.log_debug("Start transcoding quicktime...")
 
         # first assemble the readframe syntax. This will use the wiretap API to emit a stream of 
@@ -387,8 +394,8 @@ class ShotgunSubmitter(object):
         input_cmd = "%s -n \"%s@CLIP\" -h %s -W %s -H %s -L -N -1 -r" % (self._app.engine.get_read_frame_path(),
                                                                          path,
                                                                          "%s:Gateway" % self._app.engine.get_server_hostname(),
-                                                                         width,
-                                                                         height)
+                                                                         scaled_down_width,
+                                                                         scaled_down_height)
 
         # we now pipe this image stream into ffmpeg and generate a quicktime
         #
@@ -412,8 +419,8 @@ class ShotgunSubmitter(object):
         # instead, quicktimes are generated at 25fps.
         
         ffmpeg_cmd = "%s -f rawvideo -top -1 -pix_fmt rgb24 -s %sx%s -i - -y" % (self._app.engine.get_ffmpeg_path(),
-                                                                                 width,
-                                                                                 height)
+                                                                                 scaled_down_width,
+                                                                                 scaled_down_height)
                                                                                        
         # get quicktime settings
         ffmpeg_presets = self._app.execute_hook_method("settings_hook", "get_ffmpeg_quicktime_encode_parameters")
@@ -439,6 +446,69 @@ class ShotgunSubmitter(object):
         self.__clean_up_temp_file(tmp_quicktime)
     
         return sg_version_data
+
+    def __calculate_aspect_ratio(self, target_width, width, height):
+        """
+        Brute force calculation of aspect ratio.
+        Finds the closest match to a target with resolution. If an absolute match is not found,
+        the algorithm will try higher resolutions until it hits the original resolution which is
+        returned in case no integer match is found.
+        
+        For example: Trying to scale the resolution 960x550 as close as possible to 720 will generate 768x440 
+        
+        :param target_width: The desired width
+        :param width: The current width
+        :param height: The current height
+        :returns: int tuple, e.g. (768, 440)
+        """
+    
+        if width <= target_width:
+            # input res is lower than desired, so return directly
+            return (width, height)
+    
+        # calculate initial values
+        aspect_ratio = float(width)/float(target_width)
+        new_height = 0
+        new_width = 0
+    
+        # loop until an integer match is found both for width and height
+        while new_height < height and new_width < width:
+            
+            # calculate our new values
+            new_height = float(height)/aspect_ratio
+            new_width = float(width)/aspect_ratio
+    
+            if new_height.is_integer() and new_width.is_integer():
+                # both width and height is an integer! Done!
+                return (int(new_width), int(new_height))
+    
+            if not new_height.is_integer():
+                # height is not whole. adjust the height up to the next whole pixel
+                # and try again. Note that if the current height is very close to 
+                # a whole pixel, increment by one to avoid rounding errors.
+                diff = new_height - math.trunc(new_height)
+                if diff > 0.999:
+                    # this is to avoid the case where there is a rounding error
+                    # and math.ceil(x) == x which means we get stuck in a loop
+                    new_height += 1
+                # recalculate the aspect ratio
+                aspect_ratio = float(height) / float(math.ceil(new_height))
+    
+            elif not new_width.is_integer():
+                # width is not whole. adjust the width up to the next whole pixel
+                # and try again. Note that if the current width is very close to 
+                # a whole pixel, increment by one to avoid rounding errors.
+                diff = new_width - math.trunc(new_width)
+                if diff > 0.999:
+                    # this is to avoid the case where there is a rounding error
+                    # and math.ceil(x) == x which means we get stuck in a loop
+                    new_width += 1
+                # recalculate the aspect ratio
+                aspect_ratio = float(width) / float(math.ceil(new_width))
+    
+        return (width, height)
+
+
 
     def __get_tk_path_from_flame_plate_path(self, flame_path):
         """
