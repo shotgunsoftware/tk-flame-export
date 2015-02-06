@@ -90,12 +90,15 @@ class FlameExport(Application):
         callbacks["postCustomExport"] = self.update_cut_and_display_summary
         self.engine.register_export_hook(menu_caption, callbacks)
         
-        # also register this app so that it runs after export
+        # also register this app so that it runs after export in batch mode / flare
         batch_callbacks = {}
         batch_callbacks["batchExportEnd"] = self.submit_post_batch_backburner_job
         batch_callbacks["batchExportBegin"] = self.pre_batch_render_checks
         self.engine.register_batch_hook(batch_callbacks)
 
+
+    ##############################################################################################################
+    # Flame shot export integration
 
     def pre_custom_export(self, session_id, info):
         """
@@ -200,39 +203,21 @@ class FlameExport(Application):
             info["abortMessage"] = "Cannot export due to missing shot names."
             return
         
-        self.log_debug("Preparing export structure for sequence %s and shots %s" % (sequence_name, shot_names))
-        self.engine.show_busy("Preparing Shotgun...", "Preparing Shots for export...")
+        # process a sequence and some shots:
+        # create entities in shotgun, create folders on disk and compute shot contexts.
+        sequence_data = self._sg_submit_helper.create_shotgun_structure(sequence_name, shot_names)
         
-        try:
-            # find and create objects in shotgun
-            shot_metadata_list = self._sg_submit_helper.resolve_sg_shot_structure(sequence_name, shot_names)
-            
-            # set up metadata objects grouped by sequence in our self._shots structure
-            self._shots[sequence_name] = {}
-            
-            for shot_metadata in shot_metadata_list:
-                self._shots[sequence_name][shot_metadata.name] = shot_metadata
-            
-            # run folder creation for our newly created shots
-            for shot_metadata in self._shots[sequence_name].values():
-                # this is a new shot    
-                self.engine.show_busy("Preparing Shotgun...", "Creating folders for Shot '%s'..." % shot_metadata.name)
-                self.sgtk.create_filesystem_structure("Shot", shot_metadata.shotgun_id, engine="tk-flame")
-            
-            # establish a context for all objects
-            self.engine.show_busy("Preparing Shotgun...", "Resolving Shot contexts...")
-            for shot_metadata in self._shots[sequence_name].values():
-                shot_metadata.context = self.sgtk.context_from_entity("Shot", shot_metadata.shotgun_id)
-            
-        finally:
-            # kill progress indicator        
-            self.engine.clear_busy()
-    
+        # add it to the full dictionary of things to export
+        self._shots.update(sequence_data)
 
     
     def pre_export_asset(self, session_id, info):
         """
         Called when an item is about to be exported and a path needs to be computed.
+        
+        This will take the parameters from flame, push them through the toolkit template
+        system and then return a path to flame that flame will be using for the export.
+        
  
         :param session_id: String which identifies which export session is being referred to.
                            This parameter makes it possible to distinguish between different 
@@ -460,6 +445,100 @@ class FlameExport(Application):
         self._submission_done = True
 
 
+    def update_cut_and_display_summary(self, session_id, info):
+        """
+        Show summary UI to user
+        
+        :param session_id: String which identifies which export session is being referred to.
+                           This parameter makes it possible to distinguish between different 
+                           export sessions running if this is needed (typically only needed for
+                           expert use cases).
+        
+        :param info: Information about the export. Contains the keys      
+                     - destinationHost: Host name where the exported files will be written to.
+                     - destinationPath: Export path root.
+                     - presetPath: Path to the preset used for the export.
+        
+        """        
+        
+        # calculate the cut order for each sequence
+        num_created_shots = 0
+        for seq in self._shots:
+            # get a list of metadata objects for this shot
+            shot_metadata = self._shots[seq].values()
+            # sort it by cut in
+            shot_metadata.sort(key=lambda x: x.new_cut_in)
+            # now loop over all items and set an incrementing cut order
+            cut_index = 1
+            for sm in shot_metadata:
+                if sm.created_this_session:
+                    num_created_shots += 1
+                sm.new_cut_order = cut_index
+                cut_index += 1
+                
+        # now push cut changes to Shotgun as a single batch op
+        num_cut_changes = 0
+        cut_changes = []
+        for seq in self._shots:
+            for sm in self._shots[seq].values():
+                
+                # ensure that we actually have frame ranges for this shot
+                # it seems sometimes there are shots that don't actually contain any clips.
+                # I think this is anomaly in Flame, but since we have spotted it in QA,
+                # it's good to do this extra check in this code.
+                if sm.new_cut_in is None or sm.new_cut_out is None:
+                    self.log_warning("No frame ranges calculated for Shot %s!" % sm.shotgun_id)
+                
+                # has the frame range changed?
+                elif sm.shotgun_cut_in != sm.new_cut_in or \
+                     sm.shotgun_cut_out != sm.new_cut_out or \
+                     sm.shotgun_cut_order != sm.new_cut_order:
+                    
+                    duration = sm.new_cut_out - sm.new_cut_in + 1
+                    num_cut_changes += 1
+                    cut_changes.append( {"request_type":"update", 
+                                         "entity_type": "Shot",
+                                         "entity_id": sm.shotgun_id,
+                                         "data":{ "sg_cut_in": sm.new_cut_in,
+                                                  "sg_cut_out": sm.new_cut_out,
+                                                  "sg_cut_duration": duration, 
+                                                  "sg_cut_order": sm.new_cut_order }} )
+
+
+        self.log_debug("Sending cut order changes to Shotgun: %s" % cut_changes)
+        if len(cut_changes) > 0:
+            self.shotgun.batch(cut_changes)
+        
+        # now, as a very last step, show a summary UI to the user, including a 
+        # very brief overview of what changes have been carried out.
+        
+        comments = "Your export has been pushed to the Backburner queue for processing.<br><br>"
+        
+        if num_created_shots == 1:
+            comments += "- A new Shot was created in Shotgun. <br>"
+        elif num_created_shots > 1:
+            comments += "- %d new Shots were created in Shotgun. <br>" % num_created_shots 
+            
+        num_cut_updates = (num_cut_changes - num_created_shots)
+        if num_cut_updates == 1:
+            comments += "- One Shot had its cut information updated. <br>"
+        elif num_cut_updates > 1:
+            comments += "- %d Shots had their cut information updated. <br>" % num_cut_updates 
+                
+        tk_flame_export = self.import_module("tk_flame_export")
+        self.engine.show_modal("Submission Summary", 
+                               self, 
+                               tk_flame_export.SummaryDialog, 
+                               comments,
+                               self._submission_done)
+        
+        
+        
+
+
+    ##############################################################################################################
+    # Flare / batch mode integration
+
     def __is_rendering_tk_session(self, batch_path, render_path):
         """
         Determines if a batch export is outputting to file locations
@@ -630,6 +709,11 @@ class FlameExport(Application):
                                                 args)
 
 
+
+    ##############################################################################################################
+    # backburner callbacks
+
+
     def backburner_process_rendered_batch(self, info, serialized_context, comments, send_to_review):
         """
         :param info: Dictionary with a number of parameters:
@@ -770,92 +854,3 @@ class FlameExport(Application):
             raise TankError("Unsupported asset type '%s'" % info.get("assetType"))
         
                         
-    def update_cut_and_display_summary(self, session_id, info):
-        """
-        Show summary UI to user
-        
-        :param session_id: String which identifies which export session is being referred to.
-                           This parameter makes it possible to distinguish between different 
-                           export sessions running if this is needed (typically only needed for
-                           expert use cases).
-        
-        :param info: Information about the export. Contains the keys      
-                     - destinationHost: Host name where the exported files will be written to.
-                     - destinationPath: Export path root.
-                     - presetPath: Path to the preset used for the export.
-        
-        """        
-        
-        # calculate the cut order for each sequence
-        num_created_shots = 0
-        for seq in self._shots:
-            # get a list of metadata objects for this shot
-            shot_metadata = self._shots[seq].values()
-            # sort it by cut in
-            shot_metadata.sort(key=lambda x: x.new_cut_in)
-            # now loop over all items and set an incrementing cut order
-            cut_index = 1
-            for sm in shot_metadata:
-                if sm.created_this_session:
-                    num_created_shots += 1
-                sm.new_cut_order = cut_index
-                cut_index += 1
-                
-        # now push cut changes to Shotgun as a single batch op
-        num_cut_changes = 0
-        cut_changes = []
-        for seq in self._shots:
-            for sm in self._shots[seq].values():
-                
-                # ensure that we actually have frame ranges for this shot
-                # it seems sometimes there are shots that don't actually contain any clips.
-                # I think this is anomaly in Flame, but since we have spotted it in QA,
-                # it's good to do this extra check in this code.
-                if sm.new_cut_in is None or sm.new_cut_out is None:
-                    self.log_warning("No frame ranges calculated for Shot %s!" % sm.shotgun_id)
-                
-                # has the frame range changed?
-                elif sm.shotgun_cut_in != sm.new_cut_in or \
-                     sm.shotgun_cut_out != sm.new_cut_out or \
-                     sm.shotgun_cut_order != sm.new_cut_order:
-                    
-                    duration = sm.new_cut_out - sm.new_cut_in + 1
-                    num_cut_changes += 1
-                    cut_changes.append( {"request_type":"update", 
-                                         "entity_type": "Shot",
-                                         "entity_id": sm.shotgun_id,
-                                         "data":{ "sg_cut_in": sm.new_cut_in,
-                                                  "sg_cut_out": sm.new_cut_out,
-                                                  "sg_cut_duration": duration, 
-                                                  "sg_cut_order": sm.new_cut_order }} )
-
-
-        self.log_debug("Sending cut order changes to Shotgun: %s" % cut_changes)
-        if len(cut_changes) > 0:
-            self.shotgun.batch(cut_changes)
-        
-        # now, as a very last step, show a summary UI to the user, including a 
-        # very brief overview of what changes have been carried out.
-        
-        comments = "Your export has been pushed to the Backburner queue for processing.<br><br>"
-        
-        if num_created_shots == 1:
-            comments += "- A new Shot was created in Shotgun. <br>"
-        elif num_created_shots > 1:
-            comments += "- %d new Shots were created in Shotgun. <br>" % num_created_shots 
-            
-        num_cut_updates = (num_cut_changes - num_created_shots)
-        if num_cut_updates == 1:
-            comments += "- One Shot had its cut information updated. <br>"
-        elif num_cut_updates > 1:
-            comments += "- %d Shots had their cut information updated. <br>" % num_cut_updates 
-                
-        tk_flame_export = self.import_module("tk_flame_export")
-        self.engine.show_modal("Submission Summary", 
-                               self, 
-                               tk_flame_export.SummaryDialog, 
-                               comments,
-                               self._submission_done)
-        
-        
-        

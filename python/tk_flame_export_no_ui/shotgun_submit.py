@@ -22,14 +22,77 @@ class ShotgunSubmitter(object):
     Helper class with methods to submit publishes and versions to Shotgun
     """
     
+    # constants
+    SHOTGUN_QUICKTIME_MIN_WIDTH = 720
+    SHOTGUN_DEPARTMENT = "Flame"
+    
+    
     def __init__(self):
         """
         Constructor
         """
         self._app = sgtk.platform.current_bundle()
+        
+        # get some app settings configuring how shots are parented
+        self._shot_parent_entity_type = self._app.get_setting("shot_parent_entity_type")
+        self._shot_parent_link_field = self._app.get_setting("shot_parent_link_field")
 
+    def create_shotgun_structure(self, parent_name, shot_names):
+        """
+        Create a scaffold in Shotgun and on disk to represent Shots.
+        This method will
+        
+        - Create sequences and shots in shotgun if they don't already exist
+        - Create folders on disk for new shots
+        - Compute tk contexts for all shots
+        
+        Returns a dictionary of sequences. Each sequence name contains a dictu
+        
+        { "Sequence_x": { "Shot_x_1":  ShotMetadata,
+                          "Shot_x_2":  ShotMetadata,
+                          "Shot_x_2":  ShotMetadata }}
+        
+        :returns: dict with shot data        
+        """
+        data = {}
+        
+        self._app.log_debug("Preparing export structure for %s %s and shots %s" % (self._shot_parent_entity_type, 
+                                                                                   parent_name, 
+                                                                                   shot_names))
+        self._app.engine.show_busy("Preparing Shotgun...", "Preparing Shots for export...")
+        
+        try:
+            # find and create objects in shotgun
+            shot_metadata_list = self._resolve_sg_shot_structure(parent_name, shot_names)
+            
+            # set up metadata objects grouped by sequence in our data structure
+            data[parent_name] = {}
+            
+            for shot_metadata in shot_metadata_list:
+                data[parent_name][shot_metadata.name] = shot_metadata
+            
+            # now get the metadata objects for all shots that were created by the folder creation
+            new_shot_metadata = [x for x in data[parent_name].values() if x.created_this_session]
+            
+            # run folder creation for our newly created shots
+            for (idx, shot_metadata) in enumerate(new_shot_metadata):
+                # this is a new shot
+                msg = "%s/%s: Creating folders for Shot %s..." % (idx+1, len(new_shot_metadata), shot_metadata.name)
+                self._app.engine.show_busy("Preparing Shotgun...", msg)
+                self._app.sgtk.create_filesystem_structure("Shot", shot_metadata.shotgun_id, engine="tk-flame")
+            
+            # establish a context for all objects
+            self._app.engine.show_busy("Preparing Shotgun...", "Resolving Shot contexts...")
+            for shot_metadata in data[parent_name].values():
+                shot_metadata.context = self._app.sgtk.context_from_entity("Shot", shot_metadata.shotgun_id)
+            
+        finally:
+            # kill progress indicator        
+            self._app.engine.clear_busy()
+        
+        return data
 
-    def resolve_sg_shot_structure(self, parent_name, shot_names):
+    def _resolve_sg_shot_structure(self, parent_name, shot_names):
         """
         Ensures that Shots exists in Shotgun. Will automatically create
         Shots and Shot parents (e.g. sequences) if necessary and assign
@@ -48,23 +111,21 @@ class ShotgunSubmitter(object):
         if parent_task_template == "":
             parent_task_template = None
 
-        shot_parent_entity_type = self._app.get_setting("shot_parent_entity_type")
-        shot_parent_link_field = self._app.get_setting("shot_parent_link_field")
-
         # handy shorthand
         project = self._app.context.project
 
+        # --------------------------------------------------------------------------------------------
         # first, ensure that a parent exists in Shotgun with the parent name
         self._app.engine.show_busy("Preparing Shotgun...", 
-                                   "Locating %s %s..." % (shot_parent_entity_type, parent_name))
+                                   "Locating %s %s..." % (self._shot_parent_entity_type, parent_name))
         
-        sg_parent = self._app.shotgun.find_one(shot_parent_entity_type, 
+        sg_parent = self._app.shotgun.find_one(self._shot_parent_entity_type, 
                                                [["code", "is", parent_name], ["project", "is", project]]) 
         
         if not sg_parent:
             # Create a new parent object in Shotgun
             self._app.engine.show_busy("Preparing Shotgun...", 
-                                       "Creating %s %s..." % (shot_parent_entity_type, parent_name))
+                                       "Creating %s %s..." % (self._shot_parent_entity_type, parent_name))
             
             # First see if we should assign a task template
             if parent_task_template:
@@ -75,12 +136,14 @@ class ShotgunSubmitter(object):
             else:
                 sg_task_template = None
             
-            sg_parent = self._app.shotgun.create(shot_parent_entity_type, 
+            sg_parent = self._app.shotgun.create(self._shot_parent_entity_type, 
                                                  {"code": parent_name, 
                                                   "task_template": sg_task_template,
                                                   "description": "Created by the Shotgun Flame exporter.",
                                                   "project": project})
   
+        
+        # --------------------------------------------------------------------------------------------
         # First locate a task template for shots
         if shot_task_template:
             # resolve task template
@@ -91,37 +154,52 @@ class ShotgunSubmitter(object):
         else:
             sg_task_template = None
   
+        # now attempt to retrieve metadata for all shots. The shots that are not found are then created.
+        self._app.engine.show_busy("Preparing Shotgun...", "Loading Shot data...")
+        
+        sg_shots = self._app.shotgun.find_one("Shot", 
+                                              [["code", "in", shot_names], 
+                                               [self._shot_parent_link_field, "is", sg_parent]],
+                                              ["code", "sg_cut_in", "sg_cut_out", "sg_cut_order"])
+        
+        # key it by name. Check for dupes.
+        sg_shot_dict = {}
+        for sg_shot in sg_shots:
+            shot_name = sg_shot["code"]
+            if shot_name in sg_shots:
+                raise TankError("There are several Shots linked to %s %s and named '%s' "
+                                "in Shotgun!" % (self._shot_parent_entity_type, parent_name, shot_name))
+            sg_shot_dict[shot_name] = sg_shot
+        
+        
         # now resolve all the shots. Shots that don't already exists are created.
         shots = []
-        for shot_name in shot_names:
+        for (idx, shot_name) in sg_shot_dict.values():
 
-            self._app.engine.show_busy("Preparing Shotgun...", "Locating Shot %s..." % shot_name)
-
-            shot = self._app.shotgun.find_one("Shot", 
-                                              [["code", "is", shot_name], [shot_parent_link_field, "is", sg_parent]],
-                                              ["sg_cut_in", "sg_cut_out", "sg_cut_order"])
-            
+            # set up basic structure
             metadata = ShotMetadata()
             metadata.name = shot_name
             metadata.parent_name = parent_name
             metadata.shotgun_parent = sg_parent
             shots.append(metadata)
+
             
-            if shot:
+            if shot_name in sg_shot_dict:
+                # this shot is already in shotgun
                 # store it in our return data dict
-                metadata.shotgun_id = shot["id"]
-                metadata.shotgun_cut_in = shot["sg_cut_in"]
-                metadata.shotgun_cut_out = shot["sg_cut_out"]
+                metadata.shotgun_id = sg_shot_dict[shot_name]["id"]
+                metadata.shotgun_cut_in = sg_shot_dict[shot_name]["sg_cut_in"]
+                metadata.shotgun_cut_out = sg_shot_dict[shot_name]["sg_cut_out"]
             
             else:
                 # Create a new shot in Shotgun
-                self._app.engine.show_busy("Preparing Shotgun...", "Creating Shot %s..." % shot_name)
-                                    
+                msg = "%s/%s: Creating Shot %s..." % (idx+1, len(sg_shot_dict), shot_name)
+                self._app.engine.show_busy("Preparing Shotgun...", msg)
                 shot = self._app.shotgun.create("Shot", {"code": shot_name, 
-                                                    "description": "Created by the Shotgun Flame exporter.",
-                                                    shot_parent_link_field: sg_parent,
-                                                    "task_template": sg_task_template,
-                                                    "project": project})
+                                                         "description": "Created by the Shotgun Flame exporter.",
+                                                         self._shot_parent_link_field: sg_parent,
+                                                         "task_template": sg_task_template,
+                                                         "project": project})
                 
                 # store it in our return data dict
                 metadata.created_this_session = True
@@ -346,14 +424,15 @@ class ShotgunSubmitter(object):
         data["sg_path_to_frames"] = self.__get_tk_path_from_flame_plate_path(path)
         
         # This is used to find the latest Version from the same department.
-        # todo: make this configurable?
-        data["sg_department"] = "Flame"        
+        data["sg_department"] = self.SHOTGUN_DEPARTMENT   
         
         sg_version_data = self._app.shotgun.create("Version", data)
         self._app.log_debug("Created a version in Shotgun: %s" % sg_version_data)        
         
         # now calculate the closest res to with 720px
-        (scaled_down_width, scaled_down_height) = self.__calculate_aspect_ratio(720, width, height) 
+        (scaled_down_width, scaled_down_height) = self.__calculate_aspect_ratio(self.SHOTGUN_QUICKTIME_MIN_WIDTH, 
+                                                                                width, 
+                                                                                height) 
         self._app.log_debug("The media will be scaled from %sx%s -> %sx%s as part " 
                             "of the quicktime generation" % (width, height, scaled_down_width, scaled_down_height))
         
