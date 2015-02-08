@@ -26,7 +26,6 @@ class ShotgunSubmitter(object):
     SHOTGUN_QUICKTIME_MIN_WIDTH = 720
     SHOTGUN_DEPARTMENT = "Flame"
     
-    
     def __init__(self):
         """
         Constructor
@@ -87,7 +86,7 @@ class ShotgunSubmitter(object):
                 shot_metadata.context = self._app.sgtk.context_from_entity("Shot", shot_metadata.shotgun_id)
             
         finally:
-            # kill progress indicator        
+            # kill progress indicator
             self._app.engine.clear_busy()
         
         return data
@@ -124,17 +123,19 @@ class ShotgunSubmitter(object):
         
         if not sg_parent:
             # Create a new parent object in Shotgun
-            self._app.engine.show_busy("Preparing Shotgun...", 
-                                       "Creating %s %s..." % (self._shot_parent_entity_type, parent_name))
             
             # First see if we should assign a task template
             if parent_task_template:
                 # resolve task template
+                self._app.engine.show_busy("Preparing Shotgun...", "Loading task template...")
                 sg_task_template = self._app.shotgun.find_one("TaskTemplate", [["code", "is", parent_task_template]])
                 if not sg_task_template:
                     raise TankError("The task template '%s' does not exist in Shotgun!" % parent_task_template)
             else:
                 sg_task_template = None
+
+            self._app.engine.show_busy("Preparing Shotgun...", 
+                                       "Creating %s %s..." % (self._shot_parent_entity_type, parent_name))
             
             sg_parent = self._app.shotgun.create(self._shot_parent_entity_type, 
                                                  {"code": parent_name, 
@@ -147,7 +148,7 @@ class ShotgunSubmitter(object):
         # First locate a task template for shots
         if shot_task_template:
             # resolve task template
-            self._app.engine.show_busy("Preparing Shotgun...", "Locating Shot task template...")
+            self._app.engine.show_busy("Preparing Shotgun...", "Loading task template...")
             sg_task_template = self._app.shotgun.find_one("TaskTemplate", [["code", "is", shot_task_template]])
             if not sg_task_template:
                 raise TankError("The task template '%s' does not exist in Shotgun!" % shot_task_template)
@@ -162,7 +163,7 @@ class ShotgunSubmitter(object):
                                                [self._shot_parent_link_field, "is", sg_parent]],
                                               ["code", "sg_cut_in", "sg_cut_out", "sg_cut_order"])
         
-        # key it by name. Check for dupes.
+        # key it by name. Check for duplicates.
         sg_shot_dict = {}
         for sg_shot in sg_shots:
             shot_name = sg_shot["code"]
@@ -171,42 +172,52 @@ class ShotgunSubmitter(object):
                                 "in Shotgun!" % (self._shot_parent_entity_type, parent_name, shot_name))
             sg_shot_dict[shot_name] = sg_shot
         
+        # start gathering metadata objects to represent all required shots.
+        # some of these shots will need to be created in Shotgun.
+        final_shots_metadata = []
         
-        # now resolve all the shots. Shots that don't already exists are created.
-        shots = []
-        for (idx, shot_name) in sg_shot_dict.values():
+        # first create all shots that don't exist. Use a single batch call for speed.
+        sg_batch_data = []
+        for shot_name in shot_names:
+            if shot_name not in sg_shot_dict:
+                # this shot does not yet exist in Shotgun
+                batch = {"request_type": "create", 
+                         "entity_type": "Shot", 
+                         "data": {"code": shot_name, 
+                                  "description": "Created by the Shotgun Flame exporter.",
+                                  self._shot_parent_link_field: sg_parent,
+                                  "task_template": sg_task_template,
+                                  "project": project} }
+                sg_batch_data.append(batch)
+        
+        if len(sg_batch_data) > 0:
+            self._app.engine.show_busy("Preparing Shotgun...", "Creating new shots...")
+            sg_batch_response = self._app.shotgun.batch(sg_batch_data)
 
-            # set up basic structure
-            metadata = ShotMetadata()
-            metadata.name = shot_name
-            metadata.parent_name = parent_name
-            metadata.shotgun_parent = sg_parent
-            shots.append(metadata)
-
+            # for each new shot, create a metadata object
+            for sg_data in sg_batch_response: 
+                metadata = ShotMetadata()
+                metadata.name = sg_data["code"]
+                metadata.shotgun_id = sg_data["id"]
+                metadata.parent_name = parent_name
+                metadata.shotgun_parent = sg_parent
+                metadata.created_this_session = True
+                final_shots_metadata.append(metadata)
             
+        # now add all existing shots to our return metadata structure        
+        for shot_name in shot_names:
             if shot_name in sg_shot_dict:
-                # this shot is already in shotgun
-                # store it in our return data dict
+                metadata = ShotMetadata()
+                metadata.name = shot_name
+                metadata.parent_name = parent_name
+                metadata.shotgun_parent = sg_parent
                 metadata.shotgun_id = sg_shot_dict[shot_name]["id"]
                 metadata.shotgun_cut_in = sg_shot_dict[shot_name]["sg_cut_in"]
                 metadata.shotgun_cut_out = sg_shot_dict[shot_name]["sg_cut_out"]
+                final_shots_metadata.append(metadata)
             
-            else:
-                # Create a new shot in Shotgun
-                msg = "%s/%s: Creating Shot %s..." % (idx+1, len(sg_shot_dict), shot_name)
-                self._app.engine.show_busy("Preparing Shotgun...", msg)
-                shot = self._app.shotgun.create("Shot", {"code": shot_name, 
-                                                         "description": "Created by the Shotgun Flame exporter.",
-                                                         self._shot_parent_link_field: sg_parent,
-                                                         "task_template": sg_task_template,
-                                                         "project": project})
-                
-                # store it in our return data dict
-                metadata.created_this_session = True
-                metadata.shotgun_id = shot["id"]
-            
-        return shots
-
+        # all done!
+        return final_shots_metadata
 
     def register_batch_publish(self, context, path, comments, version_number):
         """
@@ -428,15 +439,36 @@ class ShotgunSubmitter(object):
         
         sg_version_data = self._app.shotgun.create("Version", data)
         self._app.log_debug("Created a version in Shotgun: %s" % sg_version_data)        
+            
+        return sg_version_data
+
+
+    def upload_quicktime(self, version_id, path, width, height):        
+        """
+        Generates a quicktime based on flame image data. Then uploads it to
+        Shotgun.
+
+        This method will generate a quicktime using ffmpeg. It tries to find
+        the closest resolution to 720p (which is shotgun's recommended resolution)
+        in order to make the quicktime size as small as possible. Once generated,
+        the quicktime is uploaded to Shotgun and the local temp file is deleted.
+        
+        :param version_id: The id for the shotgun version to which we are uploading a quicktime.
+        :param path: Path to frames, flame style path with [1234-1234] sequence marker.
+        :param width: Image width in pixels
+        :param height: Image height in pixels
+        """
+        self._app.log_debug("Starting to upload media to Shotgun. A quicktime will be generated.")
+        self._app.log_debug("Source media: %s (%sx%s)" % (path, width, height))
+        self._app.log_debug("Computing closest image resolution to %s..." % self.SHOTGUN_QUICKTIME_MIN_WIDTH)
         
         # now calculate the closest res to with 720px
         (scaled_down_width, scaled_down_height) = self.__calculate_aspect_ratio(self.SHOTGUN_QUICKTIME_MIN_WIDTH, 
                                                                                 width, 
                                                                                 height) 
-        self._app.log_debug("The media will be scaled from %sx%s -> %sx%s as part " 
-                            "of the quicktime generation" % (width, height, scaled_down_width, scaled_down_height))
         
-        
+        self._app.log_debug("The quicktime will be resolution %sx%s" % (scaled_down_width, scaled_down_height))
+                
         self._app.log_debug("Start transcoding quicktime...")
 
         # first assemble the readframe syntax. This will use the wiretap API to emit a stream of 
@@ -488,14 +520,13 @@ class ShotgunSubmitter(object):
         #  -pix_fmt rgb24      <-- input stream pixel data lay out
         #  -s 1280x720         <-- input stream resolution
         #  -i -                <-- no input file
-        #  -y                  <-- overwrite existing files
-        #  -r 25               <-- need to tell ffmpeg what the fps is 
+        #  -y                  <-- overwrite existing files 
         #  QUICKTIME_OPTIONS   <-- quicktime codec options (comes from hook)
         #  /output/file.mov    <-- target file
         #
         
         # note: the -r framerate argument seems to confuse ffmpeg so I am omitting that
-        # instead, quicktimes are generated at 25fps.
+        # instead, quicktimes are generated at a default of 25fps.
         
         ffmpeg_cmd = "%s -f rawvideo -top -1 -pix_fmt rgb24 -s %sx%s -i - -y" % (self._app.engine.get_ffmpeg_path(),
                                                                                  scaled_down_width,
@@ -508,24 +539,23 @@ class ShotgunSubmitter(object):
 
         full_cmd = "%s | %s %s %s" % (input_cmd, ffmpeg_cmd, ffmpeg_presets, tmp_quicktime)
         
-        self._app.log_debug("Transcoding command line: %s" % full_cmd)
-        
+        self._app.log_debug("Full transcoding command line: %s" % full_cmd)
+        self._app.log_debug("Being quicktime generation...")
         if os.system(full_cmd) != 0:
             raise TankError("Could not transcode media. See error log for details.")
-        
         self._app.log_debug("Quicktime successfully created!")
         self._app.log_debug("File size is %s bytes." % os.path.getsize(tmp_quicktime))
         
         # upload quicktime to Shotgun
         self._app.log_debug("Begin upload of quicktime to shotgun...")
-        self._app.shotgun.upload("Version", sg_version_data["id"], tmp_quicktime, "sg_uploaded_movie")
-        self._app.log_debug("Upload complete!")
+        self._app.shotgun.upload("Version", version_id, tmp_quicktime, "sg_uploaded_movie")
+        self._app.log_debug("...upload complete!")
         
         # clean up
         self.__clean_up_temp_file(tmp_quicktime)
     
-        return sg_version_data
-
+    
+    
     def __calculate_aspect_ratio(self, target_width, width, height):
         """
         Brute force calculation of aspect ratio.

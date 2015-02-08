@@ -10,6 +10,23 @@
 
 import sgtk
 
+
+class SegmentMetadata(object):
+    """
+    Simple Value wrapper class which holds properties associated with a timeline segment.
+    """
+    
+    def __init__(self, name):
+        """
+        Constructor
+        """
+        
+        self.name = name
+        
+        self.video_metadata = None
+        self.batch_metadata = None
+        
+        self.shotgun_version = None
         
 class ShotMetadata(object):
     """
@@ -27,7 +44,7 @@ class ShotMetadata(object):
         self.parent_name = None             # parent (sequence) name
         self.shotgun_parent = None          # shotgun parent entity dictionary
         
-        self.created_this_session = False   # was the shotgun shot created in this session?
+        self.created_this_session = False   # was the shotgun shot created in this export session?
 
         self.shotgun_id = None              # shotgun shot id
         
@@ -40,6 +57,10 @@ class ShotMetadata(object):
         self.new_cut_order = None           # calculated cut order
         
         self.context = None                 # context object for the shot
+        
+        self.segment_metadata = {}          # metadata about all the clips associated 
+                                            # with this shot, keyed by segment name
+        
         
         # internal members
         self.__thumb_upload_handled = False

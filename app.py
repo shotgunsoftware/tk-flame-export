@@ -39,6 +39,7 @@ import os
 import re
 import sgtk
 import datetime
+import pprint
 
 from sgtk import TankError
 from sgtk.platform import Application
@@ -76,7 +77,7 @@ class FlameExport(Application):
         self._video_preset = None
         
         # flag to indicate that something was actually submitted by the export process
-        self._submission_done = False
+        self._reached_post_asset_phase = False
         
         # register our desired interaction with flame hooks
         # set up callbacks for the engine to trigger 
@@ -86,13 +87,13 @@ class FlameExport(Application):
         callbacks["preCustomExport"] = self.pre_custom_export
         callbacks["preExportSequence"] = self.pre_export_sequence
         callbacks["preExportAsset"] = self.pre_export_asset
-        callbacks["postExportAsset"] = self.submit_post_asset_backburner_job
-        callbacks["postCustomExport"] = self.update_cut_and_display_summary
+        callbacks["postExportAsset"] = self.post_export_asset
+        callbacks["postCustomExport"] = self.do_submission_and_summary
         self.engine.register_export_hook(menu_caption, callbacks)
         
         # also register this app so that it runs after export in batch mode / flare
         batch_callbacks = {}
-        batch_callbacks["batchExportEnd"] = self.submit_post_batch_backburner_job
+        batch_callbacks["batchExportEnd"] = self.post_batch_render_sg_process
         batch_callbacks["batchExportBegin"] = self.pre_batch_render_checks
         self.engine.register_batch_hook(batch_callbacks)
 
@@ -117,7 +118,7 @@ class FlameExport(Application):
         
         # reset export session data
         self._shots = {}
-        self._submission_done = False
+        self._reached_post_asset_phase = False
         
         # get video preset names from config
         video_preset_names = [preset["name"] for preset in self.get_setting("plate_presets")]
@@ -238,7 +239,7 @@ class FlameExport(Application):
            height:          Frame height of the exported asset.
            aspectRatio:     Frame aspect ratio of the exported asset.
            depth:           Frame depth of the exported asset. ( '8-bits', '10-bits', '12-bits', '16 fp' )
-           scanFormat:      Scan format of the exported asset. ( 'FILED_1', 'FIELD_2', 'PROGRESSIVE' )
+           scanFormat:      Scan format of the exported asset. ( 'FIELD_1', 'FIELD_2', 'PROGRESSIVE' )
            fps:             Frame rate of exported asset.
            sequenceFps:     Frame rate of the sequence the asset is part of.
            sourceIn:        Source in point in frame and asset frame rate.
@@ -356,7 +357,7 @@ class FlameExport(Application):
         # character substitutions etc are handled according to the toolkit logic 
         info["resolvedPath"] = local_path        
         
-    def submit_post_asset_backburner_job(self, session_id, info):
+    def post_export_asset(self, session_id, info):
         """
         Called when an item has been exported.
         
@@ -382,7 +383,7 @@ class FlameExport(Application):
            height:          Frame height of the exported asset.
            aspectRatio:     Frame aspect ratio of the exported asset.
            depth:           Frame depth of the exported asset. ( '8-bits', '10-bits', '12-bits', '16 fp' )
-           scanFormat:      Scan format of the exported asset. ( 'FILED_1', 'FIELD_2', 'PROGRESSIVE' )
+           scanFormat:      Scan format of the exported asset. ( 'FIELD_1', 'FIELD_2', 'PROGRESSIVE' )
            fps:             Frame rate of exported asset.
            sequenceFps:     Frame rate of the sequence the asset is part of.
            sourceIn:        Source in point in frame and asset frame rate.
@@ -396,58 +397,40 @@ class FlameExport(Application):
            versionNumber:   Current version number of export (0 if unversioned).
 
         """
+        
+        tk_flame_export_no_ui = self.import_module("tk_flame_export_no_ui")
+        
         asset_type = info["assetType"]
+        segment_name = info["name"]
         shot_name = info["shotName"]
         sequence_name = info["sequenceName"]        
         
         if asset_type not in ["video", "batch"]:
-            # the review system ignores any other assets. The export profiles are defined
-            # in the app's settings hook, so technically there shouldn't be any other items
-            # generated - but just in case there are (because of customizations), we'll simply
-            # ignore these.
+            # ignore anything that isn't video or batch
             return
         
-        if info.get("isBackground"):
-            run_after_job_id = info.get("backgroundJobId")
-        else:
-            run_after_job_id = None
+        metadata = self._shots[sequence_name][shot_name]
+        if segment_name not in metadata.segment_metadata:
+            # create new metadata to represent this segment
+            metadata.segment_metadata[segment_name] = tk_flame_export_no_ui.SegmentMetadata(segment_name)
+
+        segment_metadata = metadata.segment_metadata[segment_name]
         
-        # extract context to pass downstream to the content generation job
-        # note - we have cached the context object for performance - could have
-        context = self._shots[sequence_name][shot_name].context
-                
-        # check if we should push a thumbnail to the shot entity
-        # (this is typically done for newly created shots)
-        # note: with upcoming changes in shotgun, this may not be necessary
-        make_shot_thumb = False
         if asset_type == "video":
-            make_shot_thumb = self._shots[sequence_name][shot_name].needs_shotgun_thumb()        
+            # this is a published image sequence
+            segment_metadata.video_metadata = info
+            
+        elif asset_type == "batch":
+            # this is a published batch file
+            segment_metadata.batch_metadata = info
         
-        # now start preparing a remote job
-        args = {"info": info, 
-                "serialized_context": sgtk.context.serialize(context),
-                "user_comments": self._user_comments,
-                "make_shot_thumb": make_shot_thumb }
-        
-        # and populate backburner job parameters
-        job_title = "Shotgun Upload - %s, %s, %s" % (sequence_name, shot_name, asset_type)
-        job_desc = "Transcoding media, registering and uploading."         
-        
-        # kick off backburner job
-        self.engine.create_local_backburner_job(job_title, 
-                                                job_desc, 
-                                                run_after_job_id, 
-                                                self, 
-                                                "backburner_process_exported_asset", 
-                                                args)
-        
-        # all done - the rest will happen on the render farm.
-        self._submission_done = True
+        # indicate that the export has reached its last stage
+        self._reached_post_asset_phase = True
 
 
-    def update_cut_and_display_summary(self, session_id, info):
+    def do_submission_and_summary(self, session_id, info):
         """
-        Show summary UI to user
+        Push info to Shotgun and display a summary UI.
         
         :param session_id: String which identifies which export session is being referred to.
                            This parameter makes it possible to distinguish between different 
@@ -475,10 +458,12 @@ class FlameExport(Application):
                     num_created_shots += 1
                 sm.new_cut_order = cut_index
                 cut_index += 1
+        
+        # we push all changes to shotgun as a single batch call
+        shotgun_batch_items = []
                 
-        # now push cut changes to Shotgun as a single batch op
+        # first figure out any cut changes
         num_cut_changes = 0
-        cut_changes = []
         for seq in self._shots:
             for sm in self._shots[seq].values():
                 
@@ -496,22 +481,23 @@ class FlameExport(Application):
                     
                     duration = sm.new_cut_out - sm.new_cut_in + 1
                     num_cut_changes += 1
-                    cut_changes.append( {"request_type":"update", 
-                                         "entity_type": "Shot",
-                                         "entity_id": sm.shotgun_id,
-                                         "data":{ "sg_cut_in": sm.new_cut_in,
-                                                  "sg_cut_out": sm.new_cut_out,
-                                                  "sg_cut_duration": duration, 
-                                                  "sg_cut_order": sm.new_cut_order }} )
+                    shotgun_batch_items.append( {"request_type":"update", 
+                                                 "entity_type": "Shot",
+                                                 "entity_id": sm.shotgun_id,
+                                                 "data":{ "sg_cut_in": sm.new_cut_in,
+                                                         "sg_cut_out": sm.new_cut_out,
+                                                         "sg_cut_duration": duration, 
+                                                         "sg_cut_order": sm.new_cut_order }} )
 
 
-        self.log_debug("Sending cut order changes to Shotgun: %s" % cut_changes)
-        if len(cut_changes) > 0:
-            self.shotgun.batch(cut_changes)
         
+        
+        self.log_debug("Sending batch data to Shotgun: %s" % shotgun_batch_items)
+        if len(shotgun_batch_items) > 0:
+            self.shotgun.batch(shotgun_batch_items)
+                
         # now, as a very last step, show a summary UI to the user, including a 
         # very brief overview of what changes have been carried out.
-        
         comments = "Your export has been pushed to the Backburner queue for processing.<br><br>"
         
         if num_created_shots == 1:
@@ -530,7 +516,7 @@ class FlameExport(Application):
                                self, 
                                tk_flame_export.SummaryDialog, 
                                comments,
-                               self._submission_done)
+                               self._reached_post_asset_phase)
         
         
         
@@ -616,7 +602,7 @@ class FlameExport(Application):
             width:                Frame width
             height:               Frame height
             depth:                Frame depth ( '8-bits', '10-bits', '12-bits', '16 fp' )
-            scanForamt:           Scan format ( 'FILED_1', 'FIELD_2', 'PROGRESSIVE' )        
+            scanForamt:           Scan format ( 'FIELD_1', 'FIELD_2', 'PROGRESSIVE' )        
         """
         self._send_batch_render_to_review = False
         self._user_comments = None
@@ -642,7 +628,7 @@ class FlameExport(Application):
             self._user_comments = widget.get_comments()
 
 
-    def submit_post_batch_backburner_job(self, info):
+    def post_batch_render_sg_process(self, info):
         """
         Called when batch rendering has finished.
         
@@ -675,7 +661,7 @@ class FlameExport(Application):
             width:                Frame width
             height:               Frame height
             depth:                Frame depth ( '8-bits', '10-bits', '12-bits', '16 fp' )
-            scanFormat:           Scan format ( 'FILED_1', 'FIELD_2', 'PROGRESSIVE' )
+            scanFormat:           Scan format ( 'FIELD_1', 'FIELD_2', 'PROGRESSIVE' )
             aborted:              Indicate if the export has been aborted by the user.
         """
         
@@ -697,7 +683,7 @@ class FlameExport(Application):
                 "send_to_review": self._send_batch_render_to_review }
         
         # and populate backburner job parameters
-        job_title = "Shotgun Batch Render Upload - %s" % info.get("nodeName")
+        job_title = "Shotgun Batch Render %s" % info.get("nodeName")
         job_desc = "Making quicktimes and uploading to Shotgun."
         
         # kick off async job
@@ -716,6 +702,12 @@ class FlameExport(Application):
 
     def backburner_process_rendered_batch(self, info, serialized_context, comments, send_to_review):
         """
+        Backburner job. Takes a newly generated render and processes it for Shotgun:
+        
+        - registers a publish for the newly created batch file
+        - registers a publish for the generated render source data
+        - optionally, creates a version and uploads a quicktime.
+        
         :param info: Dictionary with a number of parameters:
         
             nodeName:             Name of the export node.   
@@ -745,7 +737,7 @@ class FlameExport(Application):
             width:                Frame width
             height:               Frame height
             depth:                Frame depth ( '8-bits', '10-bits', '12-bits', '16 fp' )
-            scanForamt:           Scan format ( 'FILED_1', 'FIELD_2', 'PROGRESSIVE' ) 
+            scanForamt:           Scan format ( 'FIELD_1', 'FIELD_2', 'PROGRESSIVE' ) 
             
         :param serialized_context: The context for the shot that the submission 
                                    is associated with, in serialized form.
@@ -773,84 +765,22 @@ class FlameExport(Application):
         
         # Finally, create a version record in Shotgun, generate a quicktime and upload it
         if send_to_review:
-            self._sg_submit_helper.create_version(context, 
-                                                  full_flame_plate_path,
-                                                  description,
-                                                  sg_data, 
-                                                  info["width"], 
-                                                  info["height"],
-                                                  info["aspectRatio"])        
-
-
-    def backburner_process_exported_asset(self, info, serialized_context, user_comments, make_shot_thumb):
-        """
-        Called when an item has been exported
-        
-        :param info: Dictionary with a number of parameters:
-        
-           destinationHost: Host name where the exported files will be written to.
-           destinationPath: Export path root.
-           namePattern:     List of optional naming tokens.
-           resolvedPath:    Full file pattern that will be exported with all the tokens resolved.
-           assetName:            Name of the exported asset.
-           sequenceName:    Name of the sequence the asset is part of.
-           shotName:        Name of the shot the asset is part of.
-           assetType:       Type of exported asset. ( 'video', 'audio', 'batch', 'openClip', 'batchOpenClip' )
-           isBackground:    True if the export of the asset happened in the background.
-           backgroundJobId: Id of the background job given by the backburner manager upon submission. 
-                            Empty if job is done in foreground.
-           width:           Frame width of the exported asset.
-           height:          Frame height of the exported asset.
-           aspectRatio:     Frame aspect ratio of the exported asset.
-           depth:           Frame depth of the exported asset. ( '8-bits', '10-bits', '12-bits', '16 fp' )
-           scanFormat:      Scan format of the exported asset. ( 'FILED_1', 'FIELD_2', 'PROGRESSIVE' )
-           fps:             Frame rate of exported asset.
-           sequenceFps:     Frame rate of the sequence the asset is part of.
-           sourceIn:        Source in point in frame and asset frame rate.
-           sourceOut:       Source out point in frame and asset frame rate.
-           recordIn:        Record in point in frame and sequence frame rate.
-           recordOut:       Record out point in frame and sequence frame rate.
-           track:           ID of the sequence's track that contains the asset.
-           trackName:       Name of the sequence's track that contains the asset.
-           segmentIndex:    Asset index (1 based) in the track.       
-           versionName:     Current version name of export (Empty if unversioned).
-           versionNumber:   Current version number of export (0 if unversioned).
-           
-        :param serialized_context: The context for the shot that the submission is associated with, in serialized form.
-        :param user_comments: Comments entered by the user at export start.
-        :param make_shot_thumb: Should a thumbnail be uploaded to the associated shot as well?
-        """
-        
-        path = os.path.join(info.get("destinationPath"), info.get("resolvedPath"))
-        context = sgtk.context.deserialize(serialized_context)
-        version_number = int(info["versionNumber"])
-        
-        if info.get("assetType") == "video":
             
-            # first register a publish record in Shotgun for the plates
-            sg_data = self._sg_submit_helper.register_video_publish(context,
-                                                                    path,
-                                                                    user_comments,
-                                                                    version_number,
-                                                                    info["width"],
+            # create sg data
+            sg_version_data = self._sg_submit_helper.create_version(context, 
+                                                                    full_flame_plate_path,
+                                                                    description,
+                                                                    sg_data, 
+                                                                    info["width"], 
                                                                     info["height"],
-                                                                    make_shot_thumb)
+                                                                    info["aspectRatio"])     
+            
+            
+            
+            # and generate a quicktime
+            self._sg_submit_helper.upload_quicktime(sg_version_data["id"], 
+                                                    full_flame_plate_path, 
+                                                    info["width"], 
+                                                    info["height"])
 
-            # now create a version record, generate a quicktime and upload it            
-            self._sg_submit_helper.create_version(context,
-                                                  path,
-                                                  user_comments,
-                                                  sg_data,
-                                                  info["width"],
-                                                  info["height"],
-                                                  info["aspectRatio"])
-            
-        elif info.get("assetType") == "batch":
-            
-            # register a publish record in Shotgun for the batch file
-            self._sg_submit_helper.register_batch_publish(context, path, user_comments, version_number)
-                        
-        else:
-            raise TankError("Unsupported asset type '%s'" % info.get("assetType"))
-        
-                        
+
