@@ -557,7 +557,7 @@ class FlameExport(Application):
         for sg_entity in sg_data:
             if sg_entity["type"] == "Version":
                 # using our lookup table, find the metadata object
-                segment_metadata = version_path_lookup[sg_entity["path_to_frames"]]
+                segment_metadata = version_path_lookup[sg_entity["sg_path_to_frames"]]
                 segment_metadata.shotgun_version = sg_entity
         
         
@@ -894,14 +894,14 @@ class FlameExport(Application):
             if request["type"] == "batch":    
                 self._sg_submit_helper.register_batch_publish(ctx, 
                                                               request["path"], 
-                                                              request["user_comments"], 
-                                                              request["version_number"])
+                                                              request["comments"], 
+                                                              request["version"])
 
             elif request["type"] == "video":
                 sg_data = self._sg_submit_helper.register_video_publish(ctx,
                                                                         request["path"], 
-                                                                        request["user_comments"], 
-                                                                        request["version_number"],
+                                                                        request["comments"], 
+                                                                        request["version"],
                                                                         request["width"],
                                                                         request["height"],
                                                                         request["shot_thumbnail"])

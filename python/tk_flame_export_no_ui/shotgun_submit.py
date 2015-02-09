@@ -24,7 +24,7 @@ class ShotgunSubmitter(object):
     """
     
     # constants
-    SHOTGUN_QUICKTIME_MIN_WIDTH = 720
+    SHOTGUN_QUICKTIME_TARGET_HEIGHT = 720 # see https://support.shotgunsoftware.com/entries/26303513-Transcoding
     SHOTGUN_DEPARTMENT = "Flame"
     
     def __init__(self):
@@ -79,8 +79,10 @@ class ShotgunSubmitter(object):
                 # this is a new shot
                 msg = "Step %s/%s: Creating folders for Shot %s..." % (idx+1, len(new_shot_metadata), shot_metadata.name)
                 self._app.engine.show_busy("Preparing Shotgun...", msg)
+                self._app.log_debug("Creating folders on disk for Shot id %s..." % shot_metadata.shotgun_id)
                 self._app.sgtk.create_filesystem_structure("Shot", shot_metadata.shotgun_id, engine="tk-flame")
-            
+                self._app.log_debug("...folder creation complete")
+                
             # establish a context for all objects
             self._app.engine.show_busy("Preparing Shotgun...", "Resolving Shot contexts...")
             for shot_metadata in data[parent_name].values():
@@ -122,7 +124,10 @@ class ShotgunSubmitter(object):
         sg_parent = self._app.shotgun.find_one(self._shot_parent_entity_type, 
                                                [["code", "is", parent_name], ["project", "is", project]]) 
         
-        if not sg_parent:
+        if sg_parent:
+            self._app.log_debug("Parent %s already exists in shotgun." % sg_parent)
+            
+        else:
             # Create a new parent object in Shotgun
             
             # First see if we should assign a task template
@@ -143,6 +148,7 @@ class ShotgunSubmitter(object):
                                                   "task_template": sg_task_template,
                                                   "description": "Created by the Shotgun Flame exporter.",
                                                   "project": project})
+            self._app.log_debug("Created parent %s" % sg_parent)
   
         
         # --------------------------------------------------------------------------------------------
@@ -159,10 +165,12 @@ class ShotgunSubmitter(object):
         # now attempt to retrieve metadata for all shots. The shots that are not found are then created.
         self._app.engine.show_busy("Preparing Shotgun...", "Loading Shot data...")
         
+        self._app.log_debug("Loading shots from shotgun...")
         sg_shots = self._app.shotgun.find("Shot", 
                                           [["code", "in", shot_names], 
                                            [self._shot_parent_link_field, "is", sg_parent]],
                                           ["code", "sg_cut_in", "sg_cut_out", "sg_cut_order"])
+        self._app.log_debug("...Got %s shots." % len(sg_shots))
         
         # key it by name. Check for duplicates.
         sg_shot_dict = {}
@@ -189,11 +197,15 @@ class ShotgunSubmitter(object):
                                   self._shot_parent_link_field: sg_parent,
                                   "task_template": sg_task_template,
                                   "project": project} }
+                self._app.log_debug("Adding to shotgun batch queue: %s" % batch)
                 sg_batch_data.append(batch)
         
         if len(sg_batch_data) > 0:
             self._app.engine.show_busy("Preparing Shotgun...", "Creating new shots...")
+            
+            self._app.log_debug("Executing sg batch command....")
             sg_batch_response = self._app.shotgun.batch(sg_batch_data)
+            self._app.log_debug("...done!")
 
             # for each new shot, create a metadata object
             for sg_data in sg_batch_response: 
@@ -488,13 +500,10 @@ class ShotgunSubmitter(object):
         :param height: Image height in pixels
         """
         self._app.log_debug("Starting to upload media to Shotgun. A quicktime will be generated.")
-        self._app.log_debug("Source media: %s (%sx%s)" % (path, width, height))
-        self._app.log_debug("Computing closest image resolution to %s..." % self.SHOTGUN_QUICKTIME_MIN_WIDTH)
+        self._app.log_debug("Source media: %s" % path)
         
         # now calculate the closest res to with 720px
-        (scaled_down_width, scaled_down_height) = self.__calculate_aspect_ratio(self.SHOTGUN_QUICKTIME_MIN_WIDTH, 
-                                                                                width, 
-                                                                                height) 
+        (scaled_down_width, scaled_down_height) = self.__calculate_aspect_ratio(width, height) 
         
         self._app.log_debug("The quicktime will be resolution %sx%s" % (scaled_down_width, scaled_down_height))
                 
@@ -583,70 +592,44 @@ class ShotgunSubmitter(object):
         # clean up
         self.__clean_up_temp_file(tmp_quicktime)
     
-    
-    
-    def __calculate_aspect_ratio(self, target_width, width, height):
+    def __calculate_aspect_ratio(self, width, height):
         """
-        Brute force calculation of aspect ratio.
-        Finds the closest match to a target with resolution. If an absolute match is not found,
-        the algorithm will try higher resolutions until it hits the original resolution which is
-        returned in case no integer match is found.
+        Calculation of aspect ratio.
         
-        For example: Trying to scale the resolution 960x550 as close as possible to 720 will generate 768x440 
+        Takes the given width and height and produces a scaled width and height given
+        the following constraints:
         
-        :param target_width: The desired width
+        - the height should be as close to 720 as possible (but not lower)
+        - width and height both need to be divisible by two (ffmpeg requirement)
+        
         :param width: The current width
         :param height: The current height
         :returns: int tuple, e.g. (768, 440)
         """
-    
-        if width <= target_width:
-            # input res is lower than desired, so return directly
-            return (width, height)
-    
+        
+        self._app.log_debug("Trying to find a scaled down resolution " 
+                            "with height %s for %sx%s" % (self.SHOTGUN_QUICKTIME_TARGET_HEIGHT, width, height))
+        
         # calculate initial values
-        aspect_ratio = float(width)/float(target_width)
-        new_height = 0
-        new_width = 0
+        aspect_ratio = float(width) / float(height)
+        new_height = self.SHOTGUN_QUICKTIME_TARGET_HEIGHT
+        new_width = 0.5
     
-        # loop until an integer match is found both for width and height
-        while new_height < height and new_width < width:
-            
-            # calculate our new values
-            new_height = float(height)/aspect_ratio
-            new_width = float(width)/aspect_ratio
-    
-            if new_height.is_integer() and new_width.is_integer():
-                # both width and height is an integer! Done!
+        # loop until a match is found or until we reach original resolution
+        while new_height < height:
+                        
+            # calculate our width given the current height
+            new_width = float(new_height) * aspect_ratio
+
+            # check if this resolution is good
+            if new_height%2==0 and new_width.is_integer() and int(new_width) % 2 == 0:
+                # both width and height is an integer divisible by two.
                 return (int(new_width), int(new_height))
-    
-            if not new_height.is_integer():
-                # height is not whole. adjust the height up to the next whole pixel
-                # and try again. Note that if the current height is very close to 
-                # a whole pixel, increment by one to avoid rounding errors.
-                diff = new_height - math.trunc(new_height)
-                if diff > 0.999:
-                    # this is to avoid the case where there is a rounding error
-                    # and math.ceil(x) == x which means we get stuck in a loop
-                    new_height += 1
-                # recalculate the aspect ratio
-                aspect_ratio = float(height) / float(math.ceil(new_height))
-    
-            elif not new_width.is_integer():
-                # width is not whole. adjust the width up to the next whole pixel
-                # and try again. Note that if the current width is very close to 
-                # a whole pixel, increment by one to avoid rounding errors.
-                diff = new_width - math.trunc(new_width)
-                if diff > 0.999:
-                    # this is to avoid the case where there is a rounding error
-                    # and math.ceil(x) == x which means we get stuck in a loop
-                    new_width += 1
-                # recalculate the aspect ratio
-                aspect_ratio = float(width) / float(math.ceil(new_width))
-    
+            else:
+                # no match, increment by one and try again
+                new_height += 1
+        
         return (width, height)
-
-
 
     def __get_tk_path_from_flame_plate_path(self, flame_path):
         """
