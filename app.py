@@ -418,11 +418,11 @@ class FlameExport(Application):
         
         if asset_type == "video":
             # this is a published image sequence
-            segment_metadata.video_metadata = info
+            segment_metadata.video_info = info
             
         elif asset_type == "batch":
             # this is a published batch file
-            segment_metadata.batch_metadata = info
+            segment_metadata.batch_info = info
         
         # indicate that the export has reached its last stage
         self._reached_post_asset_phase = True
@@ -481,18 +481,18 @@ class FlameExport(Application):
                     # it's possible that a segment doesn't have a video export associated
                     # this can happen if for example a user chooses not to overwrite an 
                     # existing file on disk. 
-                    if segment_metadata.video_metadata:
+                    if segment_metadata.video_info:
                         
                         # we have a video submission associated with this segment!
-                        video_info = segment_metadata.video_metadata
-                        path = os.path.join(video_info.get("destinationPath"), video_info.get("resolvedPath"))
+                        path = os.path.join(segment_metadata.video_info.get("destinationPath"), 
+                                            segment_metadata.video_info.get("resolvedPath"))
                         
                         # compute a version-create shotgun batch dictionary
                         sg_version_batch = self._sg_submit_helper.create_version_batch(shot_metadata.context, 
                                                                                        path, 
                                                                                        self._user_comments, 
                                                                                        None, 
-                                                                                       video_info["aspectRatio"])                
+                                                                                       segment_metadata.video_info["aspectRatio"])                
                         # append to our main batch listing
                         self.log_debug("Registering version: %s" % pprint.pformat(sg_version_batch))
                         shotgun_batch_items.append(sg_version_batch)
@@ -567,28 +567,27 @@ class FlameExport(Application):
         for seq in self._shots:
             for shot_metadata in self._shots[seq].values():
                 for segment_metadata in shot_metadata.segment_metadata.values():
-                    if segment_metadata.video_metadata and segment_metadata.shotgun_version:
+                    if segment_metadata.video_info and segment_metadata.shotgun_version:
                         # this segment has video and has a version!
                         # schedule quicktime generation!
-                        
-                        video_info = segment_metadata.video_metadata
                         
                         job_title = "Shot %s - Shotgun Quicktime Upload" % shot_metadata.name
                         job_desc = "Generating quicktimes and uploading to Shotgun."         
                         
                         # if the video media is generated in a backburner job, make sure that 
                         # our quicktime job is executed *after* this job has finished                        
-                        if video_info.get("isBackground"):
-                            run_after_job_id = video_info.get("backgroundJobId")
+                        if segment_metadata.video_info.get("isBackground"):
+                            run_after_job_id = segment_metadata.video_info.get("backgroundJobId")
                         else:
                             run_after_job_id = None
         
-                        path = os.path.join(video_info.get("destinationPath"), video_info.get("resolvedPath"))
+                        path = os.path.join(segment_metadata.video_info.get("destinationPath"), 
+                                            segment_metadata.video_info.get("resolvedPath"))
                         
                         args = {"version_id": segment_metadata.shotgun_version["id"], 
                                 "path": path,
-                                "width": video_info.get("width"),
-                                "height": video_info.get("height")
+                                "width": segment_metadata.video_info.get("width"),
+                                "height": segment_metadata.video_info.get("height")
                                 }
         
                         # kick off backburner job
@@ -814,6 +813,11 @@ class FlameExport(Application):
         """
         self.log_debug("Creating publishes for all export items.")
         
+
+    
+    
+    
+    
     
     def backburner_generate_quicktime(self, version_id, path, width, height):
         """

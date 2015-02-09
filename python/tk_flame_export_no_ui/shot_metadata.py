@@ -20,10 +20,9 @@ class SegmentMetadata(object):
         """
         Constructor
         """        
-        self.video_metadata = None
-        self.batch_metadata = None
-        
-        self.shotgun_version = None
+        self.video_info = None          # info dictionary (as sent from flame) for the video portion of this segment
+        self.batch_info = None          # info dictionary (as sent from flame) for the batch portion of this segment
+        self.shotgun_version = None     # associated shotgun version (dict with type/id)
         
 class ShotMetadata(object):
     """
