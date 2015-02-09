@@ -8,9 +8,6 @@
 # agreement to the Shotgun Pipeline Toolkit Source Code License. All rights 
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
-import sgtk
-
-
 class SegmentMetadata(object):
     """
     Simple Value wrapper class which holds properties associated with a timeline segment.
@@ -70,8 +67,6 @@ class ShotMetadata(object):
         :param record_in: Record in parameter for a segment in flame belonging to this shot
         :param record_out: Record out parameter for a segment in flame belonging to this shot
         """
-        
-        app = sgtk.platform.current_bundle()
         
         # the cut in and cut out are reflected by the values stored in the conform
         # in flame. These are sometimes defaulted to 10:00:00.00 so there may be some
