@@ -10,4 +10,4 @@
 
 from .submit_dialog import SubmitDialog
 from .batch_render_dialog import BatchRenderDialog
-from .summary_dialog import SummaryDialog
+from .summary_dialog import SubmissionFailedDialog, SubmissionCompleteDialog

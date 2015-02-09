@@ -449,13 +449,8 @@ class FlameExport(Application):
         # has gone wrong along the way. Display the "oops, something went wrong" 
         # dialog.
         if not self._reached_post_asset_phase:
-            self.engine.show_modal("Submission Summary", 
-                                   self, 
-                                   tk_flame_export.SummaryDialog, 
-                                   "",
-                                   False)
+            self.engine.show_modal("Submission Failed", self, tk_flame_export.SubmissionFailedDialog) 
             return
-        
         
         # calculate the cut order for each sequence
         num_created_shots = 0
@@ -682,11 +677,7 @@ class FlameExport(Application):
         elif num_cut_updates > 1:
             comments += "- %d Shots had their cut information updated. <br>" % num_cut_updates 
                 
-        self.engine.show_modal("Submission Summary", 
-                               self, 
-                               tk_flame_export.SummaryDialog, 
-                               comments,
-                               True)
+        self.engine.show_modal("Submission Complete", self, tk_flame_export.SubmissionCompleteDialog, comments)
         
         
         
