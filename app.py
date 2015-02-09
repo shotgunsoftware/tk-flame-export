@@ -412,7 +412,7 @@ class FlameExport(Application):
         metadata = self._shots[sequence_name][shot_name]
         if segment_name not in metadata.segment_metadata:
             # create new metadata to represent this segment
-            metadata.segment_metadata[segment_name] = tk_flame_export_no_ui.SegmentMetadata(segment_name)
+            metadata.segment_metadata[segment_name] = tk_flame_export_no_ui.SegmentMetadata()
 
         segment_metadata = metadata.segment_metadata[segment_name]
         
@@ -448,54 +448,158 @@ class FlameExport(Application):
         num_created_shots = 0
         for seq in self._shots:
             # get a list of metadata objects for this shot
-            shot_metadata = self._shots[seq].values()
+            shot_metadata_list = self._shots[seq].values()
             # sort it by cut in
-            shot_metadata.sort(key=lambda x: x.new_cut_in)
+            shot_metadata_list.sort(key=lambda x: x.new_cut_in)
             # now loop over all items and set an incrementing cut order
             cut_index = 1
-            for sm in shot_metadata:
-                if sm.created_this_session:
+            for shot_metadata in shot_metadata_list:
+                if shot_metadata.created_this_session:
                     num_created_shots += 1
-                sm.new_cut_order = cut_index
+                shot_metadata.new_cut_order = cut_index
                 cut_index += 1
         
         # we push all changes to shotgun as a single batch call
         shotgun_batch_items = []
+        version_path_lookup = {}
                 
-        # first figure out any cut changes
+        # loop over all shots in our metadata data structure
+        self.log_debug("Looping over all shots and segments to submit shotgun data...")
         num_cut_changes = 0
         for seq in self._shots:
-            for sm in self._shots[seq].values():
+            for shot_metadata in self._shots[seq].values():
                 
+                self.log_debug("Looking at shot %s" % shot_metadata.name)
+                
+                # First, create versions for all video segments.
+                #
+                # register all versions that we should submit for review
+                # for each shot. Note that a shot may have multiple video segments
+                for segment_metadata in shot_metadata.segment_metadata.values():
+                    
+                    # it is possible that the user has manually cancelled the process, so
+                    # it's possible that a segment doesn't have a video export associated
+                    # this can happen if for example a user chooses not to overwrite an 
+                    # existing file on disk. 
+                    if segment_metadata.video_metadata:
+                        
+                        # we have a video submission associated with this segment!
+                        video_info = segment_metadata.video_metadata
+                        path = os.path.join(video_info.get("destinationPath"), video_info.get("resolvedPath"))
+                        
+                        # compute a version-create shotgun batch dictionary
+                        sg_version_batch = self._sg_submit_helper.create_version_batch(shot_metadata.context, 
+                                                                                       path, 
+                                                                                       self._user_comments, 
+                                                                                       None, 
+                                                                                       video_info["aspectRatio"])                
+                        # append to our main batch listing
+                        self.log_debug("Registering version: %s" % pprint.pformat(sg_version_batch))
+                        shotgun_batch_items.append(sg_version_batch)
+                        
+                        # once the batch has been executed and the versions have been created in Shotgun,
+                        # we need to update our segment metadata with the shotgun version id.
+                        # in order to do that, maintain a lookup dictionary:
+                        path_to_frames = sg_version_batch["data"]["sg_path_to_frames"]
+                        version_path_lookup[path_to_frames] = segment_metadata
+                
+                # Now update frame ranges to make sure shotgun matches flame.
+                #
                 # ensure that we actually have frame ranges for this shot
                 # it seems sometimes there are shots that don't actually contain any clips.
                 # I think this is anomaly in Flame, but since we have spotted it in QA,
                 # it's good to do this extra check in this code.
-                if sm.new_cut_in is None or sm.new_cut_out is None:
-                    self.log_warning("No frame ranges calculated for Shot %s!" % sm.shotgun_id)
+                if shot_metadata.new_cut_in is None or shot_metadata.new_cut_out is None:
+                    self.log_warning("No frame ranges calculated for Shot %s!" % shot_metadata.shotgun_id)
                 
                 # has the frame range changed?
-                elif sm.shotgun_cut_in != sm.new_cut_in or \
-                     sm.shotgun_cut_out != sm.new_cut_out or \
-                     sm.shotgun_cut_order != sm.new_cut_order:
+                elif shot_metadata.shotgun_cut_in != shot_metadata.new_cut_in or \
+                     shot_metadata.shotgun_cut_out != shot_metadata.new_cut_out or \
+                     shot_metadata.shotgun_cut_order != shot_metadata.new_cut_order:
                     
-                    duration = sm.new_cut_out - sm.new_cut_in + 1
+                    duration = shot_metadata.new_cut_out - shot_metadata.new_cut_in + 1
                     num_cut_changes += 1
-                    shotgun_batch_items.append( {"request_type":"update", 
-                                                 "entity_type": "Shot",
-                                                 "entity_id": sm.shotgun_id,
-                                                 "data":{ "sg_cut_in": sm.new_cut_in,
-                                                         "sg_cut_out": sm.new_cut_out,
-                                                         "sg_cut_duration": duration, 
-                                                         "sg_cut_order": sm.new_cut_order }} )
-
-
-        
-        
-        self.log_debug("Sending batch data to Shotgun: %s" % shotgun_batch_items)
-        if len(shotgun_batch_items) > 0:
-            self.shotgun.batch(shotgun_batch_items)
+                    sg_cut_batch = {"request_type":"update", 
+                                    "entity_type": "Shot",
+                                    "entity_id": shot_metadata.shotgun_id,
+                                    "data":{ "sg_cut_in": shot_metadata.new_cut_in,
+                                             "sg_cut_out": shot_metadata.new_cut_out,
+                                             "sg_cut_duration": duration, 
+                                             "sg_cut_order": shot_metadata.new_cut_order }}
+                    
+                    self.log_debug("Registering cut change: %s" % pprint.pformat(sg_cut_batch))
+                    shotgun_batch_items.append(sg_cut_batch)
                 
+                else:
+                    self.log_debug("No frame changes detected. Shotgun and flame are already in sync.")
+        
+        # now push all new versions and cut changes to Shotgun in a single batch call.
+        sg_data = []
+        if len(shotgun_batch_items) > 0:
+            self._app.engine.show_busy("Updating Shotgun...", "Registering review and cut data...")
+            try:
+                self.log_debug("Pushing %s Shotgun batch items..." % len(shotgun_batch_items))
+                sg_data = self.shotgun.batch(shotgun_batch_items)
+                self.log_debug("...done")
+            finally:
+                # kill progress indicator
+                self._app.engine.clear_busy()
+                
+        # now update the shot metadata with version ids
+        for sg_entity in sg_data:
+            if sg_entity["type"] == "Version":
+                # using our lookup table, find the metadata object
+                segment_metadata = version_path_lookup[sg_entity["path_to_frames"]]
+                segment_metadata.shotgun_version = sg_entity
+        
+        
+        # now submit backburner jobs
+        #
+        # first, push a backburner job that will register all publishes in Shotgun given our shot metadata
+        self.engine.create_local_backburner_job("Shotgun Publish", 
+                                                "Generates publishes in Shotgun.", 
+                                                None, 
+                                                self, 
+                                                "backburner_register_publishes", 
+                                                args = {"metadata": self._shots})
+        
+        # secondly, push a quicktime generation job for each version we submitted
+        for seq in self._shots:
+            for shot_metadata in self._shots[seq].values():
+                for segment_metadata in shot_metadata.segment_metadata.values():
+                    if segment_metadata.video_metadata and segment_metadata.shotgun_version:
+                        # this segment has video and has a version!
+                        # schedule quicktime generation!
+                        
+                        video_info = segment_metadata.video_metadata
+                        
+                        job_title = "Shot %s - Shotgun Quicktime Upload" % shot_metadata.name
+                        job_desc = "Generating quicktimes and uploading to Shotgun."         
+                        
+                        # if the video media is generated in a backburner job, make sure that 
+                        # our quicktime job is executed *after* this job has finished                        
+                        if video_info.get("isBackground"):
+                            run_after_job_id = video_info.get("backgroundJobId")
+                        else:
+                            run_after_job_id = None
+        
+                        path = os.path.join(video_info.get("destinationPath"), video_info.get("resolvedPath"))
+                        
+                        args = {"version_id": segment_metadata.shotgun_version["id"], 
+                                "path": path,
+                                "width": video_info.get("width"),
+                                "height": video_info.get("height")
+                                }
+        
+                        # kick off backburner job
+                        self.engine.create_local_backburner_job(job_title, 
+                                                                job_desc, 
+                                                                run_after_job_id, 
+                                                                self, 
+                                                                "backburner_generate_quicktime", 
+                                                                args)
+
+        
         # now, as a very last step, show a summary UI to the user, including a 
         # very brief overview of what changes have been carried out.
         comments = "Your export has been pushed to the Backburner queue for processing.<br><br>"
@@ -683,8 +787,8 @@ class FlameExport(Application):
                 "send_to_review": self._send_batch_render_to_review }
         
         # and populate backburner job parameters
-        job_title = "Shotgun Batch Render %s" % info.get("nodeName")
-        job_desc = "Making quicktimes and uploading to Shotgun."
+        job_title = "%s - Shotgun Upload" % info.get("nodeName")
+        job_desc = "Generating quicktime and uploading to Shotgun."
         
         # kick off async job
         self.engine.create_local_backburner_job(job_title, 
@@ -699,6 +803,28 @@ class FlameExport(Application):
     ##############################################################################################################
     # backburner callbacks
 
+    def backburner_register_publishes(self, metadata):
+        """
+        Generate publishes in Shotgun for the given shot metadata list
+        
+        :param metadata: dictionary of shot metadata, on the form
+                        { "Sequence_x": { "Shot_x_1":  ShotMetadata,
+                                          "Shot_x_2":  ShotMetadata,
+                                          "Shot_x_2":  ShotMetadata }}
+        """
+        self.log_debug("Creating publishes for all export items.")
+        
+    
+    def backburner_generate_quicktime(self, version_id, path, width, height):
+        """
+        Backburner job. Generates a quicktime and uploads it to Shotgun.
+        
+        :param version_id: Shotgun version id
+        :param path: Path to source media
+        :param width: Width of source
+        :param height: Height of source 
+        """
+        self._sg_submit_helper.upload_quicktime(version_id, path, width, height)        
 
     def backburner_process_rendered_batch(self, info, serialized_context, comments, send_to_review):
         """
@@ -748,7 +874,6 @@ class FlameExport(Application):
         version_number = int(info["versionNumber"])
         description = comments or "Automatic Flame batch render"
         
-        
         # first register the batch file as a publish in Shotgun
         batch_path = info.get("setupResolvedPath")
         self._sg_submit_helper.register_batch_publish(context, batch_path, description, version_number)
@@ -772,8 +897,6 @@ class FlameExport(Application):
                                                                     description,
                                                                     sg_data, 
                                                                     info["aspectRatio"])     
-            
-            
             
             # and generate a quicktime
             self._sg_submit_helper.upload_quicktime(sg_version_data["id"], 

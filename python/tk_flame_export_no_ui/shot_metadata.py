@@ -16,13 +16,10 @@ class SegmentMetadata(object):
     Simple Value wrapper class which holds properties associated with a timeline segment.
     """
     
-    def __init__(self, name):
+    def __init__(self):
         """
         Constructor
-        """
-        
-        self.name = name
-        
+        """        
         self.video_metadata = None
         self.batch_metadata = None
         
