@@ -771,8 +771,6 @@ class FlameExport(Application):
                                                                     full_flame_plate_path,
                                                                     description,
                                                                     sg_data, 
-                                                                    info["width"], 
-                                                                    info["height"],
                                                                     info["aspectRatio"])     
             
             

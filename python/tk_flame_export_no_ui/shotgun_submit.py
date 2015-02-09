@@ -9,6 +9,7 @@
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
 import sgtk
+import pprint
 import math
 import uuid
 from sgtk import TankError
@@ -338,7 +339,29 @@ class ShotgunSubmitter(object):
             
         return sg_publish_data
             
-    def create_version(self, context, path, user_comments, sg_publish_data, width, height, aspect_ratio):        
+    def update_version_dependencies(self, version_id, sg_publish_data):
+        """
+        Updates the dependencies for a version in Shotgun.
+        
+        :param version_id: Shotgun id for version to update
+        :param sg_publish_data: Dictionary with type/id keys to connect.
+        """
+        data = {}
+        
+        # link to the publish
+        if sgtk.util.get_published_file_entity_type(self._app.sgtk) == "PublishedFile":
+            # client is using published file entity
+            data["published_files"] = [sg_publish_data]
+        else:
+            # client is using old "TankPublishedFile" entity
+            data["tank_published_file"] = sg_publish_data
+            
+        self._app.log_debug("Updating dependencies for version %s: %s" % (version_id, data))
+        self._app.shotgun.update("Version", version_id, data)
+        self._app.log_debug("...version update complete")
+    
+    
+    def create_version(self, context, path, user_comments, sg_publish_data, aspect_ratio):        
         """
         Create a version record in shotgun, generate a quicktime and upload it.
         
@@ -355,90 +378,121 @@ class ShotgunSubmitter(object):
         :param user_comments: Comments entered by the user at export start.
         :param sg_publish_data: Std shotgun dictionary (with type and id), representing the publish
                                 in Shotgun that has been carried out for this asset.
-        :param width: Image width in pixels
-        :param height: Image height in pixels
         :param aspect_ratio: Aspect ratio of the images
         :returns: The created shotgun record
         """
+        data = {"context": context, 
+                "path": path,
+                "user_comments": user_comments,
+                "sg_publish_data": sg_publish_data,
+                "aspect_ratio": aspect_ratio }
         
-        # note / todo: there doesn't seem to be any way to downscale the quicktime
-        # as it is being generated/streamed out of wiretap and encoded by ffmpeg.
-        # ideally we would like to downrez it to height 720px prior to uploading
-        # according to the Shotgun transcoding guidelines (and to optimize bandwidth)
-        self._app.log_debug("Begin version processing for %s..." % path)
+        return self.create_versions(data)[0]
 
-        data = {}
+    
+    def create_versions(self, data):
+        """
+        Identical to create_version(), but instead creates multiple versions using a single
+        batch call to Shotgun for performance.
         
-        # let the version name be the main file name of the plate
-        # /path/to/filename -> filename
-        # /path/to/filename.ext -> filename
-        # /path/to/filename.%04d.ext -> filename
-        file_name = os.path.basename(path)
-        version_name = os.path.splitext(os.path.splitext(file_name)[0])[0]
-        data["code"] = version_name
+        :param data: List of dictionaries. Each dictionary contains the same keys as the parameters
+                     defined in create_version() above.
+        :returns: A list of created Shotgun records
+        """
         
-        data["description"] = user_comments
-        data["project"] = context.project
-        data["entity"] = context.entity
-        data["created_by"] = context.user
-        data["user"] = context.user
-        data["sg_task"] = context.task
+        sg_batch_data = []
         
-        # now figure out the frame numbers. For an initial shotgun export this is easy because we have
-        # access to the export profile which defines the frame offset which maps actual frames on disk with
-        # frames in the cut space inside of flame. However, for batch rendering, which is currently stateless,
-        # this info is not available. It may be possible to extract it from the clip xml files, but for now,
-        # lets keep it simple and look at the sequence file path to extract this data.
-        #
-        # flame sequence tokens are on the form "[1001-1100]"
-        re_match = re.search("\[([0-9]+)-([0-9]+)\]\.", path)
-        if not re_match:
-            self._app.log_warning("No frame range information found in path '%s'. "
-                                  "Will proceed with undefined frame range." % path)
-        else:
-            try:
-                (first_str, last_str) = re_match.groups()
-                # remove leading zeroes and convert
-                first_str = first_str.lstrip("0")
-                last_str = last_str.lstrip("0")
-                # handle the case when a frame number is zero
-                if first_str == "":
-                    first_str = "0"
-                if last_str == "":
-                    last_str = "0"
-                first_frame = int(first_str)
-                last_frame = int(last_str)
+        self._app.log_debug("Preparing to create %s version(s) in Shotgun..." % len(data))
+        
+        for version_params in data:
             
-            except Exception, e:
-                self._app.log_warning("Could not extract frame data from path '%s'. "
-                                      "Will proceed without frame data. Error reported: %s" % (path, e))
+            context = version_params["context"] 
+            path = version_params["path"]
+            user_comments = version_params["user_comments"]
+            sg_publish_data = version_params["sg_publish_data"]
+            aspect_ratio = version_params["aspect_ratio"]
+        
+            batch_item = {"request_type": "create",
+                          "entity_type": "Version",
+                          "data": {}}
+            
+            # let the version name be the main file name of the plate
+            # /path/to/filename -> filename
+            # /path/to/filename.ext -> filename
+            # /path/to/filename.%04d.ext -> filename
+            file_name = os.path.basename(path)
+            version_name = os.path.splitext(os.path.splitext(file_name)[0])[0]
+            batch_item["data"]["code"] = version_name
+            
+            batch_item["data"]["description"] = user_comments
+            batch_item["data"]["project"] = context.project
+            batch_item["data"]["entity"] = context.entity
+            batch_item["data"]["created_by"] = context.user
+            batch_item["data"]["user"] = context.user
+            batch_item["data"]["sg_task"] = context.task
+            
+            # now figure out the frame numbers. For an initial shotgun export this is easy because we have
+            # access to the export profile which defines the frame offset which maps actual frames on disk with
+            # frames in the cut space inside of flame. However, for batch rendering, which is currently stateless,
+            # this info is not available. It may be possible to extract it from the clip xml files, but for now,
+            # lets keep it simple and look at the sequence file path to extract this data.
+            #
+            # flame sequence tokens are on the form "[1001-1100]"
+            re_match = re.search("\[([0-9]+)-([0-9]+)\]\.", path)
+            if not re_match:
+                self._app.log_warning("No frame range information found in path '%s'. "
+                                      "Will proceed with undefined frame range." % path)
             else:
-                # add frame data to version metadata
-                data["sg_first_frame"] = first_frame
-                data["sg_last_frame"] = last_frame
-                data["frame_count"] = last_frame - first_frame + 1
-                data["frame_range"] = "%s-%s" % (first_frame, last_frame)
-                data["sg_frames_have_slate"] = False
-                data["sg_movie_has_slate"] = False
-                data["sg_frames_aspect_ratio"] = aspect_ratio
-                data["sg_movie_aspect_ratio"] = aspect_ratio
-
-        # link to the publish
-        if sgtk.util.get_published_file_entity_type(self._app.sgtk) == "PublishedFile":
-            # client is using published file entity
-            data["published_files"] = [sg_publish_data]
-        else:
-            # client is using old "TankPublishedFile" entity
-            data["tank_published_file"] = sg_publish_data
+                try:
+                    (first_str, last_str) = re_match.groups()
+                    # remove leading zeroes and convert
+                    first_str = first_str.lstrip("0")
+                    last_str = last_str.lstrip("0")
+                    # handle the case when a frame number is zero
+                    if first_str == "":
+                        first_str = "0"
+                    if last_str == "":
+                        last_str = "0"
+                    first_frame = int(first_str)
+                    last_frame = int(last_str)
+                
+                except Exception, e:
+                    self._app.log_warning("Could not extract frame data from path '%s'. "
+                                          "Will proceed without frame data. Error reported: %s" % (path, e))
+                else:
+                    # add frame data to version metadata
+                    batch_item["data"]["sg_first_frame"] = first_frame
+                    batch_item["data"]["sg_last_frame"] = last_frame
+                    batch_item["data"]["frame_count"] = last_frame - first_frame + 1
+                    batch_item["data"]["frame_range"] = "%s-%s" % (first_frame, last_frame)
+                    batch_item["data"]["sg_frames_have_slate"] = False
+                    batch_item["data"]["sg_movie_has_slate"] = False
+                    batch_item["data"]["sg_frames_aspect_ratio"] = aspect_ratio
+                    batch_item["data"]["sg_movie_aspect_ratio"] = aspect_ratio
+    
+            # link to the publish
+            if sg_publish_data:
+                if sgtk.util.get_published_file_entity_type(self._app.sgtk) == "PublishedFile":
+                    # client is using published file entity
+                    batch_item["data"]["published_files"] = [sg_publish_data]
+                else:
+                    # client is using old "TankPublishedFile" entity
+                    batch_item["data"]["tank_published_file"] = sg_publish_data
+            
+            # populate the path to frames with a path which is using %4d syntax
+            batch_item["data"]["sg_path_to_frames"] = self.__get_tk_path_from_flame_plate_path(path)
+            
+            # This is used to find the latest Version from the same department.
+            batch_item["data"]["sg_department"] = self.SHOTGUN_DEPARTMENT   
         
-        # populate the path to frames with a path which is using %4d syntax
-        data["sg_path_to_frames"] = self.__get_tk_path_from_flame_plate_path(path)
+            sg_batch_data.append(batch_item)
+            
+            self._app.log_debug("Version data: %s" % pprint.pformat(batch_item))
         
-        # This is used to find the latest Version from the same department.
-        data["sg_department"] = self.SHOTGUN_DEPARTMENT   
         
-        sg_version_data = self._app.shotgun.create("Version", data)
-        self._app.log_debug("Created a version in Shotgun: %s" % sg_version_data)        
+        self._app.log_debug("Executing version create batch call...")
+        sg_version_data = self._app.shotgun.batch("Version", sg_batch_data)
+        self._app.log_debug("...dpne")        
             
         return sg_version_data
 
