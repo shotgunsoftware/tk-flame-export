@@ -77,7 +77,7 @@ class ShotgunSubmitter(object):
             # run folder creation for our newly created shots
             for (idx, shot_metadata) in enumerate(new_shot_metadata):
                 # this is a new shot
-                msg = "%s/%s: Creating folders for Shot %s..." % (idx+1, len(new_shot_metadata), shot_metadata.name)
+                msg = "Step %s/%s: Creating folders for Shot %s..." % (idx+1, len(new_shot_metadata), shot_metadata.name)
                 self._app.engine.show_busy("Preparing Shotgun...", msg)
                 self._app.sgtk.create_filesystem_structure("Shot", shot_metadata.shotgun_id, engine="tk-flame")
             
@@ -159,10 +159,10 @@ class ShotgunSubmitter(object):
         # now attempt to retrieve metadata for all shots. The shots that are not found are then created.
         self._app.engine.show_busy("Preparing Shotgun...", "Loading Shot data...")
         
-        sg_shots = self._app.shotgun.find_one("Shot", 
-                                              [["code", "in", shot_names], 
-                                               [self._shot_parent_link_field, "is", sg_parent]],
-                                              ["code", "sg_cut_in", "sg_cut_out", "sg_cut_order"])
+        sg_shots = self._app.shotgun.find("Shot", 
+                                          [["code", "in", shot_names], 
+                                           [self._shot_parent_link_field, "is", sg_parent]],
+                                          ["code", "sg_cut_in", "sg_cut_out", "sg_cut_order"])
         
         # key it by name. Check for duplicates.
         sg_shot_dict = {}

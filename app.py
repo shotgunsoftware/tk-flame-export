@@ -372,7 +372,7 @@ class FlameExport(Application):
            destinationPath: Export path root.
            namePattern:     List of optional naming tokens.
            resolvedPath:    Full file pattern that will be exported with all the tokens resolved.
-           name:            Name of the exported asset.
+           assetName:       Name of the exported asset.
            sequenceName:    Name of the sequence the asset is part of.
            shotName:        Name of the shot the asset is part of.
            assetType:       Type of exported asset. ( 'video', 'audio', 'batch', 'openClip', 'batchOpenClip' )
@@ -401,7 +401,7 @@ class FlameExport(Application):
         tk_flame_export_no_ui = self.import_module("tk_flame_export_no_ui")
         
         asset_type = info["assetType"]
-        segment_name = info["name"]
+        segment_name = info["assetName"]
         shot_name = info["shotName"]
         sequence_name = info["sequenceName"]        
         
@@ -442,7 +442,20 @@ class FlameExport(Application):
                      - destinationPath: Export path root.
                      - presetPath: Path to the preset used for the export.
         
-        """        
+        """
+        tk_flame_export = self.import_module("tk_flame_export")
+        
+        # if we haven't reached the post export stage, that means that something
+        # has gone wrong along the way. Display the "oops, something went wrong" 
+        # dialog.
+        if not self._reached_post_asset_phase:
+            self.engine.show_modal("Submission Summary", 
+                                   self, 
+                                   tk_flame_export.SummaryDialog, 
+                                   "",
+                                   False)
+            return
+        
         
         # calculate the cut order for each sequence
         num_created_shots = 0
@@ -536,14 +549,14 @@ class FlameExport(Application):
         # now push all new versions and cut changes to Shotgun in a single batch call.
         sg_data = []
         if len(shotgun_batch_items) > 0:
-            self._app.engine.show_busy("Updating Shotgun...", "Registering review and cut data...")
+            self.engine.show_busy("Updating Shotgun...", "Registering review and cut data...")
             try:
                 self.log_debug("Pushing %s Shotgun batch items..." % len(shotgun_batch_items))
                 sg_data = self.shotgun.batch(shotgun_batch_items)
                 self.log_debug("...done")
             finally:
                 # kill progress indicator
-                self._app.engine.clear_busy()
+                self.engine.clear_busy()
                 
         # now update the shot metadata with version ids
         for sg_entity in sg_data:
@@ -669,12 +682,11 @@ class FlameExport(Application):
         elif num_cut_updates > 1:
             comments += "- %d Shots had their cut information updated. <br>" % num_cut_updates 
                 
-        tk_flame_export = self.import_module("tk_flame_export")
         self.engine.show_modal("Submission Summary", 
                                self, 
                                tk_flame_export.SummaryDialog, 
                                comments,
-                               self._reached_post_asset_phase)
+                               True)
         
         
         
