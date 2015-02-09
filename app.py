@@ -556,8 +556,57 @@ class FlameExport(Application):
         # now submit backburner jobs
         #
         # first, push a backburner job that will register all publishes in Shotgun given our shot metadata
+        sg_publishes = []
         
-        args = { "metadata": self._shots, "user_comments": self._user_comments }
+        for seq in self._shots:
+            for shot_metadata in self._shots[seq].values():
+                for segment_metadata in shot_metadata.segment_metadata.values():
+
+                    if segment_metadata.batch_info:
+                        # there is a batch publish associated with this segment!
+                        # add a publish request
+                        path = os.path.join(segment_metadata.batch_info.get("destinationPath"), 
+                                            segment_metadata.batch_info.get("resolvedPath"))
+                        version_number = int(segment_metadata.batch_info["versionNumber"])
+
+                        sg_publishes.append({"type": "batch",
+                                              "path": path,
+                                              "comments": self._user_comments,
+                                              "serialized_context": sgtk.context.serialize(shot_metadata.context),
+                                              "version": version_number})
+                                            
+                    if segment_metadata.video_info:
+                        # there is a video publish associated with this segment!
+                        # create a publish in Shotgun.
+                        
+                        # pull out relevant data from the flame info dict
+                        path = os.path.join(segment_metadata.video_info.get("destinationPath"), 
+                                            segment_metadata.video_info.get("resolvedPath"))
+                        version_number = int(segment_metadata.video_info["versionNumber"])
+
+                        # figure out if this shot is new. In that case, upload a thumbnail to the shot
+                        # at the same time as we push the publish
+                        push_thumbnail_to_shot = False
+                        if shot_metadata.created_this_session and not shot_metadata.thumbnail_uploaded:
+                            shot_metadata.thumbnail_uploaded = False
+                            push_thumbnail_to_shot = True
+
+                        version_id = None
+                        if segment_metadata.shotgun_version:
+                            version_id = segment_metadata.shotgun_version["id"]
+                            
+                        sg_publishes.append({"type": "video",
+                                              "path": path,
+                                              "comments": self._user_comments,
+                                              "width": segment_metadata.video_info["width"],
+                                              "height": segment_metadata.video_info["height"],
+                                              "shot_thumbnail": push_thumbnail_to_shot,
+                                              "version_id": version_id,
+                                              "serialized_context": sgtk.context.serialize(shot_metadata.context),
+                                              "version": version_number})
+                                                
+        # push all publish reqests as a single job
+        args = { "publish_requests": sg_publishes }
         self.engine.create_local_backburner_job("Shotgun Publish", 
                                                 "Generates publishes in Shotgun.", 
                                                 None, 
@@ -565,10 +614,14 @@ class FlameExport(Application):
                                                 "backburner_register_publishes", 
                                                 args)
         
+        
         # secondly, push a quicktime generation job for each version we submitted
+        # at the same time, make a list of all publishes that we want to submit to Shotgun
+        
         for seq in self._shots:
             for shot_metadata in self._shots[seq].values():
                 for segment_metadata in shot_metadata.segment_metadata.values():
+                                                
                     if segment_metadata.video_info and segment_metadata.shotgun_version:
                         # this segment has video and has a version!
                         # schedule quicktime generation!
@@ -804,76 +857,55 @@ class FlameExport(Application):
     ##############################################################################################################
     # backburner callbacks
 
-    def backburner_register_publishes(self, user_comments, metadata):
+    def backburner_register_publishes(self, publish_requests):
         """
-        Generate publishes in Shotgun for the given shot metadata list
+        Generate publishes in Shotgun for a list of publish requests.
         
-        :param user_comments: Comments typed in by the user
-        :param metadata: dictionary of shot metadata, on the form
-                        { "Sequence_x": { "Shot_x_1":  ShotMetadata,
-                                          "Shot_x_2":  ShotMetadata,
-                                          "Shot_x_2":  ShotMetadata }}
+        There are two types of data in the publish_requests list:
+        
+        { "type": "batch",
+          "path": "/foo/bar",
+          "comments": "Some user comments",
+          "serialized_context": "xxxxx",
+          "version": 123}
+                                            
+        { "type": "video",
+          "path": "/foo/bar",
+          "comments": "Some user comments",
+          "width": 1024,
+          "height": 720,
+          "shot_thumbnail": True, # should a thumbnail be pushed to the shot?
+          "version_id": 121323,   # associate publish with review version
+          "serialized_context": "xxxxx", 
+          "version": 13})
+        
+        :param metadata: dictionary of publish requests, see above
         """
         self.log_debug("Creating publishes for all export items.")
 
-        for seq in metadata:
-            for shot_metadata in metadata[seq].values():
-                
-                self.log_debug("Looking at shot %s" % shot_metadata.name)
-                
-                # First, create versions for all video segments.
-                #
-                # register all versions that we should submit for review
-                # for each shot. Note that a shot may have multiple video segments
-                for segment_metadata in shot_metadata.segment_metadata.values():
-                    
-                    if segment_metadata.batch_info:
-                        
-                        # there is a batch publish assocaited with this segment!
-                        # create a publish in Shotgun.
-                        path = os.path.join(segment_metadata.batch_info.get("destinationPath"), 
-                                            segment_metadata.batch_info.get("resolvedPath"))
-                        version_number = int(segment_metadata.batch_info["versionNumber"])
-                        
-                        self._sg_submit_helper.register_batch_publish(shot_metadata.context, 
-                                                                      path, 
-                                                                      user_comments, 
-                                                                      version_number)
-                    
-                    if segment_metadata.video_info:
-                        
-                        # there is a video publish associated with this segment!
-                        # create a publish in Shotgun.
-                        
-                        # pull out relevant data from the flame info dict
-                        path = os.path.join(segment_metadata.video_info.get("destinationPath"), 
-                                            segment_metadata.video_info.get("resolvedPath"))
-                        version_number = int(segment_metadata.video_info["versionNumber"])
-                        width = segment_metadata.video_info["width"]
-                        height = segment_metadata.video_info["height"]
-                        
-                        # figure out if this shot is new. In that case, upload a thumbnail to the shot
-                        # at the same time as we push the publish
-                        push_thumbnail_to_shot = False
-                        if shot_metadata.created_this_session and not shot_metadata.thumbnail_uploaded:
-                            shot_metadata.thumbnail_uploaded = False
-                            push_thumbnail_to_shot = True
-                        
-                        sg_data = self._sg_submit_helper.register_video_publish(shot_metadata.context,
-                                                                                path,
-                                                                                user_comments,
-                                                                                version_number,
-                                                                                width,
-                                                                                height,
-                                                                                push_thumbnail_to_shot)
+        for request in publish_requests:
 
-                        # lastly, if there is a version associated with the segment, update its dependencies
-                        if segment_metadata.shotgun_version:
-                            self._sg_submit_helper.update_version_dependencies(segment_metadata.shotgun_version["id"],
-                                                                               sg_data)
+            self.log_debug("Registering %s for %s" % (request["type"], request["path"]))
+            ctx = sgtk.context.deserialize(request["serialized_context"])
             
+            if request["type"] == "batch":    
+                self._sg_submit_helper.register_batch_publish(ctx, 
+                                                              request["path"], 
+                                                              request["user_comments"], 
+                                                              request["version_number"])
 
-                                
+            elif request["type"] == "video":
+                sg_data = self._sg_submit_helper.register_video_publish(ctx,
+                                                                        request["path"], 
+                                                                        request["user_comments"], 
+                                                                        request["version_number"],
+                                                                        request["width"],
+                                                                        request["height"],
+                                                                        request["shot_thumbnail"])
+
+                if request["version_id"]:
+                    self._sg_submit_helper.update_version_dependencies(request["version_id"], sg_data)
+            
         self.log_debug("Publish complete!")
     
     
