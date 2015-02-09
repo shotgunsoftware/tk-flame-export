@@ -274,7 +274,7 @@ class ShotgunSubmitter(object):
                                 publish will also be pushed to the associated entity.
         :returns: Shotgun data for the created item
         """
-        self._app.log_debug("Creating video publish in Shotgun...")
+        self._app.log_debug("Creating video publish in Shotgun for %s..." % path)
                                     
         # put together a name for the publish. This should be on a form without a version
         # number, so that it can be used to group together publishes of the same kind, but

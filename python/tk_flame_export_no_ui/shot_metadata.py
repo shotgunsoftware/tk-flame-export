@@ -41,6 +41,7 @@ class ShotMetadata(object):
         self.shotgun_parent = None          # shotgun parent entity dictionary
         
         self.created_this_session = False   # was the shotgun shot created in this export session?
+        self.thumbnail_uploaded = False     # for new shots, has a thumbnail been pushed to Shotgun?
 
         self.shotgun_id = None              # shotgun shot id
         
@@ -56,32 +57,8 @@ class ShotMetadata(object):
         
         self.segment_metadata = {}          # metadata about all the clips associated 
                                             # with this shot, keyed by segment name
-        
-        
-        # internal members
-        self.__thumb_upload_handled = False
                 
-    def needs_shotgun_thumb(self):
-        """
-        Returns true if it needs a shotgun thumbnail uploaded.
-        
-        For existing shotgun shots, this method will always return False.
-        For new shotgun shots, this method will return True the first time
-        it is being called and False after that.
-        
-        :returns: Boolean to indicate if a thumbnail is needed
-        """
-        if self.created_this_session == False:
-            # no need for old items
-            return False
-        
-        if self.__thumb_upload_handled:
-            # some 
-            return False
-        
-        # we handle the upload
-        self.__thumb_upload_handled = True
-        return True    
+                
     
     def update_new_cut_info(self, record_in, record_out):
         """
