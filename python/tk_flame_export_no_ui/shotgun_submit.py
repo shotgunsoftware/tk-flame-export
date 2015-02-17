@@ -394,9 +394,11 @@ class ShotgunSubmitter(object):
         :returns: The created shotgun record
         """
         self._app.log_debug("Preparing data for version creation in shotgun...")
-        batch_data = self.create_version_batch(context, path, user_comments, sg_publish_data, aspect_ratio)        
-        self._app.log_debug("Create version in Shotgun: %s" % pprint.pformat(batch_data))
-        sg_data = self._app.shotgun.batch(batch_data)
+        sg_batch_payload = []
+        version_batch = self.create_version_batch(context, path, user_comments, sg_publish_data, aspect_ratio)
+        sg_batch_payload.append(version_batch)
+        self._app.log_debug("Create version in Shotgun: %s" % pprint.pformat(sg_batch_payload))
+        sg_data = self._app.shotgun.batch(sg_batch_payload)
         self._app.log_debug("...done!")
         return sg_data[0]
     
