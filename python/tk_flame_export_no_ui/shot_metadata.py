@@ -8,8 +8,18 @@
 # agreement to the Shotgun Pipeline Toolkit Source Code License. All rights 
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
-import sgtk
-
+class SegmentMetadata(object):
+    """
+    Simple Value wrapper class which holds properties associated with a timeline segment.
+    """
+    
+    def __init__(self):
+        """
+        Constructor
+        """        
+        self.video_info = None          # info dictionary (as sent from flame) for the video portion of this segment
+        self.batch_info = None          # info dictionary (as sent from flame) for the batch portion of this segment
+        self.shotgun_version = None     # associated shotgun version (dict with type/id)
         
 class ShotMetadata(object):
     """
@@ -27,7 +37,8 @@ class ShotMetadata(object):
         self.parent_name = None             # parent (sequence) name
         self.shotgun_parent = None          # shotgun parent entity dictionary
         
-        self.created_this_session = False   # was the shotgun shot created in this session?
+        self.created_this_session = False   # was the shotgun shot created in this export session?
+        self.thumbnail_uploaded = False     # for new shots, has a thumbnail been pushed to Shotgun?
 
         self.shotgun_id = None              # shotgun shot id
         
@@ -41,30 +52,10 @@ class ShotMetadata(object):
         
         self.context = None                 # context object for the shot
         
-        # internal members
-        self.__thumb_upload_handled = False
+        self.segment_metadata = {}          # metadata about all the clips associated 
+                                            # with this shot, keyed by segment name
                 
-    def needs_shotgun_thumb(self):
-        """
-        Returns true if it needs a shotgun thumbnail uploaded.
-        
-        For existing shotgun shots, this method will always return False.
-        For new shotgun shots, this method will return True the first time
-        it is being called and False after that.
-        
-        :returns: Boolean to indicate if a thumbnail is needed
-        """
-        if self.created_this_session == False:
-            # no need for old items
-            return False
-        
-        if self.__thumb_upload_handled:
-            # some 
-            return False
-        
-        # we handle the upload
-        self.__thumb_upload_handled = True
-        return True    
+                
     
     def update_new_cut_info(self, record_in, record_out):
         """
@@ -76,8 +67,6 @@ class ShotMetadata(object):
         :param record_in: Record in parameter for a segment in flame belonging to this shot
         :param record_out: Record out parameter for a segment in flame belonging to this shot
         """
-        
-        app = sgtk.platform.current_bundle()
         
         # the cut in and cut out are reflected by the values stored in the conform
         # in flame. These are sometimes defaulted to 10:00:00.00 so there may be some

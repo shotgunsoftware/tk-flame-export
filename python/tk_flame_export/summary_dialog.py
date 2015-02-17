@@ -10,14 +10,16 @@
 
 import sgtk
 from sgtk.platform.qt import QtCore, QtGui
-from .ui.summary_dialog import Ui_SummaryDialog
+from .ui.submission_complete_dialog import Ui_SubmissionCompleteDialog
+from .ui.submission_failed_dialog import Ui_SubmissionFailedDialog
 
-class SummaryDialog(QtGui.QWidget):
+
+class SubmissionCompleteDialog(QtGui.QWidget):
     """
     Summary dialog popping up after a Shot export has completed.
     """
     
-    def __init__(self, message, success):
+    def __init__(self, message):
         """
         Constructor
         """
@@ -25,17 +27,54 @@ class SummaryDialog(QtGui.QWidget):
         QtGui.QWidget.__init__(self)
         
         # now load in the UI that was created in the UI designer
-        self.ui = Ui_SummaryDialog() 
+        self.ui = Ui_SubmissionCompleteDialog() 
         self.ui.setupUi(self)
         
         self.ui.status.setText(message)
         
-        if success:
-            # show success screen
-            self.ui.stackedWidget.setCurrentIndex(0)
-        else:
-            # show fail screen
-            self.ui.stackedWidget.setCurrentIndex(1)
+        # with the tk dialogs, we need to hook up our modal 
+        # dialog signals in a special way
+        self.__exit_code = QtGui.QDialog.Rejected
+        self.ui.submit.clicked.connect(self._on_submit_clicked)
+        
+    @property
+    def exit_code(self):
+        """
+        Used to pass exit code back though sgtk dialog
+        
+        :returns:    The dialog exit code
+        """
+        return self.__exit_code
+        
+    @property
+    def hide_tk_title_bar(self):
+        """
+        Tell the system to not show the std toolbar.
+        """
+        return True
+                        
+    def _on_submit_clicked(self):
+        """
+        Called when the 'submit' button is clicked.
+        """
+        self.__exit_code = QtGui.QDialog.Accepted
+        self.close()
+        
+class SubmissionFailedDialog(QtGui.QWidget):
+    """
+    Summary dialog popping up when a Shot export fails.
+    """
+    
+    def __init__(self):
+        """
+        Constructor
+        """
+        # first, call the base class and let it do its thing.
+        QtGui.QWidget.__init__(self)
+        
+        # now load in the UI that was created in the UI designer
+        self.ui = Ui_SubmissionFailedDialog() 
+        self.ui.setupUi(self)
         
         # with the tk dialogs, we need to hook up our modal 
         # dialog signals in a special way
