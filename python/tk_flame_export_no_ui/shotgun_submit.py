@@ -305,35 +305,23 @@ class ShotgunSubmitter(object):
             "published_file_type": preset_obj.get_render_publish_type(),
         }
         
-        # now try to extract a thumbnail from the asset data stream.
-        # we use the same mechanism that the quicktime generation is using - see
-        # the quicktime code below for details:
-        #
-        input_cmd = "%s -n \"%s@CLIP\" -h %s -W %s -H %s -L" % (self._app.engine.get_read_frame_path(),
-                                                                path,
-                                                                "%s:Gateway" % self._app.engine.get_server_hostname(), 
-                                                                width,
-                                                                height)
-        
-        thumbnail_jpg = os.path.join(self._app.engine.get_backburner_tmp(), "tk_thumb_%s.jpg" % uuid.uuid4().hex)
-        if os.system("%s > %s" % (input_cmd, thumbnail_jpg)) != 0:
-            self._app.log_warning("Could not extract thumbnail! See error log for details.")
-        else:
-            self._app.log_debug("Wrote thumbnail %s" % thumbnail_jpg)
-            # add the thumbnail to the publish generation
-            args["thumbnail_path"] = thumbnail_jpg
-        
-        # check if the shot needs a thumbnail
-        if make_shot_thumb:
-            args["update_entity_thumbnail"] = True
+        # extract thumbnail
+        jpeg_path = self.__extract_thumbnail(path)
+        if jpeg_path:
+            # we have a valid thumbnail
+            args["thumbnail_path"] = jpeg_path 
+                
+            # check if the shot needs a thumbnail
+            if make_shot_thumb:
+                args["update_entity_thumbnail"] = True
         
         self._app.log_debug("Register publish in shotgun: %s" % str(args))        
         sg_publish_data = sgtk.util.register_publish(**args)
         self._app.log_debug("Register complete: %s" % sg_publish_data)
         
-        if thumbnail_jpg:
+        if jpeg_path:
             # try to clean up
-            self.__clean_up_temp_file(thumbnail_jpg)
+            self.__clean_up_temp_file(jpeg_path)
             
         return sg_publish_data
             
@@ -574,8 +562,39 @@ class ShotgunSubmitter(object):
         
         # upload quicktime to Shotgun
         self._app.log_debug("Begin upload of quicktime to shotgun...")
-        self._app.shotgun.upload("Version", version_id, tmp_quicktime, "sg_uploaded_movie")
-        self._app.log_debug("...upload complete!")
+        
+        # check if we should attempt bypassing shotgun transcoding
+        bypass_server_transcoding = False
+        if self._app.get_setting("bypass_shotgun_transcoding"):
+            
+            self._app.log_debug("Bypass shotgun transcoding setting enabled.")
+            if scaled_down_height != self.SHOTGUN_QUICKTIME_TARGET_HEIGHT:
+                self._app.log_debug("However, generated quicktime has height %s which is non-compliant, so "
+                                    "will have to fall back on to server side transcoding." % scaled_down_height)
+            else:
+                self._app.log_debug("Quicktime resolution is compliant with Shotgun. Will bypass transcoding.")
+                bypass_server_transcoding = True
+                
+        
+        if bypass_server_transcoding:
+            self._app.log_debug("Uploading quicktime to Version.sg_uploaded_movie_mp4")
+            self._app.shotgun.upload("Version", version_id, tmp_quicktime, "sg_uploaded_movie_mp4")
+            self._app.log_debug("...upload complete!")
+            
+            # now because the transcoder isn't running, we also need to generate a thumbnail!
+            jpeg_path = self.__extract_thumbnail(path)
+            if jpeg_path:
+                # we have a valid thumbnail - push it to shotgn
+                self._app.log_debug("Push version thumbnail to shotgun...")
+                self._app.shotgun.upload_thumbnail("Version", version_id, jpeg_path)
+                self._app.log_debug("...upload complete!")
+                # try to clean up
+                self.__clean_up_temp_file(jpeg_path)
+            
+        else:
+            self._app.log_debug("Uploading quicktime to Version.sg_uploaded_movie")
+            self._app.shotgun.upload("Version", version_id, tmp_quicktime, "sg_uploaded_movie")
+            self._app.log_debug("...upload complete!")
         
         # clean up
         self.__clean_up_temp_file(tmp_quicktime)
@@ -631,6 +650,33 @@ class ShotgunSubmitter(object):
         fields = template.get_fields(flame_path)    
         fields["SEQ"] = "FORMAT: %d"
         return template.apply_fields(fields)        
+
+    def __extract_thumbnail(self, path):
+        """
+        Extracts a jpeg image in a temp location from a given sequence in flame.
+        The wiretap system will be used to access the media.
+        
+        It's the caller's responsibility to delete this generated file after use.
+        
+        :param path: flame path to extract to
+        :returns: None if extraction didn't work, otherwise a path to a jpeg file
+        """
+        # now try to extract a thumbnail from the asset data stream.
+        # we use the same mechanism that the quicktime generation is using - see
+        # the quicktime code below for details:
+        input_cmd = "%s -n \"%s@CLIP\" -h %s -L" % (self._app.engine.get_read_frame_path(),
+                                                    path,
+                                                    "%s:Gateway" % self._app.engine.get_server_hostname()) 
+        
+        thumbnail_jpg = os.path.join(self._app.engine.get_backburner_tmp(), "tk_thumb_%s.jpg" % uuid.uuid4().hex)
+        if os.system("%s > %s" % (input_cmd, thumbnail_jpg)) != 0:
+            self._app.log_warning("Could not extract thumbnail! See error log for details.")
+            return None
+        else:
+            self._app.log_debug("Wrote thumbnail %s" % thumbnail_jpg)
+            # add the thumbnail to the publish generation
+            return thumbnail_jpg
+        
 
     def __clean_up_temp_file(self, path):
         """
