@@ -543,6 +543,23 @@ class FlameExport(Application):
         
         # now submit backburner jobs
         #
+        
+        # because the various flame exports may be running in backburner jobs, we need to figure out 
+        # the last backburner job id and create a dependency from our jobs to this job. This is 
+        # because stuff such as thumbnails etc are extracted as part of publishing and other jobs
+        # and we cannot do that before the actual render export has completed.
+        # 
+        # assume that the highest backburner job id is the last one to run.
+        #
+        prev_backburner_id = None
+        for seq in self._shots:
+            for shot_metadata in self._shots[seq].values():
+                for segment_metadata in shot_metadata.segment_metadata.values():
+                    if segment_metadata.video_info.get("isBackground"):
+                        job_id = segment_metadata.video_info.get("backgroundJobId")
+                        if prev_backburner_id is None or job_id > prev_backburner_id:
+                            prev_backburner_id = job_id
+        
         # first, push a backburner job that will register all publishes in Shotgun given our shot metadata
         sg_publishes = []
         
@@ -599,49 +616,79 @@ class FlameExport(Application):
                 }
         self.engine.create_local_backburner_job("Shotgun Publish", 
                                                 "Generates publishes in Shotgun.", 
-                                                None, 
+                                                prev_backburner_id, 
                                                 self, 
                                                 "backburner_register_publishes", 
                                                 args)
         
+        # now check if we should be uploading quicktimes to shotgun
+        export_preset = self.export_preset_handler.get_preset_by_name(self._export_preset_name)
+        if export_preset.upload_quicktime() == False:
         
-        # secondly, push a quicktime generation job for each version we submitted
-        # at the same time, make a list of all publishes that we want to submit to Shotgun
-        for seq in self._shots:
-            for shot_metadata in self._shots[seq].values():
-                for segment_metadata in shot_metadata.segment_metadata.values():
-                                                
-                    if segment_metadata.video_info and segment_metadata.shotgun_version:
-                        # this segment has video and has a version!
-                        # schedule quicktime generation!
-                        
-                        job_title = "Shot %s - Shotgun Quicktime Upload" % shot_metadata.name
-                        job_desc = "Generating quicktimes and uploading to Shotgun."         
-                        
-                        # if the video media is generated in a backburner job, make sure that 
-                        # our quicktime job is executed *after* this job has finished                        
-                        if segment_metadata.video_info.get("isBackground"):
-                            run_after_job_id = segment_metadata.video_info.get("backgroundJobId")
-                        else:
-                            run_after_job_id = None
-        
-                        path = os.path.join(segment_metadata.video_info.get("destinationPath"), 
-                                            segment_metadata.video_info.get("resolvedPath"))
-                        
-                        args = {"version_id": segment_metadata.shotgun_version["id"], 
-                                "path": path,
-                                "export_preset": self._export_preset_name,
-                                "width": segment_metadata.video_info.get("width"),
-                                "height": segment_metadata.video_info.get("height")
-                                }
-        
-                        # kick off backburner job
-                        self.engine.create_local_backburner_job(job_title, 
-                                                                job_desc, 
-                                                                run_after_job_id, 
-                                                                self, 
-                                                                "backburner_generate_quicktime", 
-                                                                args)
+            # we are not uploading quicktimes to Shotgun. Instead, we need to manually push thumbnails
+            # to shotgun for all the versions. Create a single backburner job to handle this.
+            job_title = "Shotgun Thumbnails"
+            job_desc = "Generating thumbnails for review versions."
+            
+            items = []
+            for seq in self._shots:
+                for shot_metadata in self._shots[seq].values():
+                    for segment_metadata in shot_metadata.segment_metadata.values():   
+                        if segment_metadata.video_info and segment_metadata.shotgun_version:
+                            # this segment has video and has a version!
+                            path = os.path.join(segment_metadata.video_info.get("destinationPath"), 
+                                                segment_metadata.video_info.get("resolvedPath"))                            
+                            item = {"path": path, "version_id": segment_metadata.shotgun_version["id"]}
+                            items.append(item)
+                            
+            # kick off backburner job
+            self.engine.create_local_backburner_job(job_title,
+                                                    job_desc,
+                                                    prev_backburner_id,
+                                                    self,
+                                                    "backburner_upload_version_thumbnails",
+                                                    items)
+            
+            
+        else:
+            
+            # let's create quicktimes suitable for shotgun and upload these.
+            # create one separate backburner job for each upload for parallelisation  
+            for seq in self._shots:
+                for shot_metadata in self._shots[seq].values():
+                    for segment_metadata in shot_metadata.segment_metadata.values():
+                                                    
+                        if segment_metadata.video_info and segment_metadata.shotgun_version:
+                            # this segment has video and has a version!
+                            # schedule quicktime generation!
+                            
+                            job_title = "Shot %s - Shotgun Quicktime Upload" % shot_metadata.name
+                            job_desc = "Generating quicktimes and uploading to Shotgun."         
+                            
+                            # if the video media is generated in a backburner job, make sure that 
+                            # our quicktime job is executed *after* this job has finished                        
+                            if segment_metadata.video_info.get("isBackground"):
+                                run_after_job_id = segment_metadata.video_info.get("backgroundJobId")
+                            else:
+                                run_after_job_id = None
+            
+                            path = os.path.join(segment_metadata.video_info.get("destinationPath"), 
+                                                segment_metadata.video_info.get("resolvedPath"))
+                            
+                            args = {"version_id": segment_metadata.shotgun_version["id"], 
+                                    "path": path,
+                                    "export_preset": self._export_preset_name,
+                                    "width": segment_metadata.video_info.get("width"),
+                                    "height": segment_metadata.video_info.get("height")
+                                    }
+            
+                            # kick off backburner job
+                            self.engine.create_local_backburner_job(job_title, 
+                                                                    job_desc, 
+                                                                    run_after_job_id, 
+                                                                    self, 
+                                                                    "backburner_generate_quicktime", 
+                                                                    args)
 
         
         # now, as a very last step, show a summary UI to the user, including a 
@@ -887,6 +934,19 @@ class FlameExport(Application):
         :param height: Height of source 
         """
         self._sg_submit_helper.upload_quicktime(version_id, path, width, height)        
+
+
+    def backburner_upload_version_thumbnails(self, items):
+        """
+        Backburner job. Upload thumbnails for a list of versions.
+        
+        Each version is represented by a dictionary with keys path and version_id, 
+        where the path is a path to an exported flame item 
+        
+        :param items: List of dictionaries. See above
+        """
+        self._sg_submit_helper.upload_version_thumbnails(items)
+
 
     def backburner_process_rendered_batch(self, info, export_preset, serialized_context, comments, send_to_review):
         """

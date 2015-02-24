@@ -459,6 +459,30 @@ class ShotgunSubmitter(object):
                     
         return batch_item
 
+    def upload_version_thumbnails(self, items):
+        """
+        Upload version thumbnails to Shotgun.
+        
+        Given a list of already existing versions, extract thumbnails from flame
+        and upload these to Shotgun. The items input is a list of dictionaries with
+        each dictionary having keys version_id and path, where path is a path to 
+        an exported flame render from which a thumbnail is being extracted.
+        
+        :param items: list of dicts. For details, see above.
+        """
+        for i in items:
+            version_id = i["version_id"]
+            path = i["path"] 
+            
+            self._app.log_debug("Attempting to extract and upload thumbnail for version %s..." % version_id)
+            jpeg_path = self.__extract_thumbnail(path)
+            if jpeg_path:
+                # we have a valid thumbnail - push it to shotgn
+                self._app.log_debug("Push version thumbnail to shotgun...")
+                self._app.shotgun.upload_thumbnail("Version", version_id, jpeg_path)
+                self._app.log_debug("...upload complete!")
+                # try to clean up
+                self.__clean_up_temp_file(jpeg_path)
 
     def upload_quicktime(self, version_id, path, width, height):        
         """
