@@ -272,10 +272,11 @@ class ShotgunSubmitter(object):
         return sg_publish_data
         
         
-    def register_video_publish(self, context, path, comments, version_number, width, height, make_shot_thumb):        
+    def register_video_publish(self, export_preset, context, path, comments, version_number, width, height, make_shot_thumb):        
         """
         Creates a publish record in shotgun for a flame batch file.
         
+        :param export_preset: The export preset associated with this publish
         :param context: Context to associate the publish with
         :param path: Flame-style path to the frame sequence
         :param comments: Details about the publish
@@ -287,36 +288,21 @@ class ShotgunSubmitter(object):
         :returns: Shotgun data for the created item
         """
         self._app.log_debug("Creating video publish in Shotgun for %s..." % path)
-                                    
-        # put together a name for the publish. This should be on a form without a version
-        # number, so that it can be used to group together publishes of the same kind, but
-        # with different versions. 
-        # e.g. 'sequences/{Sequence}/{Shot}/editorial/plates/{segment_name}_{Shot}.v{version}.{SEQ}.dpx'
-        # 
-        # In order to determine this, loop over all the plate presets, find the matching profile
-        # and use that
-        publish_name = "unknown"
-        publish_type = "Unknown"
-        for preset in self._app.get_setting("plate_presets"):
-            plate_template_name = preset["template"]
-            template = self._app.get_template_by_name(plate_template_name)
-            if template.validate(path):
-                fields = template.get_fields(path)
-                publish_name = "%s, %s" % (fields.get("Shot"), fields.get("segment_name"))
-                publish_type = preset["publish_type"]
-                break
         
+        # resolve export preset object
+        preset_obj = self._app.export_preset_handler.get_preset_by_name(export_preset)
+                
         # now start assemble publish parameters
         args = {
             "tk": self._app.sgtk,
             "context": context,
             "comment": comments,
             "path": path,
-            "name": publish_name,
+            "name": preset_obj.get_render_publish_name(path),
             "version_number": version_number,
             "created_by": context.user,
             "task": context.task,
-            "published_file_type": publish_type,
+            "published_file_type": preset_obj.get_render_publish_type(),
         }
         
         # now try to extract a thumbnail from the asset data stream.

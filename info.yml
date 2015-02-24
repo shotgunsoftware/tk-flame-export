@@ -65,14 +65,35 @@ configuration:
             items:
                 name:
                     type: str
+                force_copy:
+                    type: bool
+                    description: By default, exported images are hard linked if possible, meaning that the export
+                                 is quicker and it takes up less space on disk. Setting this option to true will force
+                                 the exporter to always copy the frames when it is doing the export.
+                    default_value: false
                 publish_type:
                     type: tank_type
-                    description: The publish type for Flame plates  
-                    default_value: "Flame Plate"                 
+                    description: The publish type for Flame plates
+                    default_value: "Flame Render"                 
                 template:
                     description: Toolkit file system template to control where video output goes on disk
                     type: template
                     fields: context, SEQ, Shot, version, segment_name, [YYYY], [MM], [DD], [hh], [mm], [ss], [width], [height], *
+                quicktime_template:
+                    description: If not set to null, a higher res quicktime will be generated and stored on disk, 
+                                 suitable for playback in RV and linked to the version in Shotgun.
+                    type: template
+                    allows_empty: True
+                    default_value: null
+                    fields: context, SEQ, Shot, version, segment_name, [YYYY], [MM], [DD], [hh], [mm], [ss], [width], [height], *
+                quicktime_publish_type:
+                    type: tank_type
+                    description: The publish type for quicktimes generated on disk
+                    default_value: "Flame Quicktime"
+                upload_quicktime:
+                    description: Upload a quicktime to Shotgun when publishing
+                    type: bool
+                    default_value: true
                     
     segment_clip_template:
         description: "Toolkit file system template to control where segment based clip files go on disk. 
@@ -82,6 +103,13 @@ configuration:
         type: template
         fields: context, Shot, segment_name, [YYYY], [MM], [DD], [hh], [mm], [ss], *
 
+    bypass_shotgun_transcoding:
+        description: Try to bypass the Shotgun server side transcoding if possible. This will only generate
+                     generate and upload a h264 quicktime and not a webm, meaning that playback will not be 
+                     supported on all browsers. For more information about this option, please see the documentation.
+        type: bool
+        default_value: false
+        
     shot_clip_template:
         description: Toolkit file system template to control where shot based clip files go on disk
                      

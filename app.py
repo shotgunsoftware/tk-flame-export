@@ -74,10 +74,14 @@ class FlameExport(Application):
         
         # Shot export user UI input
         self._user_comments = ""
-        self._video_preset = None
+        self._export_preset_name = None
         
         # flag to indicate that something was actually submitted by the export process
         self._reached_post_asset_phase = False
+        
+        # load up our export presets
+        # this wrapper class is used later on to access export presets in various ways
+        self.export_preset_handler = tk_flame_export_no_ui.ExportPresetHandler()
         
         # register our desired interaction with flame hooks
         # set up callbacks for the engine to trigger 
@@ -120,17 +124,13 @@ class FlameExport(Application):
         self._shots = {}
         self._reached_post_asset_phase = False
         
-        # get video preset names from config
-        video_preset_names = [preset["name"] for preset in self.get_setting("plate_presets")]
-        
         # pop up a UI asking the user for description
         tk_flame_export = self.import_module("tk_flame_export")  
-        tk_flame_export_no_ui = self.import_module("tk_flame_export_no_ui")
                       
         (return_code, widget) = self.engine.show_modal("Export Shots",
                                                        self,
                                                        tk_flame_export.SubmitDialog, 
-                                                       video_preset_names)
+                                                       self.export_preset_handler.get_preset_names())
         
         if return_code == QtGui.QDialog.Rejected:
             # user pressed cancel
@@ -140,7 +140,7 @@ class FlameExport(Application):
         else:
             # get comments from user
             self._user_comments = widget.get_comments()
-            self._video_preset = widget.get_video_preset()
+            self._export_preset_name = widget.get_video_preset()
             
             # populate the host to use for the export. Currently hard coded to local
             info["destinationHost"] = self.engine.get_server_hostname()
@@ -149,28 +149,9 @@ class FlameExport(Application):
             info["destinationPath"] = self.sgtk.project_path
             
             # pick up the xml export profile from the configuration
-            export_preset = tk_flame_export_no_ui.ExportPreset()
-            info["presetPath"] = export_preset.get_xml_path(self._video_preset)    
+            info["presetPath"] = self.export_preset_handler.get_preset_by_name(self._export_preset_name).get_xml_path()    
             self.log_debug("%s: Starting custom export session with preset '%s'" % (self, info["presetPath"]))
-        
-        
-    def get_plate_template_for_preset(self, plate_preset):
-        """
-        Helper method. Returns the plate template for a given a configuration preset.
-        
-        :param plate_preset: preset name, as defined in the app settings (e.g. 10 bit DPX)
-        :returns: template associated with this plate preset in the configuration.
-        """
-        template = None
-        for preset in self.get_setting("plate_presets"):
-            if preset["name"] == plate_preset:
-                plate_template_name = preset["template"]
-                template = self.get_template_by_name(plate_template_name) 
-        if template is None:
-            raise TankError("Cannot find preset '%s' in configuration!" % preset)
-        return template
-
-
+                
     def pre_export_sequence(self, session_id, info):
         """
         Called from the flame hooks before export.
@@ -218,7 +199,6 @@ class FlameExport(Application):
         
         This will take the parameters from flame, push them through the toolkit template
         system and then return a path to flame that flame will be using for the export.
-        
  
         :param session_id: String which identifies which export session is being referred to.
                            This parameter makes it possible to distinguish between different 
@@ -288,7 +268,7 @@ class FlameExport(Application):
         # get the appropriate file system template
         if asset_type == "video":
             # exported plates or video
-            template = self.get_plate_template_for_preset(self._video_preset)
+            template = self.export_preset_handler.get_preset_by_name(self._export_preset_name).get_render_template()
             
         elif asset_type == "batch":
             # batch file
@@ -613,8 +593,10 @@ class FlameExport(Application):
                                               "serialized_context": sgtk.context.serialize(shot_metadata.context),
                                               "version": version_number})
                                                 
-        # push all publish reqests as a single job
-        args = { "publish_requests": sg_publishes }
+        # push all publish requests as a single job
+        args = {"publish_requests": sg_publishes, 
+                "export_preset": self._export_preset_name
+                }
         self.engine.create_local_backburner_job("Shotgun Publish", 
                                                 "Generates publishes in Shotgun.", 
                                                 None, 
@@ -625,7 +607,6 @@ class FlameExport(Application):
         
         # secondly, push a quicktime generation job for each version we submitted
         # at the same time, make a list of all publishes that we want to submit to Shotgun
-        
         for seq in self._shots:
             for shot_metadata in self._shots[seq].values():
                 for segment_metadata in shot_metadata.segment_metadata.values():
@@ -649,6 +630,7 @@ class FlameExport(Application):
                         
                         args = {"version_id": segment_metadata.shotgun_version["id"], 
                                 "path": path,
+                                "export_preset": self._export_preset_name,
                                 "width": segment_metadata.video_info.get("width"),
                                 "height": segment_metadata.video_info.get("height")
                                 }
@@ -685,48 +667,6 @@ class FlameExport(Application):
 
     ##############################################################################################################
     # Flare / batch mode integration
-
-    def __is_rendering_tk_session(self, batch_path, render_path):
-        """
-        Determines if a batch export is outputting to file locations
-        known to the current tk export app. In that case, the context
-        is returned.
-        
-        :param batch_path: Path to the exported batch file
-        :param render_path: Path to the current render (w flame sequence markers)
-        :returns: Context or None if path isn't recognized 
-        """
-        
-        # first check if the resolved paths match our templates in the settings.
-        # otherwise ignore the export
-        self.log_debug("Checking if the render path '%s' is recognized by toolkit..." % render_path)
-        matching = False
-        for preset in self.get_setting("plate_presets"):
-            plate_template_name = preset["template"]
-            template = self.get_template_by_name(plate_template_name)
-            if template.validate(render_path):
-                matching |= True
-                self.log_debug(" - Matching: '%s'" % template)
-            else:
-                self.log_debug(" - Not matching: '%s'" % template)
-
-        if not matching:
-            self.log_debug("This path does not appear to match any toolkit render paths. Ignoring.")
-            return None
-
-        
-        batch_template = self.get_template("batch_template")
-        if not batch_template.validate(batch_path):
-            self.log_debug("The path '%s' does not match the template '%s'. Ignoring." % (batch_path, batch_template))
-            return None
-
-        # now extract the context for the currently worked on thing
-        # we do this based on the path to the batch file
-        self.log_debug("Getting context from path '%s'" % batch_path)
-        context = self.sgtk.context_from_path(batch_path)
-        self.log_debug("Context: %s" % context)
-        return context
-
 
     def pre_batch_render_checks(self, info):
         """
@@ -765,19 +705,45 @@ class FlameExport(Application):
             depth:                Frame depth ( '8-bits', '10-bits', '12-bits', '16 fp' )
             scanForamt:           Scan format ( 'FIELD_1', 'FIELD_2', 'PROGRESSIVE' )        
         """
+        
+        # these member variables are used to pass data down the pipeline, to post_batch_render_sg_process()
         self._send_batch_render_to_review = False
         self._user_comments = None
+        self._batch_export_preset_name = None
+        self._batch_context = None
         
-        plate_path = os.path.join(info.get("exportPath"), info.get("resolvedPath"))
+        render_path = os.path.join(info.get("exportPath"), info.get("resolvedPath"))
         batch_path = info.get("setupResolvedPath")
-        ctx = self.__is_rendering_tk_session(batch_path, plate_path)
-        if ctx is None:
-            # not known by this app
-            return
+
+        # first check if the resolved paths match our templates in the settings. Otherwise ignore the export
+        self.log_debug("Checking if the render path '%s' is recognized by toolkit..." % render_path)
+        export_preset = self.export_preset_handler.get_preset_for_render_path(render_path)
+        if export_preset is None:
+            self.log_debug("This path does not appear to match any toolkit render paths. Ignoring.")
+            return None
         
-        # ok so this looks like one of our renders - check with the user 
-        # if they want to submit to review!
-        from PySide import QtGui, QtCore
+        batch_template = self.get_template("batch_template")
+        if not batch_template.validate(batch_path):
+            self.log_debug("The path '%s' does not match the template '%s'. Ignoring." % (batch_path, batch_template))
+            return None
+
+        # as a last check, extract the context for the batch path
+        self.log_debug("Getting context from path '%s'" % batch_path)
+        context = self.sgtk.context_from_path(batch_path)
+        self.log_debug("Context: %s" % context)
+        if context is None:
+            # not known by this app
+            self.log_debug("Could not establish a context from the batch path. Aborting.")
+            return
+
+        # looks like we understand these paths!
+        # store preset name and context name so we can pass it downstream to the 
+        # submission method.
+        self._batch_export_preset_name = export_preset.get_name()
+        self._batch_context = context
+
+        # ok so this looks like one of our renders - check with the user if they want to submit to review!
+        from PySide import QtGui
          
         # pop up a UI asking the user for description
         tk_flame_export = self.import_module("tk_flame_export")        
@@ -830,16 +796,10 @@ class FlameExport(Application):
             self.log_debug("Rendering was aborted. Will not push to Shotgun.")
             return 
         
-        plate_path = os.path.join(info.get("exportPath"), info.get("resolvedPath"))
-        batch_path = info.get("setupResolvedPath")
-        ctx = self.__is_rendering_tk_session(batch_path, plate_path)
-        if ctx is None:
-            # not known by this app
-            return
-        
         # now start preparing a remote job
         args = {"info": info, 
-                "serialized_context": sgtk.context.serialize(ctx), 
+                "export_preset": self._batch_export_preset_name,
+                "serialized_context": sgtk.context.serialize(self._batch_context),
                 "comments": self._user_comments,
                 "send_to_review": self._send_batch_render_to_review }
         
@@ -857,10 +817,13 @@ class FlameExport(Application):
 
 
 
-    ##############################################################################################################
-    # backburner callbacks
 
-    def backburner_register_publishes(self, publish_requests):
+
+    ##############################################################################################################
+    # backburner callbacks. These methods are executed as backburner jobs and not inside the main flame UI.
+    # at this point, there is no access to any UI.
+
+    def backburner_register_publishes(self, publish_requests, export_preset):
         """
         Generate publishes in Shotgun for a list of publish requests.
         
@@ -882,23 +845,25 @@ class FlameExport(Application):
           "serialized_context": "xxxxx", 
           "version": 13})
         
-        :param metadata: dictionary of publish requests, see above
+        :param publish_requests: List of things to publish, see above
+        :param export_preset: The export preset associated with the session
         """
         self.log_debug("Creating publishes for all export items.")
 
         for request in publish_requests:
 
             self.log_debug("Registering %s for %s" % (request["type"], request["path"]))
-            ctx = sgtk.context.deserialize(request["serialized_context"])
+            context = sgtk.context.deserialize(request["serialized_context"])
             
             if request["type"] == "batch":    
-                self._sg_submit_helper.register_batch_publish(ctx, 
+                self._sg_submit_helper.register_batch_publish(context, 
                                                               request["path"], 
                                                               request["comments"], 
                                                               request["version"])
 
             elif request["type"] == "video":
-                sg_data = self._sg_submit_helper.register_video_publish(ctx,
+                sg_data = self._sg_submit_helper.register_video_publish(export_preset,
+                                                                        context,
                                                                         request["path"], 
                                                                         request["comments"], 
                                                                         request["version"],
@@ -911,22 +876,19 @@ class FlameExport(Application):
             
         self.log_debug("Publish complete!")
     
-    
-    
-    
-    
-    def backburner_generate_quicktime(self, version_id, path, width, height):
+    def backburner_generate_quicktime(self, version_id, path, export_preset, width, height):
         """
         Backburner job. Generates a quicktime and uploads it to Shotgun.
         
         :param version_id: Shotgun version id
         :param path: Path to source media
+        :param export_preset: The export preset associated with the session
         :param width: Width of source
         :param height: Height of source 
         """
         self._sg_submit_helper.upload_quicktime(version_id, path, width, height)        
 
-    def backburner_process_rendered_batch(self, info, serialized_context, comments, send_to_review):
+    def backburner_process_rendered_batch(self, info, export_preset, serialized_context, comments, send_to_review):
         """
         Backburner job. Takes a newly generated render and processes it for Shotgun:
         
@@ -965,6 +927,7 @@ class FlameExport(Application):
             depth:                Frame depth ( '8-bits', '10-bits', '12-bits', '16 fp' )
             scanForamt:           Scan format ( 'FIELD_1', 'FIELD_2', 'PROGRESSIVE' ) 
             
+        :param export_preset: Export preset associated with this session
         :param serialized_context: The context for the shot that the submission 
                                    is associated with, in serialized form.
         :param comments: User comments, as a string
@@ -980,7 +943,8 @@ class FlameExport(Application):
 
         # Now register the rendered images as a published plate in Shotgun
         full_flame_plate_path = os.path.join(info.get("exportPath"), info.get("resolvedPath"))
-        sg_data = self._sg_submit_helper.register_video_publish(context, 
+        sg_data = self._sg_submit_helper.register_video_publish(export_preset,
+                                                                context, 
                                                                 full_flame_plate_path, 
                                                                 description,
                                                                 version_number, 
