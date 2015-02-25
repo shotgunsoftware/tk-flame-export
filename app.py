@@ -171,11 +171,11 @@ class FlameExport(Application):
                      - abortMessage: Error message to be displayed to the user when the export sequence
                                      process has been aborted.
         """
+        from PySide import QtGui
         sequence_name = info["sequenceName"]
         shot_names = info["shotNames"]
         
         if len(shot_names) == 0:
-            from PySide import QtGui     
             QtGui.QMessageBox.warning(None,
                                       "Please name your shots!",
                                       "The Shotgun integration requires you to name your shots. Please go back to "
@@ -186,7 +186,6 @@ class FlameExport(Application):
             return
         
         if " " in sequence_name:
-            from PySide import QtGui     
             QtGui.QMessageBox.warning(None,
                                       "Sequence name cannot contain spaces!",
                                       "Your Sequence name contains spaces. This is currently not supported by "
