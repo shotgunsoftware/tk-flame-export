@@ -1022,10 +1022,17 @@ class FlameExport(Application):
                                                                     sg_data, 
                                                                     info["aspectRatio"])     
             
-            # and generate a quicktime
-            self._sg_submit_helper.upload_quicktime(sg_version_data["id"], 
-                                                    full_flame_plate_path, 
-                                                    info["width"], 
-                                                    info["height"])
+            export_preset_obj = self.export_preset_handler.get_preset_by_name(export_preset)
+            if export_preset_obj.upload_quicktime():
+                
+                # and upload a quicktime to shotgun
+                self._sg_submit_helper.upload_quicktime(sg_version_data["id"], 
+                                                        full_flame_plate_path, 
+                                                        info["width"], 
+                                                        info["height"])
+            else:
+                # don't upload quicktimes - instead upload a thumbnail
+                version_info = {"version_id": sg_data["id"], "path": full_flame_plate_path}
+                self._sg_submit_helper.upload_version_thumbnails([version_info])
 
 
