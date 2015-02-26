@@ -29,6 +29,9 @@ class ShotgunSubmitter(object):
     # see https://support.shotgunsoftware.com/entries/26303513-Transcoding
     SHOTGUN_QUICKTIME_TARGET_HEIGHT = 720 
     
+    # default height for thumbs
+    SHOTGUN_THUMBNAIL_TARGET_HEIGHT = 400
+    
     # the department to use for versions
     SHOTGUN_DEPARTMENT = "Flame"
     
@@ -277,13 +280,15 @@ class ShotgunSubmitter(object):
         return sg_publish_data
         
         
-    def register_video_publish(self, export_preset, context, path, quicktime_path, comments, version_number, make_shot_thumb):        
+    def register_video_publish(self, export_preset, context, width, height, path, quicktime_path, comments, version_number, make_shot_thumb):        
         """
         Creates a publish record in shotgun for a flame video file.
         Optionally also creates a second publish record for an equivalent local quicktime
         
         :param export_preset: The export preset associated with this publish
         :param context: Context to associate the publish with
+        :param width: the width of the images given by path
+        :param height: the height of the images given by path
         :param path: Flame-style path to the frame sequence
         :param quicktime_path: optional path to a high res quicktime. If not None, a separate publish entry for this
                                will be generated in parallel to the video sequence publish.
@@ -299,7 +304,7 @@ class ShotgunSubmitter(object):
         preset_obj = self._app.export_preset_handler.get_preset_by_name(export_preset)
 
         # extract thumbnail
-        jpeg_path = self.__extract_thumbnail(path)
+        jpeg_path = self.__extract_thumbnail(path, width, height)
         
         # now do the main sequence publish
         args = {"tk": self._app.sgtk,
@@ -492,17 +497,19 @@ class ShotgunSubmitter(object):
         
         Given a list of already existing versions, extract thumbnails from flame
         and upload these to Shotgun. The items input is a list of dictionaries with
-        each dictionary having keys version_id and path, where path is a path to 
+        each dictionary having keys version_id width, height and path, where path is a path to 
         an exported flame render from which a thumbnail is being extracted.
         
         :param items: list of dicts. For details, see above.
         """
         for i in items:
             version_id = i["version_id"]
-            path = i["path"] 
+            path = i["path"]
+            width = i["width"]
+            height = i["height"] 
             
             self._app.log_debug("Attempting to extract and upload thumbnail for version %s..." % version_id)
-            jpeg_path = self.__extract_thumbnail(path)
+            jpeg_path = self.__extract_thumbnail(path, width, height)
             if jpeg_path:
                 # we have a valid thumbnail - push it to shotgn
                 self._app.log_debug("Push version thumbnail to shotgun...")
@@ -763,7 +770,7 @@ class ShotgunSubmitter(object):
         fields["SEQ"] = "FORMAT: %d"
         return template.apply_fields(fields)        
 
-    def __extract_thumbnail(self, path):
+    def __extract_thumbnail(self, path, width, height):
         """
         Extracts a jpeg image in a temp location from a given sequence in flame.
         The wiretap system will be used to access the media.
@@ -771,14 +778,25 @@ class ShotgunSubmitter(object):
         It's the caller's responsibility to delete this generated file after use.
         
         :param path: flame path to extract to
+        :param width: the width of the images in path
+        :param height: the height of the images in path
         :returns: None if extraction didn't work, otherwise a path to a jpeg file
         """
+        # first figure out a good scale-down res
+        (scaled_down_width, scaled_down_height) = self.__calculate_aspect_ratio(self.SHOTGUN_THUMBNAIL_TARGET_HEIGHT,
+                                                                                width, 
+                                                                                height) 
+        
+        self._app.log_debug("Generating thumbnail with resolution %sx%s" % (scaled_down_width, scaled_down_height))
+        
         # now try to extract a thumbnail from the asset data stream.
         # we use the same mechanism that the quicktime generation is using - see
         # the quicktime code below for details:
-        input_cmd = "%s -n \"%s@CLIP\" -h %s -L" % (self._app.engine.get_read_frame_path(),
-                                                    path,
-                                                    "%s:Gateway" % self._app.engine.get_server_hostname()) 
+        input_cmd = "%s -n \"%s@CLIP\" -h %s -W %s -H %s -L" % (self._app.engine.get_read_frame_path(),
+                                                                path,
+                                                                "%s:Gateway" % self._app.engine.get_server_hostname(),
+                                                                scaled_down_width,
+                                                                scaled_down_height) 
         
         thumbnail_jpg = os.path.join(self._app.engine.get_backburner_tmp(), "tk_thumb_%s.jpg" % uuid.uuid4().hex)
         if os.system("%s > %s" % (input_cmd, thumbnail_jpg)) != 0:

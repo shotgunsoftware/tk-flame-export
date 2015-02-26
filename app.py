@@ -631,6 +631,8 @@ class FlameExport(Application):
                             quicktime_path = self._export_preset.quicktime_path_from_render_path(render_path)
                         
                         sg_publishes.append({"type": "video",
+                                              "width": segment_metadata.video_info.get("width"),
+                                              "height": segment_metadata.video_info.get("height"),
                                               "path": segment_metadata.get_render_path(),
                                               "quicktime_path": quicktime_path,
                                               "comments": self._user_comments,
@@ -673,6 +675,8 @@ class FlameExport(Application):
                         if segment_metadata.has_shotgun_version():
                             # this segment has video and has a version!
                             item = {"path": segment_metadata.get_render_path(), 
+                                    "width": segment_metadata.video_info.get("width"),
+                                    "height": segment_metadata.video_info.get("height"),
                                     "version_id": segment_metadata.get_shotgun_version_id()}
                             items.append(item)
             
@@ -984,6 +988,8 @@ class FlameExport(Application):
           "version": 123}
                                             
         { "type": "video",
+          "width": 1234,
+          "height": 1234,
           "path": "/foo/bar",
           "quicktime_path": "/path/to/quicktime.mov" # optional, may be None
           "comments": "Some user comments",
@@ -1011,6 +1017,8 @@ class FlameExport(Application):
             elif request["type"] == "video":
                 sg_data = self._sg_submit_helper.register_video_publish(export_preset,
                                                                         context,
+                                                                        request["width"], 
+                                                                        request["height"],                                                                        
                                                                         request["path"], 
                                                                         request["quicktime_path"],
                                                                         request["comments"], 
@@ -1051,7 +1059,7 @@ class FlameExport(Application):
         """
         Backburner job. Upload thumbnails for a list of versions.
         
-        Each version is represented by a dictionary with keys path and version_id, 
+        Each version is represented by a dictionary with keys path, width, height and version_id, 
         where the path is a path to an exported flame item 
         
         :param items: List of dictionaries. See above
@@ -1124,6 +1132,8 @@ class FlameExport(Application):
         
         sg_data = self._sg_submit_helper.register_video_publish(export_preset,
                                                                 context, 
+                                                                info["width"], 
+                                                                info["height"],                                                                
                                                                 full_flame_plate_path, 
                                                                 quicktime_path,
                                                                 description,
@@ -1144,7 +1154,10 @@ class FlameExport(Application):
             # step 2 - See if we should push a thumbnail
             if export_preset_obj.upload_quicktime() == False or self.get_setting("bypass_shotgun_transcoding"):            
                 # there will be no transcoding happening on the server so pass a manual thumbnail
-                version_info = {"version_id": sg_version_data["id"], "path": full_flame_plate_path}
+                version_info = {"version_id": sg_version_data["id"], 
+                                "width": info["width"],
+                                "height": info["height"],
+                                "path": full_flame_plate_path}
                 self._sg_submit_helper.upload_version_thumbnails([version_info])                
                 
             # Step 3 - Generate and upload quicktime
