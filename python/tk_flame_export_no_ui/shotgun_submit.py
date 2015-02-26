@@ -24,7 +24,12 @@ class ShotgunSubmitter(object):
     """
     
     # constants
-    SHOTGUN_QUICKTIME_TARGET_HEIGHT = 720 # see https://support.shotgunsoftware.com/entries/26303513-Transcoding
+    
+    # default height for shotgun uploads
+    # see https://support.shotgunsoftware.com/entries/26303513-Transcoding
+    SHOTGUN_QUICKTIME_TARGET_HEIGHT = 720 
+    
+    # the department to use for versions
     SHOTGUN_DEPARTMENT = "Flame"
     
     def __init__(self):
@@ -46,7 +51,7 @@ class ShotgunSubmitter(object):
         - Create folders on disk for new shots
         - Compute tk contexts for all shots
         
-        Returns a dictionary of sequences. Each sequence name contains a dictu
+        Returns a dictionary of sequences. Each sequence name contains a dict
         
         { "Sequence_x": { "Shot_x_1":  ShotMetadata,
                           "Shot_x_2":  ShotMetadata,
@@ -275,6 +280,7 @@ class ShotgunSubmitter(object):
     def register_video_publish(self, export_preset, context, path, quicktime_path, comments, version_number, make_shot_thumb):        
         """
         Creates a publish record in shotgun for a flame video file.
+        Optionally also creates a second publish record for an equivalent local quicktime
         
         :param export_preset: The export preset associated with this publish
         :param context: Context to associate the publish with
@@ -297,20 +303,20 @@ class ShotgunSubmitter(object):
 
         if quicktime_path:
             # first make a publish for our high res quicktime
-            args = {"tk": self._app.sgtk,
-                    "context": context,
-                    "comment": comments,
-                    "version_number": version_number,
-                    "created_by": context.user,
-                    "task": context.task,
-                    "thumbnail_path": jpeg_path,
-                    
-                    "path": quicktime_path,
-                    "name": preset_obj.get_quicktime_publish_name(path),
-                    "published_file_type": preset_obj.get_quicktime_publish_type() }
+            mov_args = {"tk": self._app.sgtk,
+                        "context": context,
+                        "comment": comments,
+                        "version_number": version_number,
+                        "created_by": context.user,
+                        "task": context.task,
+                        "thumbnail_path": jpeg_path,
+                        
+                        "path": quicktime_path,
+                        "name": preset_obj.get_quicktime_publish_name(path),
+                        "published_file_type": preset_obj.get_quicktime_publish_type() }
         
-            self._app.log_debug("Register quicktime publish in shotgun: %s" % str(args))        
-            sg_publish_data = sgtk.util.register_publish(**args)
+            self._app.log_debug("Register quicktime publish in shotgun: %s" % str(mov_args))        
+            sg_publish_data = sgtk.util.register_publish(**mov_args)
             self._app.log_debug("Register complete: %s" % sg_publish_data)
         
         # now do the main sequence publish
@@ -327,10 +333,10 @@ class ShotgunSubmitter(object):
                 "published_file_type": preset_obj.get_render_publish_type() }
                 
         # check if the shot needs a thumbnail
-        if make_shot_thumb:
+        if make_shot_thumb and jpeg_path:
             args["update_entity_thumbnail"] = True
         
-        self._app.log_debug("Register publish in shotgun: %s" % str(args))        
+        self._app.log_debug("Register render publish in shotgun: %s" % str(args))        
         sg_publish_data = sgtk.util.register_publish(**args)
         self._app.log_debug("Register complete: %s" % sg_publish_data)
         
@@ -364,15 +370,11 @@ class ShotgunSubmitter(object):
     
     def create_version(self, context, path, user_comments, sg_publish_data, aspect_ratio):        
         """
-        Create a version record in shotgun, generate a quicktime and upload it.
+        Creates a single version record in shotgun.
         
-        This method will do the following:
-        - Create a Shotgun version entity and populate as much metadata as possible
-        - Generate a quicktime by streaming the asset data via wiretap into ffmepg.
-          A h264 quicktime with shotgun-friendly settings are created, however the quicktime
-          defaults are defined in the settings hook and can be controlled by the user.
-        - Lastly, uploads the quicktime to Shotgun and then deletes it off disk.        
-        
+        Note: If you are creating more than one version at the same time, use 
+              create_version_batch for performance.
+                
         :param context: The context for the shot that the submission is associated with, 
                         in serialized form.
         :param path: Path to frames, flame style path with [1234-1234] sequence marker.
@@ -395,7 +397,14 @@ class ShotgunSubmitter(object):
         """
         Similar to create_version(), but instead generates a single batch dictionary to be used
         within a Shotgun batch call. Takes the same parameters as create_version()
-        
+
+        :param context: The context for the shot that the submission is associated with, 
+                        in serialized form.
+        :param path: Path to frames, flame style path with [1234-1234] sequence marker.
+        :param user_comments: Comments entered by the user at export start.
+        :param sg_publish_data: Std shotgun dictionary (with type and id), representing the publish
+                                in Shotgun that has been carried out for this asset.
+        :param aspect_ratio: Aspect ratio of the images        
         :returns: dictionary suitable to be used as part of a shotgun batch call
         """
         
@@ -531,30 +540,33 @@ class ShotgunSubmitter(object):
         # upload quicktime to Shotgun
         self._app.log_debug("Begin upload of quicktime to shotgun...")
         
-        # check if we should attempt bypassing shotgun transcoding
-        bypass_server_transcoding = False
-        if self._app.get_setting("bypass_shotgun_transcoding"):
+        try:
+        
+            # check if we should attempt bypassing shotgun transcoding
+            bypass_server_transcoding = False
+            if self._app.get_setting("bypass_shotgun_transcoding"):
+                
+                self._app.log_debug("Bypass shotgun transcoding setting enabled.")
+                if scaled_down_height != self.SHOTGUN_QUICKTIME_TARGET_HEIGHT:
+                    self._app.log_debug("However, generated quicktime has height %s which is non-compliant, so "
+                                        "will have to fall back on to server side transcoding." % scaled_down_height)
+                else:
+                    self._app.log_debug("Quicktime resolution is compliant with Shotgun. Will bypass transcoding.")
+                    bypass_server_transcoding = True
             
-            self._app.log_debug("Bypass shotgun transcoding setting enabled.")
-            if scaled_down_height != self.SHOTGUN_QUICKTIME_TARGET_HEIGHT:
-                self._app.log_debug("However, generated quicktime has height %s which is non-compliant, so "
-                                    "will have to fall back on to server side transcoding." % scaled_down_height)
+            if bypass_server_transcoding:
+                self._app.log_debug("Uploading quicktime to Version.sg_uploaded_movie_mp4")
+                self._app.shotgun.upload("Version", version_id, tmp_quicktime, "sg_uploaded_movie_mp4")
+                self._app.log_debug("...upload complete!")            
+                
             else:
-                self._app.log_debug("Quicktime resolution is compliant with Shotgun. Will bypass transcoding.")
-                bypass_server_transcoding = True
+                self._app.log_debug("Uploading quicktime to Version.sg_uploaded_movie")
+                self._app.shotgun.upload("Version", version_id, tmp_quicktime, "sg_uploaded_movie")
+                self._app.log_debug("...upload complete!")
         
-        if bypass_server_transcoding:
-            self._app.log_debug("Uploading quicktime to Version.sg_uploaded_movie_mp4")
-            self._app.shotgun.upload("Version", version_id, tmp_quicktime, "sg_uploaded_movie_mp4")
-            self._app.log_debug("...upload complete!")            
-            
-        else:
-            self._app.log_debug("Uploading quicktime to Version.sg_uploaded_movie")
-            self._app.shotgun.upload("Version", version_id, tmp_quicktime, "sg_uploaded_movie")
-            self._app.log_debug("...upload complete!")
-        
-        # clean up
-        self.__clean_up_temp_file(tmp_quicktime)
+        finally:
+            # clean up
+            self.__clean_up_temp_file(tmp_quicktime)
     
     
     def create_local_quicktime(self, version_id, path, quicktime_path, width, height):
@@ -583,6 +595,10 @@ class ShotgunSubmitter(object):
                 
         self.__do_quicktime_transcode(path, quicktime_path, scaled_down_width, scaled_down_height, ffmpeg_presets)
     
+        # now update the corresponding version's path to movie field
+        self._app.log_debug("Setting sg_path_to_movie to '%s' for Version %s" % (quicktime_path, version_id))
+        self._app.shotgun.update("Version", version_id, {"sg_path_to_movie": quicktime_path})
+        self._app.log_debug("...shotgun update complete!")
     
     
     def __do_quicktime_transcode(self, input_path, output_path, target_width, target_height, ffmpeg_presets):

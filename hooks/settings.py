@@ -151,7 +151,10 @@ class ExportSettings(HookBaseClass):
             
     def get_local_quicktime_preferred_height(self, width, height):
         """
-        Controll the preferred height of the local quicktime movie that is generated.
+        Control the preferred height of the local quicktime movie that is generated.
+        The quicktime generation will try to match this as closely as possible, but may
+        change it depending on technical constraints (for example, the aspect ratio needs to
+        be preserved exactly and width and height both need to be factors of 2.)
         
         :param width: The width in pixels of the input images 
         :param height: The height in pixels of the input images

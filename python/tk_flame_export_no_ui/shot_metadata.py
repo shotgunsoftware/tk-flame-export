@@ -20,13 +20,14 @@ class SegmentMetadata(object):
         """
         Constructor
         """        
-        self.video_info = None          # info dictionary (as sent from flame) for the video portion of this segment
-        self.shotgun_version = None     # associated shotgun version (dict with type/id)
+        self.video_info = None          # - info dictionary (as sent from flame) 
+                                        #   for the video portion of this segment
+        self.shotgun_version = None     # - associated shotgun version (dict with type/id)
         
     def has_shotgun_version(self):
         """
         Returns true if a shotgun version exists for the render associated with this segment.
-        If a shotgun version exists, it is implied that a render also exists
+        If a shotgun version exists, it is implied that a render also exists.
         
         :returns: boolean flag
         """
@@ -83,7 +84,6 @@ class SegmentMetadata(object):
 class ShotMetadata(object):
     """
     Simple value wrapper class which holds various properties associated with a shot.
-    This object is passed down the export pipeline.
     """
 
     def __init__(self):

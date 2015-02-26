@@ -30,11 +30,12 @@ class ExportPreset(object):
         self._raw_preset = raw_preset
     
     def __repr__(self):
-        return "<ExportPreset %s>" % self._raw_preset 
+        return "<ExportPreset %r>" % self._raw_preset 
     
     def __get_publish_name(self, template, path):
         """
-        Creates a name for a publish given a path.
+        Creates a name suitable for a shotgun publish given a path.
+        Will return a default name in case name extraction cannot be done.
         
         :param template: Template object to use for field extraction
         :param path: Path to generate name for
@@ -114,7 +115,7 @@ class ExportPreset(object):
     def quicktime_path_from_render_path(self, render_path):
         """
         Given a render path, generate a quicktime path.
-        This will break up the render path in template fields given 
+        This will break up the render path in template fields given by
         the render template and then use those fields to create 
         a quicktime path.
         
@@ -123,7 +124,7 @@ class ExportPreset(object):
         
         This is because we don't always have access to the raw metadata fields that
         were originally used to compose the render path; for example when the batch
-        render hooks trigger, all we have access to is a render path.
+        render hooks trigger, all we have access to is the raw render path.
         
         :path render_path: A render path associated with this preset
         :returns: Path to a quicktime, resolved via the quicktime template  
@@ -264,8 +265,6 @@ class ExportPreset(object):
         xml = xml.replace("{BATCH_NAME_PATTERN}",        cgi.escape(resolved_flame_templates["batch_template"]))
         xml = xml.replace("{SHOT_CLIP_NAME_PATTERN}",    cgi.escape(resolved_flame_templates["shot_clip_template"]))
 
-
-
         # now adjust some parameters in the export xml based on the template setup. 
         template = self.get_render_template()
         
@@ -297,8 +296,6 @@ class ExportPreset(object):
         preset_path = self.__write_content_to_file(xml, "export_preset.xml")
         
         return preset_path
-
-
 
     ###############################################################################################
     # helper methods and internals
@@ -473,21 +470,24 @@ class ExportPresetHandler(object):
         """
         Given a path to an exported render, try to figure out which export preset was used to generate the path.
         
+        This is useful for example in batch mode, where you no longer have access to the original settings.
+        All you have access to at this point is the generated path, which is passed from Flame.
+        
         :param path: Path to a render.
         :returns: None if no match could be established, otherwise an ExportPreset object
         """
         
-        self.log_debug("Trying to locate an export preset for path '%s'..." % path)
+        self._app.log_debug("Trying to locate an export preset for path '%s'..." % path)
         matching_template = None
         for preset_obj in self._export_presets:
 
             template = preset_obj.get_render_template()
             if template.validate(path):
                 matching_template = template
-                self.log_debug(" - Matching: '%s'" % preset_obj)
+                self._app.log_debug(" - Matching: '%s'" % preset_obj)
                 break
             else:
-                self.log_debug(" - Not matching: '%s'" % preset_obj)
+                self._app.log_debug(" - Not matching: '%s'" % preset_obj)
 
         return matching_template
         
