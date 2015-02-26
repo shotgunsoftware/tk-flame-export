@@ -599,10 +599,10 @@ class FlameExport(Application):
                 if shot_metadata.has_batch_export():
                     # there is a batch publish associated with this segment! Add a publish request
                     sg_publishes.append({"type": "batch",
-                                          "path": segment_metadata.get_batch_path(),
+                                          "path": shot_metadata.get_batch_path(),
                                           "comments": self._user_comments,
                                           "serialized_context": sgtk.context.serialize(shot_metadata.context),
-                                          "version": segment_metadata.get_batch_version_number() })
+                                          "version": shot_metadata.get_batch_version_number() })
                                 
                 for segment_metadata in shot_metadata.segment_metadata.values():
 
@@ -659,7 +659,7 @@ class FlameExport(Application):
         #           push thumbnails for versions.
         #                 
                 
-        if self._export_preset.upload_quicktime() == False or self._app.get_setting("bypass_shotgun_transcoding"):
+        if self._export_preset.upload_quicktime() == False or self.get_setting("bypass_shotgun_transcoding"):
         
             # Create a single backburner job to handle this.
             job_title = "Shotgun Thumbnails"
@@ -1134,7 +1134,7 @@ class FlameExport(Application):
                                                                     info["aspectRatio"])     
             
             # step 2 - See if we should push a thumbnail
-            if export_preset_obj.upload_quicktime() == False or self._app.get_setting("bypass_shotgun_transcoding"):            
+            if export_preset_obj.upload_quicktime() == False or self.get_setting("bypass_shotgun_transcoding"):            
                 # there will be no transcoding happening on the server so pass a manual thumbnail
                 version_info = {"version_id": sg_data["id"], "path": full_flame_plate_path}
                 self._sg_submit_helper.upload_version_thumbnails([version_info])                

@@ -300,24 +300,6 @@ class ShotgunSubmitter(object):
 
         # extract thumbnail
         jpeg_path = self.__extract_thumbnail(path)
-
-        if quicktime_path:
-            # first make a publish for our high res quicktime
-            mov_args = {"tk": self._app.sgtk,
-                        "context": context,
-                        "comment": comments,
-                        "version_number": version_number,
-                        "created_by": context.user,
-                        "task": context.task,
-                        "thumbnail_path": jpeg_path,
-                        
-                        "path": quicktime_path,
-                        "name": preset_obj.get_quicktime_publish_name(path),
-                        "published_file_type": preset_obj.get_quicktime_publish_type() }
-        
-            self._app.log_debug("Register quicktime publish in shotgun: %s" % str(mov_args))        
-            sg_publish_data = sgtk.util.register_publish(**mov_args)
-            self._app.log_debug("Register complete: %s" % sg_publish_data)
         
         # now do the main sequence publish
         args = {"tk": self._app.sgtk,
@@ -339,6 +321,27 @@ class ShotgunSubmitter(object):
         self._app.log_debug("Register render publish in shotgun: %s" % str(args))        
         sg_publish_data = sgtk.util.register_publish(**args)
         self._app.log_debug("Register complete: %s" % sg_publish_data)
+
+
+        if quicktime_path:
+            # first make a publish for our high res quicktime
+            mov_args = {"tk": self._app.sgtk,
+                        "context": context,
+                        "comment": comments,
+                        "version_number": version_number,
+                        "created_by": context.user,
+                        "task": context.task,
+                        "thumbnail_path": jpeg_path,
+                        
+                        "dependency_ids": [ sg_publish_data["id"] ], # set a dependency to the main render
+                        "path": quicktime_path,
+                        "name": preset_obj.get_quicktime_publish_name(path),
+                        "published_file_type": preset_obj.get_quicktime_publish_type() }
+        
+            self._app.log_debug("Register quicktime publish in shotgun: %s" % str(mov_args))        
+            sg_mov_data = sgtk.util.register_publish(**mov_args)
+            self._app.log_debug("Register complete: %s" % sg_mov_data)
+
         
         if jpeg_path:
             # try to clean up
@@ -533,8 +536,22 @@ class ShotgunSubmitter(object):
         
         self._app.log_debug("The quicktime will be resolution %sx%s" % (scaled_down_width, scaled_down_height))
         
+        # get transcode params from hook
         ffmpeg_presets = self._app.execute_hook_method("settings_hook", "get_ffmpeg_quicktime_encode_parameters")        
-        tmp_quicktime = os.path.join(self._app.engine.get_backburner_tmp(), "tk_flame_%s.mov" % uuid.uuid4().hex)                 
+        
+        # get a temp path - keep the filename nice because this will be uploaded to shotgun
+        tmp_folder = os.path.join(self._app.engine.get_backburner_tmp(), "shotgun_flame_tmp_%s" % uuid.uuid4().hex)
+        os.mkdir(tmp_folder)
+        
+        # format a nice name for the temp quicktime because this name will be visible in shotgun
+        # /path/to/filename -> filename
+        # /path/to/filename.ext -> filename
+        # /path/to/filename.%04d.ext -> filename
+        file_name = os.path.basename(path)
+        file_name_no_ext = os.path.splitext(os.path.splitext(file_name)[0])[0]
+        tmp_quicktime = os.path.join(tmp_folder, "%s.mov" % file_name_no_ext)                 
+        
+        # create quicktime
         self.__do_quicktime_transcode(path, tmp_quicktime, scaled_down_width, scaled_down_height, ffmpeg_presets)                
         
         # upload quicktime to Shotgun
@@ -567,6 +584,7 @@ class ShotgunSubmitter(object):
         finally:
             # clean up
             self.__clean_up_temp_file(tmp_quicktime)
+            self.__clean_up_folder(tmp_folder)
     
     
     def create_local_quicktime(self, version_id, path, quicktime_path, width, height):
@@ -584,7 +602,9 @@ class ShotgunSubmitter(object):
         self._app.log_debug("Source media: %s" % quicktime_path)
         
         preferred_height = self._app.execute_hook_method("settings_hook",
-                                                         "get_local_quicktime_preferred_height")
+                                                         "get_local_quicktime_preferred_height",
+                                                         width=width,
+                                                         height=height)
         
         # now calculate the closest res to with 720px
         (scaled_down_width, scaled_down_height) = self.__calculate_aspect_ratio(preferred_height, width, height) 
@@ -678,7 +698,7 @@ class ShotgunSubmitter(object):
         full_cmd = "%s | %s %s %s" % (input_cmd, ffmpeg_cmd, ffmpeg_presets, output_path)
         
         self._app.log_debug("Full transcoding command line: %s" % full_cmd)
-        self._app.log_debug("Being quicktime generation...")
+        self._app.log_debug("Begin quicktime generation...")
         if os.system(full_cmd) != 0:
             raise TankError("Could not transcode media. See error log for details.")
         self._app.log_debug("Quicktime successfully created!")
@@ -770,9 +790,22 @@ class ShotgunSubmitter(object):
             return thumbnail_jpg
         
 
+    def __clean_up_folder(self, path):
+        """
+        Helper method which attemps to delete a given folder
+        
+        :param path: Path to delete
+        """
+        try:
+            os.rmdir(path)
+            self._app.log_debug("Removed temporary folder '%s'." % path)
+        except Exception, e:
+            self._app.log_warning("Could not remove temporary folder '%s': %s" % (path, e))    
+        
+
     def __clean_up_temp_file(self, path):
         """
-        Helper method which attemps to delete up a given temp file.
+        Helper method which attemps to delete a given temp file.
         
         :param path: Path to delete
         """

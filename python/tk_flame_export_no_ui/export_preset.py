@@ -287,7 +287,7 @@ class ExportPreset(object):
         # TODO: flame defaults to zero-padded numbers (e.g. 001, 002, 003 instead of 1, 2, 3)
         # raise an error in case someone tries to use a template which 
         # does use non-zero padded token.
-        format_spec = version_key.lstrip("0")
+        format_spec = version_key.format_spec.lstrip("0")
         xml = xml.replace("{VERSION_PADDING}", format_spec)        
         self._app.log_debug("Flame preset generation: Setting version padding to %s based on "
                             "version token in template %s" % (format_spec, template))
@@ -330,7 +330,7 @@ class ExportPreset(object):
         self._app.log_debug("Wrote temporary file '%s'" % file_path)
         return file_path
 
-    def __resolve_flame_templates(self, video_preset):
+    def __resolve_flame_templates(self):
         """
         Convert the toolkit templates defined in the app settings to 
         Flame equivalents.
@@ -434,7 +434,7 @@ class ExportPresetHandler(object):
         self._app = sgtk.platform.current_bundle()
         
         raw_preset_data = self._app.get_setting("plate_presets")
-        self._app.debug("ExportPresetHandler loaded export preset data "
+        self._app.log_debug("ExportPresetHandler loaded export preset data "
                         "from environment: %s" % pprint.pformat(raw_preset_data))
         
         # create export preset objects
