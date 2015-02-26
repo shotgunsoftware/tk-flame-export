@@ -108,9 +108,6 @@ class ExportSettings(HookBaseClass):
         return xml
         
         
-
-
-
     def get_ffmpeg_quicktime_encode_parameters(self):
         """
         Control how quicktimes are generated before being uploaded to Shotgun.
@@ -151,4 +148,27 @@ class ExportSettings(HookBaseClass):
         params += "-crf 15 " 
         
         return params
-                
+            
+    def get_local_quicktime_preferred_height(self, width, height):
+        """
+        Controll the preferred height of the local quicktime movie that is generated.
+        
+        :param width: The width in pixels of the input images 
+        :param height: The height in pixels of the input images
+        :returns: The desired height.
+        """
+        return 1080
+
+    def get_local_quicktime_ffmpeg_encode_parameters(self):
+        """
+        Control how quicktimes are generated for local playback in tools such as RV.
+        
+        These quicktimes are generated inside flame using ffmpeg version SVN-r17733.
+        Note that the syntax has changed somewhat in more recent version of ffmpeg
+        and be careful to test that all parameters and traits you wish to customize
+        are included and supported in this particular build of ffmpeg.
+        
+        :returns: string of ffmpeg parameters which will be appended to the ffmpeg command line
+        """
+        # the default implementation uses the same preset as the shotgun upload
+        return self.get_ffmpeg_quicktime_encode_parameters()

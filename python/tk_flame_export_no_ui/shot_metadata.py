@@ -8,6 +8,9 @@
 # agreement to the Shotgun Pipeline Toolkit Source Code License. All rights 
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
+import os
+from sgtk import TankError
+
 class SegmentMetadata(object):
     """
     Simple Value wrapper class which holds properties associated with a timeline segment.
@@ -18,8 +21,64 @@ class SegmentMetadata(object):
         Constructor
         """        
         self.video_info = None          # info dictionary (as sent from flame) for the video portion of this segment
-        self.batch_info = None          # info dictionary (as sent from flame) for the batch portion of this segment
         self.shotgun_version = None     # associated shotgun version (dict with type/id)
+        
+    def has_shotgun_version(self):
+        """
+        Returns true if a shotgun version exists for the render associated with this segment.
+        If a shotgun version exists, it is implied that a render also exists
+        
+        :returns: boolean flag
+        """
+        return self.shotgun_version is not None
+        
+    def get_shotgun_version_id(self):
+        """
+        Returns the shotgun id for the version associated with this segment, if there is one.
+        
+        :returns: shotgun version id as int
+        """
+        if not self.has_shotgun_version():
+            raise TankError("Cannot get shotgun version id for segment - no version associated!")
+        return self.shotgun_version["id"]
+    
+    def has_render_export(self):
+        """
+        Returns true if a render export is associated with this segment, false if not.
+        
+        It is possible that an export doesn't have a render file exported if flame for example
+        prompts the user, asking her/him if they want to override an existing file and they 
+        select 'no'
+        
+        :return: bool flag
+        """
+        return self.video_info is not None
+        
+    def get_render_version_number(self):
+        """
+        Return the version number associated with the render file
+        
+        :returns: version number as int
+        """        
+        if not self.has_render_export():
+            raise TankError("Cannot get render path for segment - no video metadata found!")
+
+        return int(self.video_info["versionNumber"])
+    
+    def get_render_path(self):
+        """
+        Return the export render path for this segment
+        
+        :returns: path string
+        """
+        if not self.has_render_export():
+            raise TankError("Cannot get render path for segment - no video metadata found!")
+        
+        return os.path.join(self.video_info.get("destinationPath"), self.video_info.get("resolvedPath"))
+
+        
+        
+        
         
 class ShotMetadata(object):
     """
@@ -52,10 +111,45 @@ class ShotMetadata(object):
         
         self.context = None                 # context object for the shot
         
+        self.batch_info = None              # info dictionary (as sent from flame) for the batch export
+                                            # associated with this shot
+        
         self.segment_metadata = {}          # metadata about all the clips associated 
-                                            # with this shot, keyed by segment name
-                
-                
+                                            # with this shot, keyed by segment name                
+    
+    def has_batch_export(self):
+        """
+        Returns true if a batch export is associated with this shot, false if not.
+        
+        It is possible that an export doesn't have a batch file exported if flame for example
+        prompts the user, asking her/him if they want to override an existing file and they 
+        select 'no'
+        
+        :return: bool flag
+        """
+        return self.batch_info is not None
+    
+    def get_batch_path(self):
+        """
+        Return the batch export path for this shot
+        
+        :returns: path string
+        """
+        if not self.has_batch_export():
+            raise TankError("Cannot get batch path - no batch metadata found!")
+        
+        return os.path.join(self.batch_info.get("destinationPath"), self.batch_info.get("resolvedPath"))
+    
+    def get_batch_version_number(self):
+        """
+        Return the version number associated with the batch file
+        
+        :returns: version number as int
+        """        
+        if not self.has_batch_export():
+            raise TankError("Cannot get batch path - no batch metadata found!")
+
+        return int(self.batch_info["versionNumber"])
     
     def update_new_cut_info(self, record_in, record_out):
         """

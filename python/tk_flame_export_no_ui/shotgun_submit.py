@@ -272,17 +272,17 @@ class ShotgunSubmitter(object):
         return sg_publish_data
         
         
-    def register_video_publish(self, export_preset, context, path, comments, version_number, width, height, make_shot_thumb):        
+    def register_video_publish(self, export_preset, context, path, quicktime_path, comments, version_number, make_shot_thumb):        
         """
-        Creates a publish record in shotgun for a flame batch file.
+        Creates a publish record in shotgun for a flame video file.
         
         :param export_preset: The export preset associated with this publish
         :param context: Context to associate the publish with
         :param path: Flame-style path to the frame sequence
+        :param quicktime_path: optional path to a high res quicktime. If not None, a separate publish entry for this
+                               will be generated in parallel to the video sequence publish.
         :param comments: Details about the publish
         :param version_number: The version number to use
-        :param width: Image width in pixels
-        :param height: Image height in pixels
         :param make_shot_thumb: If set to True, the thumbnail that gets associated with the 
                                 publish will also be pushed to the associated entity.
         :returns: Shotgun data for the created item
@@ -291,29 +291,44 @@ class ShotgunSubmitter(object):
         
         # resolve export preset object
         preset_obj = self._app.export_preset_handler.get_preset_by_name(export_preset)
-                
-        # now start assemble publish parameters
-        args = {
-            "tk": self._app.sgtk,
-            "context": context,
-            "comment": comments,
-            "path": path,
-            "name": preset_obj.get_render_publish_name(path),
-            "version_number": version_number,
-            "created_by": context.user,
-            "task": context.task,
-            "published_file_type": preset_obj.get_render_publish_type(),
-        }
-        
+
         # extract thumbnail
         jpeg_path = self.__extract_thumbnail(path)
-        if jpeg_path:
-            # we have a valid thumbnail
-            args["thumbnail_path"] = jpeg_path 
+
+        if quicktime_path:
+            # first make a publish for our high res quicktime
+            args = {"tk": self._app.sgtk,
+                    "context": context,
+                    "comment": comments,
+                    "version_number": version_number,
+                    "created_by": context.user,
+                    "task": context.task,
+                    "thumbnail_path": jpeg_path,
+                    
+                    "path": quicktime_path,
+                    "name": preset_obj.get_quicktime_publish_name(path),
+                    "published_file_type": preset_obj.get_quicktime_publish_type() }
+        
+            self._app.log_debug("Register quicktime publish in shotgun: %s" % str(args))        
+            sg_publish_data = sgtk.util.register_publish(**args)
+            self._app.log_debug("Register complete: %s" % sg_publish_data)
+        
+        # now do the main sequence publish
+        args = {"tk": self._app.sgtk,
+                "context": context,
+                "comment": comments,
+                "version_number": version_number,
+                "created_by": context.user,
+                "task": context.task,
+                "thumbnail_path": jpeg_path,
+            
+                "path": path,
+                "name": preset_obj.get_render_publish_name(path),
+                "published_file_type": preset_obj.get_render_publish_type() }
                 
-            # check if the shot needs a thumbnail
-            if make_shot_thumb:
-                args["update_entity_thumbnail"] = True
+        # check if the shot needs a thumbnail
+        if make_shot_thumb:
+            args["update_entity_thumbnail"] = True
         
         self._app.log_debug("Register publish in shotgun: %s" % str(args))        
         sg_publish_data = sgtk.util.register_publish(**args)
@@ -323,6 +338,7 @@ class ShotgunSubmitter(object):
             # try to clean up
             self.__clean_up_temp_file(jpeg_path)
             
+        # return the sg data for the main publish
         return sg_publish_data
             
     def update_version_dependencies(self, version_id, sg_publish_data):
@@ -345,7 +361,6 @@ class ShotgunSubmitter(object):
         self._app.log_debug("Updating dependencies for version %s: %s" % (version_id, data))
         self._app.shotgun.update("Version", version_id, data)
         self._app.log_debug("...version update complete")
-    
     
     def create_version(self, context, path, user_comments, sg_publish_data, aspect_ratio):        
         """
@@ -503,9 +518,83 @@ class ShotgunSubmitter(object):
         self._app.log_debug("Source media: %s" % path)
         
         # now calculate the closest res to with 720px
-        (scaled_down_width, scaled_down_height) = self.__calculate_aspect_ratio(width, height) 
+        (scaled_down_width, scaled_down_height) = self.__calculate_aspect_ratio(self.SHOTGUN_QUICKTIME_TARGET_HEIGHT,
+                                                                                width, 
+                                                                                height) 
         
         self._app.log_debug("The quicktime will be resolution %sx%s" % (scaled_down_width, scaled_down_height))
+        
+        ffmpeg_presets = self._app.execute_hook_method("settings_hook", "get_ffmpeg_quicktime_encode_parameters")        
+        tmp_quicktime = os.path.join(self._app.engine.get_backburner_tmp(), "tk_flame_%s.mov" % uuid.uuid4().hex)                 
+        self.__do_quicktime_transcode(path, tmp_quicktime, scaled_down_width, scaled_down_height, ffmpeg_presets)                
+        
+        # upload quicktime to Shotgun
+        self._app.log_debug("Begin upload of quicktime to shotgun...")
+        
+        # check if we should attempt bypassing shotgun transcoding
+        bypass_server_transcoding = False
+        if self._app.get_setting("bypass_shotgun_transcoding"):
+            
+            self._app.log_debug("Bypass shotgun transcoding setting enabled.")
+            if scaled_down_height != self.SHOTGUN_QUICKTIME_TARGET_HEIGHT:
+                self._app.log_debug("However, generated quicktime has height %s which is non-compliant, so "
+                                    "will have to fall back on to server side transcoding." % scaled_down_height)
+            else:
+                self._app.log_debug("Quicktime resolution is compliant with Shotgun. Will bypass transcoding.")
+                bypass_server_transcoding = True
+        
+        if bypass_server_transcoding:
+            self._app.log_debug("Uploading quicktime to Version.sg_uploaded_movie_mp4")
+            self._app.shotgun.upload("Version", version_id, tmp_quicktime, "sg_uploaded_movie_mp4")
+            self._app.log_debug("...upload complete!")            
+            
+        else:
+            self._app.log_debug("Uploading quicktime to Version.sg_uploaded_movie")
+            self._app.shotgun.upload("Version", version_id, tmp_quicktime, "sg_uploaded_movie")
+            self._app.log_debug("...upload complete!")
+        
+        # clean up
+        self.__clean_up_temp_file(tmp_quicktime)
+    
+    
+    def create_local_quicktime(self, version_id, path, quicktime_path, width, height):
+        """
+        Generates a quicktime based on flame image data.
+
+        :param version_id: The id for the shotgun version to which we are uploading a quicktime.
+        :param path: Path to frames, flame style path with [1234-1234] sequence marker.
+        :param quicktime_path: Path to the quicktime we want to generate
+        :param width: Image width in pixels
+        :param height: Image height in pixels
+        """
+        self._app.log_debug("Starting high res quicktime generation.")
+        self._app.log_debug("Source media: %s" % path)
+        self._app.log_debug("Source media: %s" % quicktime_path)
+        
+        preferred_height = self._app.execute_hook_method("settings_hook",
+                                                         "get_local_quicktime_preferred_height")
+        
+        # now calculate the closest res to with 720px
+        (scaled_down_width, scaled_down_height) = self.__calculate_aspect_ratio(preferred_height, width, height) 
+        
+        self._app.log_debug("The quicktime will be resolution %sx%s" % (scaled_down_width, scaled_down_height))
+                
+        ffmpeg_presets = self._app.execute_hook_method("settings_hook", "get_local_quicktime_ffmpeg_encode_parameters")
+                
+        self.__do_quicktime_transcode(path, quicktime_path, scaled_down_width, scaled_down_height, ffmpeg_presets)
+    
+    
+    
+    def __do_quicktime_transcode(self, input_path, output_path, target_width, target_height, ffmpeg_presets):
+        """
+        Create a quicktime based on flame media.
+        
+        :param input_path: Path to input image sequence
+        :param output_path: Path to quicktime to be generated
+        :param target_width: Width of generated quicktime, in pixels
+        :param target_height: Height of generated quicktime, in pixels
+        :param ffmpeg_presets: String with ffmpeg presets to control codec settings
+        """
                 
         self._app.log_debug("Start transcoding quicktime...")
 
@@ -541,10 +630,10 @@ class ShotgunSubmitter(object):
         #  -r                     <-- output raw rgb stream
         # 
         input_cmd = "%s -n \"%s@CLIP\" -h %s -W %s -H %s -L -N -1 -r" % (self._app.engine.get_read_frame_path(),
-                                                                         path,
+                                                                         input_path,
                                                                          "%s:Gateway" % self._app.engine.get_server_hostname(),
-                                                                         scaled_down_width,
-                                                                         scaled_down_height)
+                                                                         target_width,
+                                                                         target_height)
 
         # we now pipe this image stream into ffmpeg and generate a quicktime
         #
@@ -567,83 +656,46 @@ class ShotgunSubmitter(object):
         # instead, quicktimes are generated at a default of 25fps.
         
         ffmpeg_cmd = "%s -f rawvideo -top -1 -pix_fmt rgb24 -s %sx%s -i - -y" % (self._app.engine.get_ffmpeg_path(),
-                                                                                 scaled_down_width,
-                                                                                 scaled_down_height)
+                                                                                 target_width,
+                                                                                 target_height)
                                                                                        
-        # get quicktime settings
-        ffmpeg_presets = self._app.execute_hook_method("settings_hook", "get_ffmpeg_quicktime_encode_parameters")
-        # generate target file
-        tmp_quicktime = os.path.join(self._app.engine.get_backburner_tmp(), "tk_flame_%s.mov" % uuid.uuid4().hex) 
-
-        full_cmd = "%s | %s %s %s" % (input_cmd, ffmpeg_cmd, ffmpeg_presets, tmp_quicktime)
+        full_cmd = "%s | %s %s %s" % (input_cmd, ffmpeg_cmd, ffmpeg_presets, output_path)
         
         self._app.log_debug("Full transcoding command line: %s" % full_cmd)
         self._app.log_debug("Being quicktime generation...")
         if os.system(full_cmd) != 0:
             raise TankError("Could not transcode media. See error log for details.")
         self._app.log_debug("Quicktime successfully created!")
-        self._app.log_debug("File size is %s bytes." % os.path.getsize(tmp_quicktime))
-        
-        # upload quicktime to Shotgun
-        self._app.log_debug("Begin upload of quicktime to shotgun...")
-        
-        # check if we should attempt bypassing shotgun transcoding
-        bypass_server_transcoding = False
-        if self._app.get_setting("bypass_shotgun_transcoding"):
-            
-            self._app.log_debug("Bypass shotgun transcoding setting enabled.")
-            if scaled_down_height != self.SHOTGUN_QUICKTIME_TARGET_HEIGHT:
-                self._app.log_debug("However, generated quicktime has height %s which is non-compliant, so "
-                                    "will have to fall back on to server side transcoding." % scaled_down_height)
-            else:
-                self._app.log_debug("Quicktime resolution is compliant with Shotgun. Will bypass transcoding.")
-                bypass_server_transcoding = True
+        self._app.log_debug("File size is %s bytes." % os.path.getsize(output_path))
                 
-        
-        if bypass_server_transcoding:
-            self._app.log_debug("Uploading quicktime to Version.sg_uploaded_movie_mp4")
-            self._app.shotgun.upload("Version", version_id, tmp_quicktime, "sg_uploaded_movie_mp4")
-            self._app.log_debug("...upload complete!")
-            
-            # now because the transcoder isn't running, we also need to generate a thumbnail!
-            jpeg_path = self.__extract_thumbnail(path)
-            if jpeg_path:
-                # we have a valid thumbnail - push it to shotgn
-                self._app.log_debug("Push version thumbnail to shotgun...")
-                self._app.shotgun.upload_thumbnail("Version", version_id, jpeg_path)
-                self._app.log_debug("...upload complete!")
-                # try to clean up
-                self.__clean_up_temp_file(jpeg_path)
-            
-        else:
-            self._app.log_debug("Uploading quicktime to Version.sg_uploaded_movie")
-            self._app.shotgun.upload("Version", version_id, tmp_quicktime, "sg_uploaded_movie")
-            self._app.log_debug("...upload complete!")
-        
-        # clean up
-        self.__clean_up_temp_file(tmp_quicktime)
     
-    def __calculate_aspect_ratio(self, width, height):
+    def __calculate_aspect_ratio(self, target_height, width, height):
         """
         Calculation of aspect ratio.
         
         Takes the given width and height and produces a scaled width and height given
         the following constraints:
         
-        - the height should be as close to 720 as possible (but not lower)
+        - the height should be as close to target_height as possible (but not lower)
         - width and height both need to be divisible by two (ffmpeg requirement)
         
+        :param target_height: The desired height
         :param width: The current width
         :param height: The current height
         :returns: int tuple, e.g. (768, 440)
         """
         
         self._app.log_debug("Trying to find a scaled down resolution " 
-                            "with height %s for %sx%s" % (self.SHOTGUN_QUICKTIME_TARGET_HEIGHT, width, height))
+                            "with height %s for %sx%s" % (target_height, width, height))
+        
+        # if the target height is larger than the original height, 
+        # return straight away. 
+        if target_height > height:
+            return (width, height)
         
         # calculate initial values
         aspect_ratio = float(width) / float(height)
-        new_height = self.SHOTGUN_QUICKTIME_TARGET_HEIGHT
+        new_height = target_height
         new_width = 0.5
     
         # loop until a match is found or until we reach original resolution

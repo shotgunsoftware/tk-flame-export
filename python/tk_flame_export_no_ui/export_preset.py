@@ -95,6 +95,12 @@ class ExportPreset(object):
     ############################################################################################################
     # values relating to the quicktime output
 
+    def make_highres_quicktime(self):
+        """
+        :returns: True if a high res quicktime should be generated, False if not.
+        """
+        return self.get_quicktime_template() is not None
+    
     def get_quicktime_template(self):
         """
         :returns: The template for quicktimes on disk, None if no quicktimes should be written
@@ -103,7 +109,35 @@ class ExportPreset(object):
         if quicktime_template_name:
             return self._app.get_template_by_name(quicktime_template_name)
         else:
-            return None        
+            return None
+        
+    def quicktime_path_from_render_path(self, render_path):
+        """
+        Given a render path, generate a quicktime path.
+        This will break up the render path in template fields given 
+        the render template and then use those fields to create 
+        a quicktime path.
+        
+        Note! This method means that the fields of the quicktime path
+        need to be a subset of the fields available via the render path.
+        
+        This is because we don't always have access to the raw metadata fields that
+        were originally used to compose the render path; for example when the batch
+        render hooks trigger, all we have access to is a render path.
+        
+        :path render_path: A render path associated with this preset
+        :returns: Path to a quicktime, resolved via the quicktime template  
+        """
+        
+        if self.get_quicktime_template() is None:
+            raise TankError("%s: Cannot evaluate quicktime path because no "
+                            "quicktime template has been defined." % self)
+        
+        render_template = self.get_render_template()
+        fields = render_template.get_fields(render_path)
+        # plug in the fields into the quicktime template
+        quicktime_template = self.get_quicktime_template()
+        return quicktime_template.apply_fields(fields)      
     
     def get_quicktime_publish_type(self):
         """
