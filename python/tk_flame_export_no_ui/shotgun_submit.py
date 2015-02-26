@@ -335,7 +335,7 @@ class ShotgunSubmitter(object):
                         
                         "dependency_ids": [ sg_publish_data["id"] ], # set a dependency to the main render
                         "path": quicktime_path,
-                        "name": preset_obj.get_quicktime_publish_name(path),
+                        "name": preset_obj.get_quicktime_publish_name(quicktime_path),
                         "published_file_type": preset_obj.get_quicktime_publish_type() }
         
             self._app.log_debug("Register quicktime publish in shotgun: %s" % str(mov_args))        

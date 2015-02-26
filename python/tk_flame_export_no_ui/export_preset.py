@@ -44,7 +44,7 @@ class ExportPreset(object):
         # put together a name for the publish. This should be on a form without a version
         # number, so that it can be used to group together publishes of the same kind.        
         if template is None or not template.validate(path):
-            self._app.log_warning("%s Cannot generate a publish name for '%s'!" % (self, path))
+            self._app.log_warning("%s Cannot generate a publish name for '%s'!" % (template, path))
             publish_name = "Unknown"
         
         else:
@@ -478,18 +478,18 @@ class ExportPresetHandler(object):
         """
         
         self._app.log_debug("Trying to locate an export preset for path '%s'..." % path)
-        matching_template = None
-        for preset_obj in self._export_presets:
+        matching_preset = None
+        for preset_obj in self._export_presets.values():
 
             template = preset_obj.get_render_template()
             if template.validate(path):
-                matching_template = template
                 self._app.log_debug(" - Matching: '%s'" % preset_obj)
+                matching_preset = preset_obj
                 break
             else:
                 self._app.log_debug(" - Not matching: '%s'" % preset_obj)
 
-        return matching_template
+        return matching_preset
         
         
 

@@ -675,6 +675,8 @@ class FlameExport(Application):
                             item = {"path": segment_metadata.get_render_path(), 
                                     "version_id": segment_metadata.get_shotgun_version_id()}
                             items.append(item)
+            
+            args = {"items": items}
                             
             # kick off backburner job
             self.engine.create_local_backburner_job(job_title,
@@ -682,7 +684,7 @@ class FlameExport(Application):
                                                     prev_backburner_id,
                                                     self,
                                                     "backburner_upload_version_thumbnails",
-                                                    items)
+                                                    args)
             
             
         ##########################################################################################
@@ -936,6 +938,12 @@ class FlameExport(Application):
             self.log_debug("Rendering was aborted. Will not push to Shotgun.")
             return 
         
+        if self._batch_export_preset is None:
+            self.log_warning("Batch export preset was not populated in the pre-batch render hook. "
+                             "Aborting post batch render hook.")
+            return
+
+        
         # now start preparing a remote job
         args = {"info": info, 
                 "export_preset": self._batch_export_preset.get_name(),
@@ -944,7 +952,7 @@ class FlameExport(Application):
                 "send_to_review": self._send_batch_render_to_review }
         
         # and populate backburner job parameters
-        job_title = "%s - Shotgun Upload" % info.get("nodeName")
+        job_title = "Render %s - Shotgun Upload" % info.get("nodeName")
         job_desc = "Generating quicktime and uploading to Shotgun."
         
         # kick off async job
@@ -1112,7 +1120,7 @@ class FlameExport(Application):
         if export_preset_obj.make_highres_quicktime():
             # note: at this point we have already validated the path and know it conforms
             # with the toolkit templates.
-            quicktime_path = self._export_preset.quicktime_path_from_render_path(full_flame_plate_path)
+            quicktime_path = export_preset_obj.quicktime_path_from_render_path(full_flame_plate_path)
         
         sg_data = self._sg_submit_helper.register_video_publish(export_preset,
                                                                 context, 
@@ -1136,7 +1144,7 @@ class FlameExport(Application):
             # step 2 - See if we should push a thumbnail
             if export_preset_obj.upload_quicktime() == False or self.get_setting("bypass_shotgun_transcoding"):            
                 # there will be no transcoding happening on the server so pass a manual thumbnail
-                version_info = {"version_id": sg_data["id"], "path": full_flame_plate_path}
+                version_info = {"version_id": sg_version_data["id"], "path": full_flame_plate_path}
                 self._sg_submit_helper.upload_version_thumbnails([version_info])                
                 
             # Step 3 - Generate and upload quicktime

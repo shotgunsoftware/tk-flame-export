@@ -145,7 +145,7 @@ class ExportSettings(HookBaseClass):
         #
         # Note: 15 is the highest quality preset available in the wiretap central export presets.
         #
-        params += "-crf 15 " 
+        params += "-crf 20 " 
         
         return params
             
@@ -173,5 +173,30 @@ class ExportSettings(HookBaseClass):
         
         :returns: string of ffmpeg parameters which will be appended to the ffmpeg command line
         """
-        # the default implementation uses the same preset as the shotgun upload
-        return self.get_ffmpeg_quicktime_encode_parameters()
+        # the default hook implements the H264 (High) preset that is shipped with 
+        # the wiretap central subsystem. The following parameters have been extracted from
+        # the preset xml file. For detailed information about the meaning of any of these 
+        # parameters, see https://trac.ffmpeg.org/wiki/Encode/H.264
+        #
+        # NOTE! The version of ffmpeg that ships with wiretap central is FFmpeg version SVN-r17733
+        # from 2009 and its parameters do not seem to be compatible with modern versions of ffmpeg.
+        # Therefore, the sample code for example outlined here won't work:
+        # https://support.shotgunsoftware.com/entries/26303513-Transcoding
+        
+        params = ""         
+        params += "-threads 2 -vcodec libx264 -me_method umh -directpred 3 -coder ac -me_range 16 -g 250 "
+        params += "-rc_eq 'blurCplx^(1-qComp)' -keyint_min 25 -sc_threshold 40 -i_qfactor 0.71428572 "
+        params += "-b_qfactor 0.76923078 -b_strategy 1 -qcomp 0.6 -qmin 10 -qmax 51 -qdiff 4  -trellis 1 "
+        params += "-subq 6 -partitions +parti8x8+parti4x4+partp8x8+partp4x4+partb8x8 -bidir_refine 1 "
+        params += "-cmp 1 -flags2 fastpskip -flags2 dct8x8 -flags2 mixed_refs -flags2 wpred "
+        params += "-refs 2 -deblockalpha 0 -deblockbeta 0 -bf 3 "
+        
+        # Quality parameter (see https://trac.ffmpeg.org/wiki/Encode/H.264#crf):
+        # "The range of the quantizer scale is 0-51: where 0 is lossless, 23 is default, 
+        # and 51 is worst possible. A lower value is a higher quality and a subjectively 
+        # sane range is 18-28. Consider 18 to be visually lossless or nearly so: it should 
+        # look the same or nearly the same as the input but it isn't technically lossless."
+        #
+        # Note: 15 is the highest quality preset available in the wiretap central export presets.
+        #
+        params += "-crf 15 " 
