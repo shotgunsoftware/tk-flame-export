@@ -213,3 +213,6 @@ class ExportSettings(HookBaseClass):
         # Note: 15 is the highest quality preset available in the wiretap central export presets.
         #
         params += "-crf 18 " 
+        
+        return params
+    
