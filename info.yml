@@ -65,18 +65,13 @@ configuration:
             items:
                 name:
                     type: str
-                force_copy:
-                    type: bool
-                    description: By default, exported images are hard linked if possible, meaning that the export
-                                 is quicker and it takes up less space on disk. Setting this option to true will force
-                                 the exporter to always copy the frames when it is doing the export.
-                    default_value: false
+                    description: The name of this preset.
                 publish_type:
                     type: tank_type
-                    description: The publish type for Flame plates
+                    description: The publish type for Flame plates.
                     default_value: "Flame Render"                 
                 template:
-                    description: Toolkit file system template to control where video output goes on disk
+                    description: Toolkit file system template to control where video output goes on disk.
                     type: template
                     fields: context, SEQ, Shot, version, segment_name, [YYYY], [MM], [DD], [hh], [mm], [ss], [width], [height], *
                 quicktime_template:
@@ -91,10 +86,10 @@ configuration:
                     fields: context, Shot, version, segment_name, [YYYY], [MM], [DD], [hh], [mm], [ss], *
                 quicktime_publish_type:
                     type: tank_type
-                    description: The publish type for quicktimes generated on disk
+                    description: The publish type for quicktimes generated on disk.
                     default_value: "Flame Quicktime"
                 upload_quicktime:
-                    description: Upload a quicktime to Shotgun when publishing
+                    description: Upload a quicktime to Shotgun when publishing.
                     type: bool
                     default_value: true
                     

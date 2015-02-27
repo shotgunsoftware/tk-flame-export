@@ -83,15 +83,6 @@ class ExportPreset(object):
         :returns: A name suitable for a render publish
         """
         return self.__get_publish_name(self.get_render_template(), path)        
-
-    def force_copy_render_frames(self):
-        """
-        Returns true if rendered frames should always be copied, false if
-        it's okay to hard link rendered frames.
-        
-        :returns: boolean indicating copy policy
-        """
-        return self._raw_preset["force_copy"]
     
     ############################################################################################################
     # values relating to the quicktime output
@@ -189,7 +180,7 @@ class ExportPreset(object):
                                                          "get_video_preset", 
                                                          preset_name=self.get_name(), 
                                                          name_pattern=escaped_video_name_pattern, 
-                                                         publish_linked=self.force_copy_render_frames())
+                                                         publish_linked=True)
         
         # now merge the video portion into a larger xml chunk which will be 
         # the export preset that we pass to Flame. 
