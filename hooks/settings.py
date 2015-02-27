@@ -143,9 +143,10 @@ class ExportSettings(HookBaseClass):
         # sane range is 18-28. Consider 18 to be visually lossless or nearly so: it should 
         # look the same or nearly the same as the input but it isn't technically lossless."
         #
-        # Note: 15 is the highest quality preset available in the wiretap central export presets.
-        #
-        params += "-crf 20 " 
+        # Note: Quality setting 28 seems to generate roughly the same bit rates that you get  
+        #       with the 2kbit setting that Shotgun is using.
+        # 
+        params += "-crf 28 " 
         
         return params
             
@@ -199,4 +200,4 @@ class ExportSettings(HookBaseClass):
         #
         # Note: 15 is the highest quality preset available in the wiretap central export presets.
         #
-        params += "-crf 15 " 
+        params += "-crf 18 " 
