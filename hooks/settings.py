@@ -107,6 +107,18 @@ class ExportSettings(HookBaseClass):
         
         return xml
         
+    def get_external_ffmpeg_location(self):
+        """
+        Control which version of ffmpeg you want to use when doing transcoding.
+        By default, this hook returns None, indicating that the app should use
+        the built-in version of ffmpeg that comes with Flame.
+        
+        If you want to use a different version of ffmpeg, simply return the path
+        to the ffmpeg binary here. 
+        
+        :returns: path to ffmpeg as str, or None if the default should be used.
+        """
+        return None
         
     def get_ffmpeg_quicktime_encode_parameters(self):
         """

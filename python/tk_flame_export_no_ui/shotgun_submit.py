@@ -698,7 +698,13 @@ class ShotgunSubmitter(object):
         # note: the -r framerate argument seems to confuse ffmpeg so I am omitting that
         # instead, quicktimes are generated at a default of 25fps.
         
-        ffmpeg_cmd = "%s -f rawvideo -top -1 -pix_fmt rgb24 -s %sx%s -i - -y" % (self._app.engine.get_ffmpeg_path(),
+        ffmpeg_executable = self._app.execute_hook_method("settings_hook", "get_external_ffmpeg_location")
+        
+        if ffmpeg_executable is None:
+            # use Flame default
+            ffmpeg_executable = self._app.engine.get_ffmpeg_path()
+        
+        ffmpeg_cmd = "%s -f rawvideo -top -1 -pix_fmt rgb24 -s %sx%s -i - -y" % (ffmpeg_executable,
                                                                                  target_width,
                                                                                  target_height)
                                                                                        
