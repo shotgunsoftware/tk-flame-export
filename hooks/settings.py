@@ -17,7 +17,7 @@ HookBaseClass = sgtk.get_hook_baseclass()
 
 class ExportSettings(HookBaseClass):
     """
-    This hook controls the settings that flame will use when it exports plates and generates 
+    This hook controls the settings that Flame will use when it exports plates and generates 
     quicktimes prior to uploading them to Shotgun.
     """
 
@@ -26,7 +26,7 @@ class ExportSettings(HookBaseClass):
         Returns a chunk of video xml export profile given a preset name.
         This chunk of XML will be joined into a larger structure which defines
         the entire set of export options. The app will then pass this full preset
-        to flame for file generation.
+        to Flame for file generation.
         
         The preset name should correspond to one of the presets defined in the app
         config - for each of these presets, this hook needs to implement logic to 
@@ -40,7 +40,7 @@ class ExportSettings(HookBaseClass):
         :param name_pattern: Data to inject into the <name_pattern> tag in the xml structure.
         :param publish_linked: Data to inject into the <publishLinked> tag in the xml structure.
         
-        :returns: the <video> xml section of a flame export.
+        :returns: the <video> xml section of a Flame export.
         """ 
         
         if preset_name == "10 bit DPX":
@@ -123,7 +123,7 @@ class ExportSettings(HookBaseClass):
     def get_ffmpeg_quicktime_encode_parameters(self):
         """
         Control how quicktimes are generated before being uploaded to Shotgun.
-        These quicktimes are generated inside flame using ffmpeg version SVN-r17733.
+        These quicktimes are generated inside Flame using ffmpeg version SVN-r17733.
         Note that the syntax has changed somewhat in more recent version of ffmpeg
         and be careful to test that all parameters and traits you wish to customize
         are included and supported in this particular build of ffmpeg.
@@ -179,7 +179,7 @@ class ExportSettings(HookBaseClass):
         """
         Control how quicktimes are generated for local playback in tools such as RV.
         
-        These quicktimes are generated inside flame using ffmpeg version SVN-r17733.
+        These quicktimes are generated inside Flame using ffmpeg version SVN-r17733.
         Note that the syntax has changed somewhat in more recent version of ffmpeg
         and be careful to test that all parameters and traits you wish to customize
         are included and supported in this particular build of ffmpeg.

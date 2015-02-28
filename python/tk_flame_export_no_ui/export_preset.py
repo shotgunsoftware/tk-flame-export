@@ -34,7 +34,7 @@ class ExportPreset(object):
     
     def __get_publish_name(self, template, path):
         """
-        Creates a name suitable for a shotgun publish given a path.
+        Creates a name suitable for a Shotgun publish given a path.
         Will return a default name in case name extraction cannot be done.
         
         :param template: Template object to use for field extraction
@@ -148,7 +148,7 @@ class ExportPreset(object):
     
     def upload_quicktime(self):
         """
-        Indicates that quicktimes should be pushed to shotgun.
+        Indicates that quicktimes should be pushed to Shotgun.
         
         :returns: bool flag, true if quicktimes should be uploaded, false if not
         """
@@ -159,7 +159,7 @@ class ExportPreset(object):
     
     def get_xml_path(self):
         """
-        Generate flame export profile settings suitable for generating image sequences
+        Generate Flame export profile settings suitable for generating image sequences
         for all shots. This will return a path on disk where an xml export preset is located.
         
         This preset is combined by loading various sources - some of the main scaffold
@@ -169,7 +169,7 @@ class ExportPreset(object):
         :returns: path to export preset xml file
         """
 
-        # first convert all relevant templates to flame specific form        
+        # first convert all relevant templates to Flame specific form        
         resolved_flame_templates = self.__resolve_flame_templates()
         
         # execute a hook to retrieve all the graphic settings
@@ -186,10 +186,10 @@ class ExportPreset(object):
         # the export preset that we pass to Flame. 
         #
         # a note on xml file formats: 
-        # Each major version of flame typically implements a particular 
+        # Each major version of Flame typically implements a particular 
         # version of the preset xml protocol. This is denoted by a preset version
         # number in the xml file. In order for the integration to run smoothly across
-        # multiple versions of flame, flame ideally needs to be presented with a preset
+        # multiple versions of Flame, Flame ideally needs to be presented with a preset
         # which matches the current preset version. If you present an older version, a
         # warning dialog may pop up which is confusing to users. Therefore, make sure that
         # we always generate xmls with a matching preset version.   
@@ -250,7 +250,7 @@ class ExportPreset(object):
         # wedge in the video settings we got from the hook
         xml = xml.replace("{VIDEO_EXPORT_PRESET}", video_preset_xml)
         
-        # now perform substitutions based on the rest of the resolved flame templates
+        # now perform substitutions based on the rest of the resolved Flame templates
         # make sure we escape any < and > before we add them to the xml
         xml = xml.replace("{SEGMENT_CLIP_NAME_PATTERN}", cgi.escape(resolved_flame_templates["segment_clip_template"]))
         xml = xml.replace("{BATCH_NAME_PATTERN}",        cgi.escape(resolved_flame_templates["batch_template"]))
@@ -264,7 +264,7 @@ class ExportPreset(object):
         
         # The format spec is something like "04"
         # strip off leading zeroes
-        # TODO: flame defaults to zero-padded numbers (e.g. 001, 002, 003 instead of 1, 2, 3)
+        # TODO: Flame defaults to zero-padded numbers (e.g. 001, 002, 003 instead of 1, 2, 3)
         # raise an error in case someone tries to use a template which 
         # does use non-zero padded token.
         format_spec = sequence_key.format_spec.lstrip("0")        
@@ -275,7 +275,7 @@ class ExportPreset(object):
         # also align the padding for versions with the definition in the version template
         version_key = template.keys["version"]
         # the format spec is something like "03"
-        # TODO: flame defaults to zero-padded numbers (e.g. 001, 002, 003 instead of 1, 2, 3)
+        # TODO: Flame defaults to zero-padded numbers (e.g. 001, 002, 003 instead of 1, 2, 3)
         # raise an error in case someone tries to use a template which 
         # does use non-zero padded token.
         format_spec = version_key.format_spec.lstrip("0")
@@ -326,7 +326,7 @@ class ExportPreset(object):
         Convert the toolkit templates defined in the app settings to 
         Flame equivalents.
         
-        :returns: Dictionary of flame template definition strings, keyed by
+        :returns: Dictionary of Flame template definition strings, keyed by
                   the same names as are being used for the templates in the app settings.
         """
         # now we need to take our toolkit templates and inject them into the xml template
@@ -341,8 +341,8 @@ class ExportPreset(object):
         # {Sequence} may be {Scene} or {CustomEntityXX} according to the configuration and the 
         # exact entity type to use is passed into the hook via the the shot_parent_entity_type setting.
         #
-        # The flame export root is set to correspond to the toolkit project, meaning that both the 
-        # flame and toolkit templates share the same root point.
+        # The Flame export root is set to correspond to the toolkit project, meaning that both the 
+        # Flame and toolkit templates share the same root point.
         #
         # The following replacements will be made to convert the toolkit template into Flame equivalents:
         # 

@@ -11,7 +11,7 @@
 """
 Flame Shot Exporter.
 
-This app takes a sequence in flame and generates lots of Shotgun related content.
+This app takes a sequence in Flame and generates lots of Shotgun related content.
 It is similar to the Hiero exporter. The following items are generated:
 
 - New Shots in Shotgun, with tasks
@@ -21,16 +21,16 @@ It is similar to the Hiero exporter. The following items are generated:
 - Batch files for each shot
 - Clip xml files for shots and clips.
 
-The exporter is effectively a wrapper around the flame custom export process 
+The exporter is effectively a wrapper around the Flame custom export process 
 with some bindings to Shotgun.
 
 This app implements two different sets of callbacks - both utilizing the same 
 configuration and essentially parts of the same workflow (this is why they are not
 split across two different apps).
 
-- The flame Shot export runs via a context menu item on the sequence right-click menu
-- A flare / batch mode render hook allows Shotgun to intercept the rendering process and
-  ask the user if they want to submit to shotgun review whenever they render out in flame. 
+- The Flame Shot export runs via a context menu item on the sequence right-click menu
+- A Flare / batch mode render hook allows Shotgun to intercept the rendering process and
+  ask the user if they want to submit to Shotgun review whenever they render out in Flame. 
 
 """
 
@@ -83,7 +83,7 @@ class FlameExport(Application):
         # this wrapper class is used later on to access export presets in various ways
         self.export_preset_handler = tk_flame_export_no_ui.ExportPresetHandler()
         
-        # register our desired interaction with flame hooks
+        # register our desired interaction with Flame hooks
         # set up callbacks for the engine to trigger 
         # when this profile is being triggered
         menu_caption = self.get_setting("menu_name")        
@@ -95,7 +95,7 @@ class FlameExport(Application):
         callbacks["postCustomExport"] = self.do_submission_and_summary
         self.engine.register_export_hook(menu_caption, callbacks)
         
-        # also register this app so that it runs after export in batch mode / flare
+        # also register this app so that it runs after export in batch mode / Flare
         batch_callbacks = {}
         batch_callbacks["batchExportEnd"] = self.post_batch_render_sg_process
         batch_callbacks["batchExportBegin"] = self.pre_batch_render_checks
@@ -107,7 +107,7 @@ class FlameExport(Application):
 
     def pre_custom_export(self, session_id, info):
         """
-        Hook called before a custom export begins. The export will be blocked
+        Flame hook called before a custom export begins. The export will be blocked
         until this function returns. This can be used to fill information that would
         have normally been extracted from the export window.
         
@@ -115,7 +115,7 @@ class FlameExport(Application):
                      - destinationHost: Host name where the exported files will be written to.
                      - destinationPath: Export path root.
                      - presetPath: Path to the preset used for the export.
-                     - abort: Pass True back to flame if you want to abort
+                     - abort: Pass True back to Flame if you want to abort
                      - abortMessage: Abort message to feed back to client
         """
         from PySide import QtGui
@@ -157,7 +157,7 @@ class FlameExport(Application):
                 
     def pre_export_sequence(self, session_id, info):
         """
-        Called from the flame hooks before export.
+        Called from the Flame hooks before export.
         This is the time to set up the structure in Shotgun.
         
         :param session_id: String which identifies which export session is being referred to
@@ -167,12 +167,12 @@ class FlameExport(Application):
                      - destinationPath: Export path root.
                      - sequenceName: Name of the exported sequence.
                      - shotNames: Tuple of all shot names in the exported sequence. 
-                                  Multiple segments could have the same shot name.
+                       Multiple segments could have the same shot name.
                      - abort: Hook can set this to True if the export sequence process should
-                              be aborted. If other sequences are exported in the same export session
-                              they will still be exported even if this export sequence is aborted.
+                       be aborted. If other sequences are exported in the same export session
+                       they will still be exported even if this export sequence is aborted.
                      - abortMessage: Error message to be displayed to the user when the export sequence
-                                     process has been aborted.
+                       process has been aborted.
         """
         from PySide import QtGui
         sequence_name = info["sequenceName"]
@@ -199,7 +199,7 @@ class FlameExport(Application):
             return
 
         # process a sequence and some shots:
-        # create entities in shotgun, create folders on disk and compute shot contexts.
+        # create entities in Shotgun, create folders on disk and compute shot contexts.
         sequence_data = self._sg_submit_helper.create_shotgun_structure(sequence_name, shot_names)
         
         # add it to the full dictionary of things to export
@@ -208,10 +208,10 @@ class FlameExport(Application):
     
     def pre_export_asset(self, session_id, info):
         """
-        Called when an item is about to be exported and a path needs to be computed.
+        Flame hook called when an item is about to be exported and a path needs to be computed.
         
-        This will take the parameters from flame, push them through the toolkit template
-        system and then return a path to flame that flame will be using for the export.
+        This will take the parameters from Flame, push them through the toolkit template
+        system and then return a path to Flame that Flame will be using for the export.
  
         :param session_id: String which identifies which export session is being referred to.
                            This parameter makes it possible to distinguish between different 
@@ -306,7 +306,7 @@ class FlameExport(Application):
         self.log_debug("Resolved context based fields: %s" % fields)
         
         if asset_type == "video":
-            # handle the flame sequence token - it will come in as "[1001-1100]"
+            # handle the Flame sequence token - it will come in as "[1001-1100]"
             re_match = re.search("(\[[0-9]+-[0-9]+\])\.", info["resolvedPath"])
             if not re_match:
                 raise TankError("Cannot find frame number token in export data!")
@@ -346,13 +346,13 @@ class FlameExport(Application):
         
         self.log_debug("Chopping off root path %s -> %s" % (full_path, local_path))
         
-        # pass an updated path back to the flame. This ensures that all the 
+        # pass an updated path back to the Flame. This ensures that all the 
         # character substitutions etc are handled according to the toolkit logic 
         info["resolvedPath"] = local_path        
         
     def post_export_asset(self, session_id, info):
         """
-        Called when an item has been exported.
+        Flame hook called when an item has been exported.
         
         :param session_id: String which identifies which export session is being referred to.
                            This parameter makes it possible to distinguish between different 
@@ -426,7 +426,7 @@ class FlameExport(Application):
 
     def do_submission_and_summary(self, session_id, info):
         """
-        Push info to Shotgun and display a summary UI.
+        Flame hook which will push info to Shotgun and display a summary UI.
         
         :param session_id: String which identifies which export session is being referred to.
                            This parameter makes it possible to distinguish between different 
@@ -454,7 +454,7 @@ class FlameExport(Application):
         #
         num_created_shots = 0
         for seq in self._shots:
-            # get a list of metadata objects for this shot
+            # get a list of metadata objects for this sequence
             shot_metadata_list = self._shots[seq].values()
             # sort it by cut in
             shot_metadata_list.sort(key=lambda x: x.new_cut_in)
@@ -472,12 +472,12 @@ class FlameExport(Application):
         #           This happens as a single Shotgun batch call.
         # 
         
-        # we push all changes to shotgun as a single batch call
+        # we push all changes to Shotgun as a single batch call
         shotgun_batch_items = []
         version_path_lookup = {}
                 
         # loop over all shots in our metadata data structure
-        self.log_debug("Looping over all shots and segments to submit shotgun data...")
+        self.log_debug("Looping over all shots and segments to submit Shotgun data...")
         num_cut_changes = 0
         for seq in self._shots:
             for shot_metadata in self._shots[seq].values():
@@ -497,7 +497,7 @@ class FlameExport(Application):
                     if segment_metadata.has_render_export():
                         
                         # we have a video submission associated with this segment!
-                        # compute a version-create shotgun batch dictionary
+                        # compute a version-create Shotgun batch dictionary
                         sg_version_batch = self._sg_submit_helper.create_version_batch(shot_metadata.context, 
                                                                                        segment_metadata.get_render_path(), 
                                                                                        self._user_comments, 
@@ -508,12 +508,12 @@ class FlameExport(Application):
                         shotgun_batch_items.append(sg_version_batch)
                         
                         # once the batch has been executed and the versions have been created in Shotgun,
-                        # we need to update our segment metadata with the shotgun version id.
+                        # we need to update our segment metadata with the Shotgun version id.
                         # in order to do that, maintain a lookup dictionary:
                         path_to_frames = sg_version_batch["data"]["sg_path_to_frames"]
                         version_path_lookup[path_to_frames] = segment_metadata
                 
-                # Now update frame ranges to make sure shotgun matches flame.
+                # Now update frame ranges to make sure Shotgun matches Flame.
                 #
                 # ensure that we actually have frame ranges for this shot
                 # it seems sometimes there are shots that don't actually contain any clips.
@@ -529,6 +529,10 @@ class FlameExport(Application):
                     
                     duration = shot_metadata.new_cut_out - shot_metadata.new_cut_in + 1
                     num_cut_changes += 1
+                    
+                    # note that at this point all shots are guaranteed to exist in Shotgun
+                    # since they were created in the initial export step.
+                    
                     sg_cut_batch = {"request_type":"update", 
                                     "entity_type": "Shot",
                                     "entity_id": shot_metadata.shotgun_id,
@@ -541,7 +545,7 @@ class FlameExport(Application):
                     shotgun_batch_items.append(sg_cut_batch)
                 
                 else:
-                    self.log_debug("No frame changes detected. Shotgun and flame are already in sync.")
+                    self.log_debug("No frame changes detected. Shotgun and Flame are already in sync.")
         
         # now push all new versions and cut changes to Shotgun in a single batch call.
         sg_data = []
@@ -558,7 +562,7 @@ class FlameExport(Application):
                 
         ##########################################################################################
         #
-        # Stage 3 - Update metadata with created shotgun version ids so we can access it later
+        # Stage 3 - Update metadata with created Shotgun version ids so we can access it later
         #                 
                 
         # now update the shot metadata with version ids
@@ -569,7 +573,7 @@ class FlameExport(Application):
                 segment_metadata.shotgun_version = sg_entity
         
         # also, find out the highest backburner ID so that we can create a dependency later on
-        # because the various flame exports may be running in backburner jobs, we need to figure out 
+        # because the various Flame exports may be running in backburner jobs, we need to figure out 
         # the last backburner job id and create a dependency from our jobs to this job. This is 
         # because stuff such as thumbnails etc are extracted as part of publishing and other jobs
         # and we cannot do that before the actual render export has completed.
@@ -693,19 +697,19 @@ class FlameExport(Application):
             
         ##########################################################################################
         #
-        # Stage 6 - For each segment, generate and upload a quicktime to shotgun.
+        # Stage 6 - For each segment, generate and upload a quicktime to Shotgun.
         #           Each item will be processed in a separate backburner job.
         #                 
         
         if self._export_preset.upload_quicktime():
             
-            # let's create quicktimes suitable for shotgun and upload these.
+            # let's create quicktimes suitable for Shotgun and upload these.
             # create one separate backburner job for each upload for parallelisation  
             for seq in self._shots:
                 for shot_metadata in self._shots[seq].values():
                     for segment_metadata in shot_metadata.segment_metadata.values():
                                                     
-                        if segment_metadata.has_shotgun_version():
+                        if segment_metadata.has_Shotgun_version():
                             # this segment has video and has a version!
                             # schedule quicktime generation!
                             
@@ -746,7 +750,7 @@ class FlameExport(Application):
         if self._export_preset.make_highres_quicktime():
             # let's create quicktimes suitable for local playback (for example in RV)
             # create one separate backburner job for each upload for parallelisation 
-            # this are pushed onto the queue after any shotgun transcoding jobs. 
+            # this are pushed onto the queue after any Shotgun transcoding jobs. 
             for seq in self._shots:
                 for shot_metadata in self._shots[seq].values():
                     for segment_metadata in shot_metadata.segment_metadata.values():
@@ -818,7 +822,7 @@ class FlameExport(Application):
 
     def pre_batch_render_checks(self, info):
         """
-        Called before rendering starts in batch/flare.
+        Flame hook called before rendering starts in batch/Flare.
         
         This pops up a UI asking the user if they want to send things to review.
         
@@ -851,7 +855,7 @@ class FlameExport(Application):
             width:                Frame width
             height:               Frame height
             depth:                Frame depth ( '8-bits', '10-bits', '12-bits', '16 fp' )
-            scanForamt:           Scan format ( 'FIELD_1', 'FIELD_2', 'PROGRESSIVE' )        
+            scanFormat:           Scan format ( 'FIELD_1', 'FIELD_2', 'PROGRESSIVE' )        
         """
         
         # these member variables are used to pass data down the pipeline, to post_batch_render_sg_process()
@@ -903,7 +907,7 @@ class FlameExport(Application):
 
     def post_batch_render_sg_process(self, info):
         """
-        Called when batch rendering has finished.
+        Flame hook called when batch rendering has finished.
         
         :param info: Dictionary with a number of parameters:
         
@@ -938,7 +942,7 @@ class FlameExport(Application):
             aborted:              Indicate if the export has been aborted by the user.
         """
         
-        if "aborted" in info and info["aborted"]:
+        if info.get("aborted"):
             self.log_debug("Rendering was aborted. Will not push to Shotgun.")
             return 
         
@@ -972,7 +976,7 @@ class FlameExport(Application):
 
 
     ##############################################################################################################
-    # backburner callbacks. These methods are executed as backburner jobs and not inside the main flame UI.
+    # backburner callbacks. These methods are executed as backburner jobs and not inside the main Flame UI.
     # at this point, there is no access to any UI.
 
     def backburner_register_publishes(self, publish_requests, export_preset):
@@ -1060,7 +1064,7 @@ class FlameExport(Application):
         Backburner job. Upload thumbnails for a list of versions.
         
         Each version is represented by a dictionary with keys path, width, height and version_id, 
-        where the path is a path to an exported flame item 
+        where the path is a path to an exported Flame item 
         
         :param items: List of dictionaries. See above
         """
@@ -1104,7 +1108,7 @@ class FlameExport(Application):
             width:                Frame width
             height:               Frame height
             depth:                Frame depth ( '8-bits', '10-bits', '12-bits', '16 fp' )
-            scanForamt:           Scan format ( 'FIELD_1', 'FIELD_2', 'PROGRESSIVE' ) 
+            scanFormat:           Scan format ( 'FIELD_1', 'FIELD_2', 'PROGRESSIVE' ) 
             
         :param export_preset: Export preset associated with this session
         :param serialized_context: The context for the shot that the submission 
@@ -1162,7 +1166,7 @@ class FlameExport(Application):
                 
             # Step 3 - Generate and upload quicktime
             if export_preset_obj.upload_quicktime():
-                # and upload a quicktime to shotgun
+                # and upload a quicktime to Shotgun
                 self._sg_submit_helper.upload_quicktime(sg_version_data["id"], 
                                                         full_flame_plate_path, 
                                                         info["width"], 

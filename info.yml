@@ -26,7 +26,7 @@ configuration:
     settings_hook:
         type: hook
         default_value: "{self}/settings.py"
-        description: Contains logic to generate settings and presets for the flame export profile
+        description: Contains logic to generate settings and presets for the Flame export profile
                      used to generate the output. 
     
     shot_parent_entity_type:
@@ -95,8 +95,8 @@ configuration:
                     
     segment_clip_template:
         description: "Toolkit file system template to control where segment based clip files go on disk. 
-                     A segment in flame is a 'block' on the timeline, so a shot may end up with multiple segments. 
-                     This clip file contains flame related metadata that flame uses to deconstruct data as it is
+                     A segment in Flame is a 'block' on the timeline, so a shot may end up with multiple segments. 
+                     This clip file contains Flame related metadata that Flame uses to deconstruct data as it is
                      being read back into the system." 
         type: template
         fields: context, Shot, segment_name, [YYYY], [MM], [DD], [hh], [mm], [ss], *
@@ -115,7 +115,7 @@ configuration:
         fields: context, Shot, [YYYY], [MM], [DD], [hh], [mm], [ss], *
 
     batch_template:
-        description: Toolkit file system template to control where flame batch files go on disk
+        description: Toolkit file system template to control where Flame batch files go on disk
         type: template
         fields: context, Shot, version, [YYYY], [MM], [DD], [hh], [mm], [ss], *            
         
