@@ -26,7 +26,7 @@ configuration:
     settings_hook:
         type: hook
         default_value: "{self}/settings.py"
-        description: Contains logic to generate settings and presets for the flame export profile
+        description: Contains logic to generate settings and presets for the Flame export profile
                      used to generate the output. 
     
     shot_parent_entity_type:
@@ -65,23 +65,49 @@ configuration:
             items:
                 name:
                     type: str
+                    description: The name of this preset.
                 publish_type:
                     type: tank_type
-                    description: The publish type for Flame plates  
-                    default_value: "Flame Plate"                 
+                    description: The publish type for Flame plates.
+                    default_value: "Flame Render"                 
                 template:
-                    description: Toolkit file system template to control where video output goes on disk
+                    description: Toolkit file system template to control where video output goes on disk.
                     type: template
                     fields: context, SEQ, Shot, version, segment_name, [YYYY], [MM], [DD], [hh], [mm], [ss], [width], [height], *
+                quicktime_template:
+                    description: If not set to null, a higher res quicktime will be generated and stored on disk, 
+                                 suitable for playback in client based playback tools such as RV. It will be linked
+                                 up with the version in Shotgun. The optional time stamp fields will reflect the 
+                                 time stamp fields of the main render template and you can only include fields that 
+                                 are present in the main render template.
+                    type: template
+                    allows_empty: True
+                    default_value: null
+                    fields: context, Shot, version, segment_name, [YYYY], [MM], [DD], [hh], [mm], [ss], *
+                quicktime_publish_type:
+                    type: tank_type
+                    description: The publish type for quicktimes generated on disk.
+                    default_value: "Flame Quicktime"
+                upload_quicktime:
+                    description: Upload a quicktime to Shotgun when publishing.
+                    type: bool
+                    default_value: true
                     
     segment_clip_template:
         description: "Toolkit file system template to control where segment based clip files go on disk. 
-                     A segment in flame is a 'block' on the timeline, so a shot may end up with multiple segments. 
-                     This clip file contains flame related metadata that flame uses to deconstruct data as it is
+                     A segment in Flame is a 'block' on the timeline, so a shot may end up with multiple segments. 
+                     This clip file contains Flame related metadata that Flame uses to deconstruct data as it is
                      being read back into the system." 
         type: template
         fields: context, Shot, segment_name, [YYYY], [MM], [DD], [hh], [mm], [ss], *
 
+    bypass_shotgun_transcoding:
+        description: Try to bypass the Shotgun server side transcoding if possible. This will only generate
+                     generate and upload a h264 quicktime and not a webm, meaning that playback will not be 
+                     supported on all browsers. For more information about this option, please see the documentation.
+        type: bool
+        default_value: false
+        
     shot_clip_template:
         description: Toolkit file system template to control where shot based clip files go on disk
                      
@@ -89,7 +115,7 @@ configuration:
         fields: context, Shot, [YYYY], [MM], [DD], [hh], [mm], [ss], *
 
     batch_template:
-        description: Toolkit file system template to control where flame batch files go on disk
+        description: Toolkit file system template to control where Flame batch files go on disk
         type: template
         fields: context, Shot, version, [YYYY], [MM], [DD], [hh], [mm], [ss], *            
         

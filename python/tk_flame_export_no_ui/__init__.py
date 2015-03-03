@@ -10,5 +10,5 @@
 
 
 from .shotgun_submit import ShotgunSubmitter
-from .export_preset import ExportPreset
+from .export_preset import ExportPresetHandler, ExportPreset
 from .shot_metadata import SegmentMetadata, ShotMetadata

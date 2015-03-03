@@ -8,6 +8,9 @@
 # agreement to the Shotgun Pipeline Toolkit Source Code License. All rights 
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
+import os
+from sgtk import TankError
+
 class SegmentMetadata(object):
     """
     Simple Value wrapper class which holds properties associated with a timeline segment.
@@ -17,14 +20,70 @@ class SegmentMetadata(object):
         """
         Constructor
         """        
-        self.video_info = None          # info dictionary (as sent from flame) for the video portion of this segment
-        self.batch_info = None          # info dictionary (as sent from flame) for the batch portion of this segment
-        self.shotgun_version = None     # associated shotgun version (dict with type/id)
+        self.video_info = None          # - info dictionary (as sent from Flame) 
+                                        #   for the video portion of this segment
+        self.shotgun_version = None     # - associated Shotgun version (dict with type/id)
+        
+    def has_shotgun_version(self):
+        """
+        Returns true if a Shotgun version exists for the render associated with this segment.
+        If a Shotgun version exists, it is implied that a render also exists.
+        
+        :returns: boolean flag
+        """
+        return self.shotgun_version is not None
+        
+    def get_shotgun_version_id(self):
+        """
+        Returns the Shotgun id for the version associated with this segment, if there is one.
+        
+        :returns: Shotgun version id as int
+        """
+        if not self.has_shotgun_version():
+            raise TankError("Cannot get Shotgun version id for segment - no version associated!")
+        return self.shotgun_version["id"]
+    
+    def has_render_export(self):
+        """
+        Returns true if a render export is associated with this segment, false if not.
+        
+        It is possible that an export doesn't have a render file exported if Flame for example
+        prompts the user, asking her/him if they want to override an existing file and they 
+        select 'no'
+        
+        :return: bool flag
+        """
+        return self.video_info is not None
+        
+    def get_render_version_number(self):
+        """
+        Return the version number associated with the render file
+        
+        :returns: version number as int
+        """        
+        if not self.has_render_export():
+            raise TankError("Cannot get render path for segment - no video metadata found!")
+
+        return int(self.video_info["versionNumber"])
+    
+    def get_render_path(self):
+        """
+        Return the export render path for this segment
+        
+        :returns: path string
+        """
+        if not self.has_render_export():
+            raise TankError("Cannot get render path for segment - no video metadata found!")
+        
+        return os.path.join(self.video_info.get("destinationPath"), self.video_info.get("resolvedPath"))
+
+        
+        
+        
         
 class ShotMetadata(object):
     """
     Simple value wrapper class which holds various properties associated with a shot.
-    This object is passed down the export pipeline.
     """
 
     def __init__(self):
@@ -35,16 +94,16 @@ class ShotMetadata(object):
         
         self.name = None                    # shot name
         self.parent_name = None             # parent (sequence) name
-        self.shotgun_parent = None          # shotgun parent entity dictionary
+        self.shotgun_parent = None          # Shotgun parent entity dictionary
         
-        self.created_this_session = False   # was the shotgun shot created in this export session?
+        self.created_this_session = False   # was the Shotgun shot created in this export session?
         self.thumbnail_uploaded = False     # for new shots, has a thumbnail been pushed to Shotgun?
 
-        self.shotgun_id = None              # shotgun shot id
+        self.shotgun_id = None              # Shotgun shot id
         
-        self.shotgun_cut_in = None          # shotgun cut in 
-        self.shotgun_cut_out = None         # shotgun cut out
-        self.shotgun_cut_order = None       # shotgun cut order
+        self.shotgun_cut_in = None          # Shotgun cut in 
+        self.shotgun_cut_out = None         # Shotgun cut out
+        self.shotgun_cut_order = None       # Shotgun cut order
         
         self.new_cut_in = None              # calculated cut in
         self.new_cut_out = None             # calculated cut out
@@ -52,10 +111,45 @@ class ShotMetadata(object):
         
         self.context = None                 # context object for the shot
         
+        self.batch_info = None              # info dictionary (as sent from Flame) for the batch export
+                                            # associated with this shot
+        
         self.segment_metadata = {}          # metadata about all the clips associated 
-                                            # with this shot, keyed by segment name
-                
-                
+                                            # with this shot, keyed by segment name                
+    
+    def has_batch_export(self):
+        """
+        Returns true if a batch export is associated with this shot, false if not.
+        
+        It is possible that an export doesn't have a batch file exported if Flame for example
+        prompts the user, asking her/him if they want to override an existing file and they 
+        select 'no'
+        
+        :return: bool flag
+        """
+        return self.batch_info is not None
+    
+    def get_batch_path(self):
+        """
+        Return the batch export path for this shot
+        
+        :returns: path string
+        """
+        if not self.has_batch_export():
+            raise TankError("Cannot get batch path - no batch metadata found!")
+        
+        return os.path.join(self.batch_info.get("destinationPath"), self.batch_info.get("resolvedPath"))
+    
+    def get_batch_version_number(self):
+        """
+        Return the version number associated with the batch file
+        
+        :returns: version number as int
+        """        
+        if not self.has_batch_export():
+            raise TankError("Cannot get batch path - no batch metadata found!")
+
+        return int(self.batch_info["versionNumber"])
     
     def update_new_cut_info(self, record_in, record_out):
         """
@@ -64,24 +158,24 @@ class ShotMetadata(object):
         The frame information coming from Flame includes handles and is out frame exclusive, 
         meaning that the sequence 1,2,3,4,5 is denoted 1-6. 
         
-        :param record_in: Record in parameter for a segment in flame belonging to this shot
-        :param record_out: Record out parameter for a segment in flame belonging to this shot
+        :param record_in: Record in parameter for a segment in Flame belonging to this shot
+        :param record_out: Record out parameter for a segment in Flame belonging to this shot
         """
         
         # the cut in and cut out are reflected by the values stored in the conform
-        # in flame. These are sometimes defaulted to 10:00:00.00 so there may be some
+        # in Flame. These are sometimes defaulted to 10:00:00.00 so there may be some
         # large numbers here.
         cut_in = record_in 
         cut_out = record_out 
         
-        # now, note that flame is cut-out-exclusive, meaning that the out frame
+        # now, note that Flame is cut-out-exclusive, meaning that the out frame
         # is actually not the last frame played back but the frame after that.
-        # in the shotgun universe, we want last frame *inclusive* instead
+        # in the Shotgun universe, we want last frame *inclusive* instead
         cut_out = cut_out - 1
         
         # now it is time to update the *SHOT* lengths. With Flame's collating,
         # a single shot may be made up of several *segments*. The cut information
-        # we are getting from flame is per segment. We need to "grow" the shot range
+        # we are getting from Flame is per segment. We need to "grow" the shot range
         # so that it will encompass all segments.
         if self.new_cut_in is None:
             # no value yet
