@@ -715,7 +715,7 @@ class FlameExport(Application):
                 for shot_metadata in self._shots[seq].values():
                     for segment_metadata in shot_metadata.segment_metadata.values():
                                                     
-                        if segment_metadata.has_Shotgun_version():
+                        if segment_metadata.has_shotgun_version():
                             # this segment has video and has a version!
                             # schedule quicktime generation!
                             
