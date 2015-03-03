@@ -1137,9 +1137,9 @@ class FlameExport(Application):
         full_flame_plate_path = os.path.join(info.get("exportPath"), info.get("resolvedPath"))
         
         quicktime_path = None
-        if export_preset_obj.make_highres_quicktime():
-            # note: at this point we have already validated the path and know it conforms
-            # with the toolkit templates.
+        if export_preset_obj.make_highres_quicktime() and send_to_review:
+            # note 1: Only if the send to review button is clicked, a quicktime will be generated. 
+            # note 2: at this point we have already validated the path and know it conforms with the toolkit templates.
             quicktime_path = export_preset_obj.quicktime_path_from_render_path(full_flame_plate_path)
         
         sg_data = self._sg_submit_helper.register_video_publish(export_preset,
