@@ -118,6 +118,8 @@ class FlameExport(Application):
                      - abort: Pass True back to Flame if you want to abort
                      - abortMessage: Abort message to feed back to client
         """
+        # Note - Since Flame is a PySide only environment, we import it directly
+        # rather than going through the sgtk wrappers.         
         from PySide import QtGui
         
         # reset export session data
@@ -174,6 +176,8 @@ class FlameExport(Application):
                      - abortMessage: Error message to be displayed to the user when the export sequence
                        process has been aborted.
         """
+        # Note - Since Flame is a PySide only environment, we import it directly
+        # rather than going through the sgtk wrappers.         
         from PySide import QtGui
         sequence_name = info["sequenceName"]
         shot_names = info["shotNames"]
@@ -260,6 +264,8 @@ class FlameExport(Application):
         
         # first check that the clip has a shot name - otherwise things won't work!
         if shot_name == "":
+            # Note - Since Flame is a PySide only environment, we import it directly
+            # rather than going through the sgtk wrappers.             
             from PySide import QtGui
             QtGui.QMessageBox.warning(None,
                                       "Missing shot name!",
@@ -893,6 +899,8 @@ class FlameExport(Application):
         self._batch_context = context
 
         # ok so this looks like one of our renders - check with the user if they want to submit to review!
+        # Note - Since Flame is a PySide only environment, we import it directly
+        # rather than going through the sgtk wrappers.         
         from PySide import QtGui
          
         # pop up a UI asking the user for description
