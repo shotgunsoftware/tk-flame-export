@@ -10,6 +10,7 @@
 
 import sgtk
 import pprint
+import subprocess
 import math
 import uuid
 from sgtk import TankError
@@ -17,6 +18,9 @@ import os
 import re
 
 from .shot_metadata import ShotMetadata
+from .util import subprocess_check_output, SubprocessCalledProcessError
+
+
 
 class ShotgunSubmitter(object):
     """
@@ -586,10 +590,11 @@ class ShotgunSubmitter(object):
             self.__clean_up_folder(tmp_folder)
     
     
-    def create_local_quicktime(self, version_id, path, quicktime_path, width, height):
+    def create_local_quicktime(self, export_preset_name, version_id, path, quicktime_path, width, height):
         """
         Generates a quicktime based on Flame image data.
 
+        :param export_preset_name: Export preset name associated with this export
         :param version_id: The id for the Shotgun version to which we are uploading a quicktime.
         :param path: Path to frames, Flame style path with [1234-1234] sequence marker.
         :param quicktime_path: Path to the quicktime we want to generate
@@ -601,7 +606,8 @@ class ShotgunSubmitter(object):
         self._app.log_debug("Source media: %s" % quicktime_path)
         
         preferred_height = self._app.execute_hook_method("settings_hook",
-                                                         "get_local_quicktime_preferred_height",
+                                                         "get_local_quicktime_prescale",
+                                                         preset_name=export_preset_name,
                                                          width=width,
                                                          height=height)
         
@@ -610,7 +616,9 @@ class ShotgunSubmitter(object):
         
         self._app.log_debug("The quicktime will be resolution %sx%s" % (scaled_down_width, scaled_down_height))
                 
-        ffmpeg_presets = self._app.execute_hook_method("settings_hook", "get_local_quicktime_ffmpeg_encode_parameters")
+        ffmpeg_presets = self._app.execute_hook_method("settings_hook", 
+                                                       "get_local_quicktime_ffmpeg_encode_parameters",
+                                                       preset_name=export_preset_name)
                 
         self.__do_quicktime_transcode(path, quicktime_path, scaled_down_width, scaled_down_height, ffmpeg_presets)
     
@@ -704,9 +712,15 @@ class ShotgunSubmitter(object):
         
         self._app.log_debug("Full transcoding command line: %s" % full_cmd)
         self._app.log_debug("Begin quicktime generation...")
-        if os.system(full_cmd) != 0:
-            raise TankError("Could not transcode media. See error log for details.")
-        self._app.log_debug("Quicktime successfully created!")
+        
+        try:
+            cmd_output = subprocess_check_output(full_cmd, 
+                                             shell=True, 
+                                             stderr=subprocess.STDOUT)
+            self._app.log_debug("Quicktime successfully created! Command output:\n%s" % cmd_output)
+        except SubprocessCalledProcessError, e:
+            raise TankError("Transcode process failed!\nError code: %s\nOutput:\n%s" % (e.returncode, e.output))
+        
         self._app.log_debug("File size is %s bytes." % os.path.getsize(output_path))
                 
     
@@ -797,13 +811,19 @@ class ShotgunSubmitter(object):
                                                                 scaled_down_height) 
         
         thumbnail_jpg = os.path.join(self._app.engine.get_backburner_tmp(), "tk_thumb_%s.jpg" % uuid.uuid4().hex)
-        if os.system("%s > %s" % (input_cmd, thumbnail_jpg)) != 0:
-            self._app.log_warning("Could not extract thumbnail! See error log for details.")
-            return None
-        else:
-            self._app.log_debug("Wrote thumbnail %s" % thumbnail_jpg)
-            # add the thumbnail to the publish generation
-            return thumbnail_jpg
+        full_cmd = "%s > %s" % (input_cmd, thumbnail_jpg)
+        
+        self._app.log_debug("Full thumbnail command line: %s" % full_cmd)
+        self._app.log_debug("Begin thumbnail extraction...")
+        
+        try:
+            cmd_output = subprocess_check_output(full_cmd, shell=True, stderr=subprocess.STDOUT)
+            self._app.log_debug("Thumbnail successfully created! Command output:\n%s" % cmd_output)
+        except SubprocessCalledProcessError, e:
+            self._app.log_warning("Thumbnail process failed!\nError code: %s\nOutput:\n%s" % (e.returncode, e.output))
+            thumbnail_jpg = None
+        
+        return thumbnail_jpg
         
 
     def __clean_up_folder(self, path):

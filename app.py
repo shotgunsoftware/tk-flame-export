@@ -781,7 +781,8 @@ class FlameExport(Application):
                             else:
                                 run_after_job_id = None
             
-                            args = {"version_id": segment_metadata.get_shotgun_version_id(), 
+                            args = {"export_preset_name": self._export_preset.get_name(),
+                                    "version_id": segment_metadata.get_shotgun_version_id(), 
                                     "path": render_path,
                                     "quicktime_path": quicktime_path,
                                     "width": segment_metadata.video_info.get("width"),
@@ -1054,17 +1055,23 @@ class FlameExport(Application):
         """
         self._sg_submit_helper.upload_quicktime(version_id, path, width, height)        
 
-    def backburner_generate_local_quicktime(self, version_id, path, quicktime_path, width, height):
+    def backburner_generate_local_quicktime(self, export_preset_name, version_id, path, quicktime_path, width, height):
         """
         Backburner job. Generates a quicktime suitable for local playback
         
+        :param export_preset_name: Export preset name associated with this export
         :param version_id: Shotgun version id
         :param path: Path to source media
         :param quicktime_path: The path to the quicktime that should be generated
         :param width: Width of source
         :param height: Height of source 
         """
-        self._sg_submit_helper.create_local_quicktime(version_id, path, quicktime_path, width, height)
+        self._sg_submit_helper.create_local_quicktime(export_preset_name, 
+                                                      version_id, 
+                                                      path, 
+                                                      quicktime_path, 
+                                                      width, 
+                                                      height)
 
 
     def backburner_upload_version_thumbnails(self, items):
@@ -1142,7 +1149,7 @@ class FlameExport(Application):
             # note 2: at this point we have already validated the path and know it conforms with the toolkit templates.
             quicktime_path = export_preset_obj.quicktime_path_from_render_path(full_flame_plate_path)
         
-        sg_data = self._sg_submit_helper.register_video_publish(export_preset,
+        sg_data = self._sg_submit_helper.register_video_publish(export_preset_obj.get_name(),
                                                                 context, 
                                                                 info["width"], 
                                                                 info["height"],                                                                
@@ -1182,7 +1189,8 @@ class FlameExport(Application):
             
             # Step 4 - Generate high res local quicktime
             if export_preset_obj.make_highres_quicktime():
-                self._sg_submit_helper.create_local_quicktime(sg_version_data["id"], 
+                self._sg_submit_helper.create_local_quicktime(export_preset_obj.get_name(),
+                                                              sg_version_data["id"], 
                                                               full_flame_plate_path, 
                                                               quicktime_path, 
                                                               info["width"], 

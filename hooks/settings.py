@@ -162,20 +162,22 @@ class ExportSettings(HookBaseClass):
         
         return params
             
-    def get_local_quicktime_preferred_height(self, width, height):
+    def get_local_quicktime_prescale(self, preset_name, width, height):
         """
-        Control the preferred height of the local quicktime movie that is generated.
-        The quicktime generation will try to match this as closely as possible, but may
+        Control the scaling that happens before the media is passed to ffmpeg.
+        The video conversion will try to match the returned height as closely as possible, but may
         change it depending on technical constraints (for example, the aspect ratio needs to
         be preserved exactly and width and height both need to be factors of 2.)
         
+        :param preset_name: The name of the export preset that the user has selected in the 
+                            export UI dialog.        
         :param width: The width in pixels of the input images 
         :param height: The height in pixels of the input images
         :returns: The desired height.
         """
         return 1080
 
-    def get_local_quicktime_ffmpeg_encode_parameters(self):
+    def get_local_quicktime_ffmpeg_encode_parameters(self, preset_name):
         """
         Control how quicktimes are generated for local playback in tools such as RV.
         
@@ -184,6 +186,8 @@ class ExportSettings(HookBaseClass):
         and be careful to test that all parameters and traits you wish to customize
         are included and supported in this particular build of ffmpeg.
         
+        :param preset_name: The name of the export preset that the user has selected in the 
+                            export UI dialog.        
         :returns: string of ffmpeg parameters which will be appended to the ffmpeg command line
         """
         # the default hook implements the H264 (High) preset that is shipped with 
