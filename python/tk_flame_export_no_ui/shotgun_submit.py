@@ -514,7 +514,7 @@ class ShotgunSubmitter(object):
                 # try to clean up
                 self.__clean_up_temp_file(jpeg_path)
 
-    def upload_quicktime(self, version_id, path, width, height):        
+    def upload_quicktime(self, version_id, path, width, height, fps):        
         """
         Generates a quicktime based on Flame image data. Then uploads it to
         Shotgun.
@@ -528,9 +528,11 @@ class ShotgunSubmitter(object):
         :param path: Path to frames, Flame style path with [1234-1234] sequence marker.
         :param width: Image width in pixels
         :param height: Image height in pixels
+        :param fps: The fps for the source media
         """
         self._app.log_debug("Starting to upload media to Shotgun. A quicktime will be generated.")
         self._app.log_debug("Source media: %s" % path)
+        self._app.log_debug("Source media FPS: %s" % fps)
         
         # now calculate the closest res to with 720px
         (scaled_down_width, scaled_down_height) = self.__calculate_aspect_ratio(self.SHOTGUN_QUICKTIME_TARGET_HEIGHT,
@@ -555,7 +557,7 @@ class ShotgunSubmitter(object):
         tmp_quicktime = os.path.join(tmp_folder, "%s.mov" % file_name_no_ext)                 
         
         # create quicktime
-        self.__do_quicktime_transcode(path, tmp_quicktime, scaled_down_width, scaled_down_height, ffmpeg_presets)                
+        self.__do_quicktime_transcode(fps, path, tmp_quicktime, scaled_down_width, scaled_down_height, ffmpeg_presets)                
         
         # upload quicktime to Shotgun
         self._app.log_debug("Begin upload of quicktime to Shotgun...")
@@ -590,7 +592,7 @@ class ShotgunSubmitter(object):
             self.__clean_up_folder(tmp_folder)
     
     
-    def create_local_quicktime(self, export_preset_name, version_id, path, quicktime_path, width, height):
+    def create_local_quicktime(self, export_preset_name, version_id, path, quicktime_path, width, height, fps):
         """
         Generates a quicktime based on Flame image data.
 
@@ -600,10 +602,12 @@ class ShotgunSubmitter(object):
         :param quicktime_path: Path to the quicktime we want to generate
         :param width: Image width in pixels
         :param height: Image height in pixels
+        :param fps: The fps for the source media
         """
         self._app.log_debug("Starting high res quicktime generation.")
         self._app.log_debug("Source media: %s" % path)
-        self._app.log_debug("Source media: %s" % quicktime_path)
+        self._app.log_debug("Quicktime target location: %s" % quicktime_path)
+        self._app.log_debug("Source media FPS: %s" % fps)
         
         preferred_height = self._app.execute_hook_method("settings_hook",
                                                          "get_local_quicktime_prescale",
@@ -620,7 +624,7 @@ class ShotgunSubmitter(object):
                                                        "get_local_quicktime_ffmpeg_encode_parameters",
                                                        preset_name=export_preset_name)
                 
-        self.__do_quicktime_transcode(path, quicktime_path, scaled_down_width, scaled_down_height, ffmpeg_presets)
+        self.__do_quicktime_transcode(fps, path, quicktime_path, scaled_down_width, scaled_down_height, ffmpeg_presets)
     
         # now update the corresponding version's path to movie field
         self._app.log_debug("Setting sg_path_to_movie to '%s' for Version %s" % (quicktime_path, version_id))
@@ -628,10 +632,11 @@ class ShotgunSubmitter(object):
         self._app.log_debug("...Shotgun update complete!")
     
     
-    def __do_quicktime_transcode(self, input_path, output_path, target_width, target_height, ffmpeg_presets):
+    def __do_quicktime_transcode(self, fps, input_path, output_path, target_width, target_height, ffmpeg_presets):
         """
         Create a quicktime based on Flame media.
         
+        :param fps: The fps (as a float or int) for the input data
         :param input_path: Path to input image sequence
         :param output_path: Path to quicktime to be generated
         :param target_width: Width of generated quicktime, in pixels
@@ -704,9 +709,10 @@ class ShotgunSubmitter(object):
             # use Flame default
             ffmpeg_executable = self._app.engine.get_ffmpeg_path()
         
-        ffmpeg_cmd = "%s -f rawvideo -top -1 -pix_fmt rgb24 -s %sx%s -i - -y" % (ffmpeg_executable,
-                                                                                 target_width,
-                                                                                 target_height)
+        ffmpeg_cmd = "%s -f rawvideo -top -1 -r %s -pix_fmt rgb24 -s %sx%s -i - -y" % (ffmpeg_executable,
+                                                                                       fps,
+                                                                                       target_width,
+                                                                                       target_height)
                                                                                        
         full_cmd = "%s | %s %s %s" % (input_cmd, ffmpeg_cmd, ffmpeg_presets, output_path)
         

@@ -734,7 +734,8 @@ class FlameExport(Application):
                             args = {"version_id": segment_metadata.get_shotgun_version_id(), 
                                     "path": render_path,
                                     "width": segment_metadata.video_info.get("width"),
-                                    "height": segment_metadata.video_info.get("height")
+                                    "height": segment_metadata.video_info.get("height"),
+                                    "fps": segment_metadata.video_info.get("fps")
                                     }
             
                             # kick off backburner job
@@ -786,7 +787,8 @@ class FlameExport(Application):
                                     "path": render_path,
                                     "quicktime_path": quicktime_path,
                                     "width": segment_metadata.video_info.get("width"),
-                                    "height": segment_metadata.video_info.get("height")
+                                    "height": segment_metadata.video_info.get("height"),
+                                    "fps": segment_metadata.video_info.get("fps")
                                     }
             
                             # kick off backburner job
@@ -1044,18 +1046,19 @@ class FlameExport(Application):
             
         self.log_debug("Publish complete!")
     
-    def backburner_upload_quicktime(self, version_id, path, width, height):
+    def backburner_upload_quicktime(self, version_id, path, width, height, fps):
         """
         Backburner job. Generates a quicktime and uploads it to Shotgun.
         
         :param version_id: Shotgun version id
         :param path: Path to source media
         :param width: Width of source
-        :param height: Height of source 
+        :param height: Height of source
+        :param fps: The fps for the source media
         """
-        self._sg_submit_helper.upload_quicktime(version_id, path, width, height)        
+        self._sg_submit_helper.upload_quicktime(version_id, path, width, height, fps)        
 
-    def backburner_generate_local_quicktime(self, export_preset_name, version_id, path, quicktime_path, width, height):
+    def backburner_generate_local_quicktime(self, export_preset_name, version_id, path, quicktime_path, width, height, fps):
         """
         Backburner job. Generates a quicktime suitable for local playback
         
@@ -1064,14 +1067,16 @@ class FlameExport(Application):
         :param path: Path to source media
         :param quicktime_path: The path to the quicktime that should be generated
         :param width: Width of source
-        :param height: Height of source 
+        :param height: Height of source
+        :param fps: The fps for the source media
         """
         self._sg_submit_helper.create_local_quicktime(export_preset_name, 
                                                       version_id, 
                                                       path, 
                                                       quicktime_path, 
                                                       width, 
-                                                      height)
+                                                      height, 
+                                                      fps)
 
 
     def backburner_upload_version_thumbnails(self, items):
@@ -1185,7 +1190,8 @@ class FlameExport(Application):
                 self._sg_submit_helper.upload_quicktime(sg_version_data["id"], 
                                                         full_flame_plate_path, 
                                                         info["width"], 
-                                                        info["height"])
+                                                        info["height"],
+                                                        info["fps"])
             
             # Step 4 - Generate high res local quicktime
             if export_preset_obj.make_highres_quicktime():
@@ -1194,5 +1200,6 @@ class FlameExport(Application):
                                                               full_flame_plate_path, 
                                                               quicktime_path, 
                                                               info["width"], 
-                                                              info["height"])
+                                                              info["height"],
+                                                              info["fps"])
                 
