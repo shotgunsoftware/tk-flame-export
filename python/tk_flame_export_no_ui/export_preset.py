@@ -69,6 +69,22 @@ class ExportPreset(object):
         render_template_name = self._raw_preset["template"]
         return self._app.get_template_by_name(render_template_name)        
     
+    def get_batch_render_template(self):
+        """
+        :returns: The batch render template object for this preset
+        """
+        # if the batch render template is none, fall back on the 
+        # std render template
+        
+        batch_render_template_name = self._raw_preset["batch_render_template"]
+        
+        if batch_render_template_name:
+            return self._app.get_template_by_name(batch_render_template_name)
+        else:
+            self._app.log_debug("batch_render_template not defined for %s - " 
+                                "falling back on std render template" % self)
+            return self.get_render_template()
+    
     def get_render_publish_type(self):
         """
         :returns: The publish type to use for renders
@@ -93,6 +109,12 @@ class ExportPreset(object):
         """
         return self.get_quicktime_template() is not None
     
+    def make_batch_highres_quicktime(self):
+        """
+        :returns: True if a high res batch quicktime should be generated, False if not.
+        """
+        return self.get_batch_quicktime_template() is not None
+    
     def get_quicktime_template(self):
         """
         :returns: The template for quicktimes on disk, None if no quicktimes should be written
@@ -102,6 +124,37 @@ class ExportPreset(object):
             return self._app.get_template_by_name(quicktime_template_name)
         else:
             return None
+        
+    def get_batch_quicktime_template(self):
+        """
+        :returns: The template for batch render quicktimes on disk, 
+                  None if no quicktimes should be written
+        """
+        batch_quicktime_template_name = self._raw_preset["batch_quicktime_template"]
+        if batch_quicktime_template_name:
+            return self._app.get_template_by_name(batch_quicktime_template_name)
+        else:
+            return None
+
+    def batch_quicktime_path_from_render_path(self, batch_render_path):
+        """
+        Given a batch render path, generate a quicktime path.
+        This method is analogous to quicktime_path_from_render_path()
+        below.
+        
+        :path batch_render_path: A batch render path associated with this preset
+        :returns: Path to a batch quicktime, resolved via the quicktime template
+        """
+        if self.get_batch_quicktime_template() is None:
+            raise TankError("%s: Cannot evaluate quicktime path because no "
+                            "batch quicktime template has been defined." % self)
+        
+        render_template = self.get_batch_render_template()
+        fields = render_template.get_fields(batch_render_path)
+        # plug in the fields into the quicktime template
+        batch_quicktime_template = self.get_batch_quicktime_template()
+        return batch_quicktime_template.apply_fields(fields)      
+        
         
     def quicktime_path_from_render_path(self, render_path):
         """
@@ -239,6 +292,7 @@ class ExportPreset(object):
                   <batchSetup>
                      <namePattern>{BATCH_NAME_PATTERN}</namePattern>
                      <exportNamePattern>{SHOT_CLIP_NAME_PATTERN}</exportNamePattern>
+                     <outputPathPattern>{OUTPUT_PATH_PATTERN}</outputPathPattern>                     
                   </batchSetup>
                </createOpenClip>
                <reImport>
@@ -255,6 +309,7 @@ class ExportPreset(object):
         xml = xml.replace("{SEGMENT_CLIP_NAME_PATTERN}", cgi.escape(resolved_flame_templates["segment_clip_template"]))
         xml = xml.replace("{BATCH_NAME_PATTERN}",        cgi.escape(resolved_flame_templates["batch_template"]))
         xml = xml.replace("{SHOT_CLIP_NAME_PATTERN}",    cgi.escape(resolved_flame_templates["shot_clip_template"]))
+        xml = xml.replace("{OUTPUT_PATH_PATTERN}",    cgi.escape(resolved_flame_templates["batch_render_template"]))
 
         # now adjust some parameters in the export xml based on the template setup. 
         template = self.get_render_template()
@@ -371,6 +426,7 @@ class ExportPreset(object):
         # 'sequences/{Sequence}/{Shot}/editorial/plates/{segment_name}_{Shot}.v{version}.{SEQ}.dpx'
         template_defs = {}
         template_defs["plate_template"] = self.get_render_template().definition
+        template_defs["batch_render_template"] = self.get_batch_render_template().definition
         template_defs["batch_template"] = self._app.get_template("batch_template").definition        
         template_defs["shot_clip_template"] = self._app.get_template("shot_clip_template").definition
         template_defs["segment_clip_template"] = self._app.get_template("segment_clip_template").definition
@@ -379,7 +435,8 @@ class ExportPreset(object):
         self._app.log_debug("Performing Toolkit -> Flame template field substitutions:")
         for t in template_defs:
             
-            self._app.log_debug("Toolkit: %s" % template_defs[t])
+            self._app.log_debug("Processing template %s" % t)
+            self._app.log_debug("   Toolkit: %s" % template_defs[t])
             
             template_defs[t] = template_defs[t].replace("{%s}" % shot_parent_entity_type, "<name>")
             template_defs[t] = template_defs[t].replace("{Shot}", "<shot name>")
@@ -401,7 +458,7 @@ class ExportPreset(object):
             (head, _) = os.path.splitext(template_defs[t])
             template_defs[t] = "%s<ext>" % head                        
             
-            self._app.log_debug("Flame:  %s" % template_defs[t])
+            self._app.log_debug("   Flame:  %s" % template_defs[t])
         
         return template_defs
 
@@ -457,7 +514,7 @@ class ExportPresetHandler(object):
         
         return self._export_presets[preset_name]
     
-    def get_preset_for_render_path(self, path):
+    def get_preset_for_batch_render_path(self, path):
         """
         Given a path to an exported render, try to figure out which export preset was used to generate the path.
         
@@ -468,11 +525,12 @@ class ExportPresetHandler(object):
         :returns: None if no match could be established, otherwise an ExportPreset object
         """
         
-        self._app.log_debug("Trying to locate an export preset for path '%s'..." % path)
+        self._app.log_debug("Trying to locate an export preset "
+                            "for batch render path '%s'..." % path)
         matching_preset = None
         for preset_obj in self._export_presets.values():
 
-            template = preset_obj.get_render_template()
+            template = preset_obj.get_batch_render_template()
             if template.validate(path):
                 self._app.log_debug(" - Matching: '%s'" % preset_obj)
                 matching_preset = preset_obj
