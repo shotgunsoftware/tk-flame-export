@@ -636,7 +636,7 @@ class FlameExport(Application):
                         # check if we should also generate a quicktime. In that case, we make a publish for
                         # that too at the same time.
                         quicktime_path = None
-                        if self._export_preset.make_highres_quicktime():
+                        if self._export_preset.highres_quicktime_enabled():
                             render_path = segment_metadata.get_render_path()
                             quicktime_path = self._export_preset.quicktime_path_from_render_path(render_path)
                         
@@ -754,7 +754,7 @@ class FlameExport(Application):
         # note that this happens in a separate loop after the upload loop to ensure that 
         # these tasks happen last.
 
-        if self._export_preset.make_highres_quicktime():
+        if self._export_preset.highres_quicktime_enabled():
             # let's create quicktimes suitable for local playback (for example in RV)
             # create one separate backburner job for each upload for parallelisation 
             # this are pushed onto the queue after any Shotgun transcoding jobs. 
@@ -1149,7 +1149,7 @@ class FlameExport(Application):
         full_flame_batch_render_path = os.path.join(info.get("exportPath"), info.get("resolvedPath"))
         
         quicktime_path = None
-        if export_preset_obj.make_batch_highres_quicktime() and send_to_review:
+        if export_preset_obj.batch_highres_quicktime_enabled() and send_to_review:
             # note 1: Only if the send to review button is clicked, a quicktime will be generated. 
             # note 2: at this point we have already validated the path and know it conforms with the toolkit templates.
             quicktime_path = export_preset_obj.batch_quicktime_path_from_render_path(full_flame_batch_render_path)
@@ -1194,7 +1194,7 @@ class FlameExport(Application):
                                                         info["fps"])
             
             # Step 4 - Generate high res local quicktime
-            if export_preset_obj.make_batch_highres_quicktime():
+            if export_preset_obj.batch_highres_quicktime_enabled():
                 self._sg_submit_helper.create_local_quicktime(export_preset_obj.get_name(),
                                                               sg_version_data["id"], 
                                                               full_flame_batch_render_path, 

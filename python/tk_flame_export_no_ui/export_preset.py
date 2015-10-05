@@ -103,13 +103,13 @@ class ExportPreset(object):
     ############################################################################################################
     # values relating to the quicktime output
 
-    def make_highres_quicktime(self):
+    def highres_quicktime_enabled(self):
         """
         :returns: True if a high res quicktime should be generated, False if not.
         """
         return self.get_quicktime_template() is not None
     
-    def make_batch_highres_quicktime(self):
+    def batch_highres_quicktime_enabled(self):
         """
         :returns: True if a high res batch quicktime should be generated, False if not.
         """
