@@ -63,17 +63,21 @@ configuration:
         values:
             type: dict
             items:
+            
                 name:
                     type: str
                     description: The name of this preset.
+                
                 publish_type:
                     type: tank_type
                     description: The publish type for Flame plates.
                     default_value: "Flame Render"                 
+                
                 template:
-                    description: Toolkit file system template to control where video output goes on disk.
+                    description: Toolkit file system template to control where plate output goes on disk.
                     type: template
                     fields: context, SEQ, Shot, version, segment_name, [YYYY], [MM], [DD], [hh], [mm], [ss], [width], [height], *
+                
                 quicktime_template:
                     description: If not set to null, a higher res quicktime will be generated and stored on disk, 
                                  suitable for playback in client based playback tools such as RV. It will be linked
@@ -84,10 +88,34 @@ configuration:
                     allows_empty: True
                     default_value: null
                     fields: context, Shot, version, segment_name, [YYYY], [MM], [DD], [hh], [mm], [ss], *
+                
+                
+                batch_render_template:
+                    description: The output on disk when doing batch renders in flame. This setting is only
+                                 supported in Flame 2016 Ext 1 and above. If set to null, batch renders will be 
+                                 written to the same location where the initial export is written.
+                    type: template
+                    allows_empty: True
+                    default_value: null
+                    fields: context, SEQ, Shot, version, segment_name, [YYYY], [MM], [DD], [hh], [mm], [ss], [width], [height], *
+
+
+                batch_quicktime_template:
+                    description: High res quicktime output for batch renders. If not set to null, a higher res 
+                                 quicktime will be generated and stored on disk, suitable for playback in client 
+                                 based playback tools such as RV. It will be linked up with the version in Shotgun. 
+                                 The optional time stamp fields will reflect the time stamp fields of the main render 
+                                 template and you can only include fields that are present in the main batch render template.
+                    type: template
+                    allows_empty: True
+                    default_value: null
+                    fields: context, Shot, version, segment_name, [YYYY], [MM], [DD], [hh], [mm], [ss], *
+                
                 quicktime_publish_type:
                     type: tank_type
                     description: The publish type for quicktimes generated on disk.
                     default_value: "Flame Quicktime"
+                
                 upload_quicktime:
                     description: Upload a quicktime to Shotgun when publishing.
                     type: bool
