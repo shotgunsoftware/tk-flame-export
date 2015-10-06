@@ -71,19 +71,37 @@ class ExportPreset(object):
     
     def get_batch_render_template(self):
         """
-        :returns: The batch render template object for this preset
+        Returns the batch render template object for this preset.
+        
+        Compatibility notes:
+        
+        Flame changed its logic for how this work in 2016.1 so we have to maintain
+        two sets of logic for this method - one to handle 2016.1+ and one for
+        previous versions. In 2016.1, it is possible to have separate paths for
+        plate and batch renders. Before then, there were only plate paths.        
+        
+        :returns: Template object representing the batch render location
         """
-        # if the batch render template is none, fall back on the 
-        # std render template
         
-        batch_render_template_name = self._raw_preset["batch_render_template"]
-        
-        if batch_render_template_name:
-            return self._app.get_template_by_name(batch_render_template_name)
-        else:
-            self._app.log_debug("batch_render_template not defined for %s - " 
-                                "falling back on std render template" % self)
+        if self._app.engine.is_version_less_than("2016.1"):
+            # pre-2016.1 - everything is a plate render template.
             return self.get_render_template()
+        
+        else:
+            # 2016.1+ - flame supports both a plate location and a 
+            # a batch location. 
+            #
+            # If the batch render template is none, fall back on the 
+            # std plate render template
+
+            batch_render_template_name = self._raw_preset["batch_render_template"]
+            
+            if batch_render_template_name:
+                return self._app.get_template_by_name(batch_render_template_name)
+            else:
+                self._app.log_debug("batch_render_template not defined for %s - " 
+                                    "falling back on std render template" % self)
+                return self.get_render_template()
     
     def get_render_publish_type(self):
         """
