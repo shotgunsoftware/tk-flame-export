@@ -280,7 +280,7 @@ class ExportPreset(object):
                      <commit>Original</commit>
                      <flatten>NoChange</flatten>
                      <exportHandles>True</exportHandles>
-                     <nbHandles>10</nbHandles>
+                     <nbHandles>{FRAME_HANDLES}</nbHandles>
                   </videoMedia>
                   <includeAudio>True</includeAudio>
                   <exportAudio>False</exportAudio>
@@ -289,15 +289,15 @@ class ExportPreset(object):
                      <commit>Original</commit>
                      <flatten>NoChange</flatten>
                      <exportHandles>True</exportHandles>
-                     <nbHandles>10</nbHandles>
+                     <nbHandles>{FRAME_HANDLES}</nbHandles>
                   </audioMedia>
                </sequence>
-            
+
                {VIDEO_EXPORT_PRESET}
-               
+
                <name>
                   <framePadding>{FRAME_PADDING}</framePadding>
-                  <startFrame>100</startFrame>
+                  <startFrame>{START_FRAME}</startFrame>
                   <useTimecode>False</useTimecode>
                </name>
                <createOpenClip>
@@ -310,7 +310,7 @@ class ExportPreset(object):
                   <batchSetup>
                      <namePattern>{BATCH_NAME_PATTERN}</namePattern>
                      <exportNamePattern>{SHOT_CLIP_NAME_PATTERN}</exportNamePattern>
-                     <outputPathPattern>{OUTPUT_PATH_PATTERN}</outputPathPattern>                     
+                     <outputPathPattern>{OUTPUT_PATH_PATTERN}</outputPathPattern>
                   </batchSetup>
                </createOpenClip>
                <reImport>
@@ -318,10 +318,14 @@ class ExportPreset(object):
                </reImport>
             </preset>
         """ % preset_version
-        
+
         # wedge in the video settings we got from the hook
         xml = xml.replace("{VIDEO_EXPORT_PRESET}", video_preset_xml)
-        
+
+        # and simple data type settings
+        xml = xml.replace("{START_FRAME}", str(self._raw_preset["start_frame"]))
+        xml = xml.replace("{FRAME_HANDLES}", str(self._raw_preset["frame_handles"]))
+
         # now perform substitutions based on the rest of the resolved Flame templates
         # make sure we escape any < and > before we add them to the xml
         xml = xml.replace("{SEGMENT_CLIP_NAME_PATTERN}", cgi.escape(resolved_flame_templates["segment_clip_template"]))
