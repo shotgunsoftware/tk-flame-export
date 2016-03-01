@@ -156,7 +156,14 @@ class FlameExport(Application):
             # pick up the xml export profile from the configuration
             info["presetPath"] = self._export_preset.get_xml_path()    
             self.log_debug("%s: Starting custom export session with preset '%s'" % (self, info["presetPath"]))
-                
+
+        # Log usage metrics
+        try:
+            self.log_metric("Export", log_version=True)
+        except:
+            # ingore any errors. ex: metrics logging not supported
+            pass
+
     def pre_export_sequence(self, session_id, info):
         """
         Called from the Flame hooks before export.
@@ -428,17 +435,6 @@ class FlameExport(Application):
                 
         # indicate that the export has reached its last stage
         self._reached_post_asset_phase = True
-
-        # Log usage metrics
-        try:
-            self.log_metric("Export")
-            self.engine.log_user_attribute_metric(
-                "%s version" % (self.name,),
-                self.version,
-            )
-        except:
-            # ingore any errors. ex: metrics logging not supported
-            pass
 
 
     def do_submission_and_summary(self, session_id, info):
