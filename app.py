@@ -429,6 +429,17 @@ class FlameExport(Application):
         # indicate that the export has reached its last stage
         self._reached_post_asset_phase = True
 
+        # Log usage metrics
+        try:
+            self.log_metric("Export")
+            self.engine.log_user_attribute_metric(
+                "%s version" % (self.name,),
+                self.version,
+            )
+        except:
+            # ingore any errors. ex: metrics logging not supported
+            pass
+
 
     def do_submission_and_summary(self, session_id, info):
         """
