@@ -156,7 +156,14 @@ class FlameExport(Application):
             # pick up the xml export profile from the configuration
             info["presetPath"] = self._export_preset.get_xml_path()    
             self.log_debug("%s: Starting custom export session with preset '%s'" % (self, info["presetPath"]))
-                
+
+        # Log usage metrics
+        try:
+            self.log_metric("Export", log_version=True)
+        except:
+            # ingore any errors. ex: metrics logging not supported
+            pass
+
     def pre_export_sequence(self, session_id, info):
         """
         Called from the Flame hooks before export.
