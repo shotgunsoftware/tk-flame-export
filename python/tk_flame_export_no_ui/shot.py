@@ -135,7 +135,7 @@ class Shot(object):
             key=lambda segment: segment.flame_track_id
         )
 
-    def get_cut_in_out(self):
+    def get_edit_in_out(self):
         """
         Returns cut data for where this shot sits in the cut.
 
@@ -153,8 +153,8 @@ class Shot(object):
         :return: see above
         """
         cut_data = (
-            self.get_base_segment().in_frame,
-            self.get_base_segment().out_frame,
+            self.get_base_segment().edit_in_frame,
+            self.get_base_segment().edit_out_frame,
             self._sg_cut_in,
             self._sg_cut_out,
             self._sg_cut_order

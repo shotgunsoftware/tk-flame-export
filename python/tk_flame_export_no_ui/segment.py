@@ -163,9 +163,10 @@ class Segment(object):
         return int(track_id_str)
 
     @property
-    def in_frame(self):
+    def edit_in_frame(self):
         """
-        Returns the in frame, in frames
+        Returns the in frame for the edit point
+        This denotes where this segment sits in the sequence based timeline.
         """
         if not self.has_render_export:
             raise TankError("Cannot get in frame for segment - no video metadata found!")
@@ -173,14 +174,48 @@ class Segment(object):
         return self._flame_data["recordIn"]
 
     @property
-    def out_frame(self):
+    def edit_out_frame(self):
         """
-        Returns the out frame, in frames
+        Returns the out frame for the edit point.
+        This denotes where this segment sits in the sequence based timeline.
         """
         if not self.has_render_export:
             raise TankError("Cannot get out frame for segment - no video metadata found!")
 
         return self._flame_data["recordOut"]
+
+    @property
+    def cut_in_frame(self):
+        """
+        Returns the in frame within the segment.
+        This denotes at which frame playback of the segment should start within the
+        local media associated with the segment.
+
+        Note that since flame normalizes all sequences as part of its export,
+        this value does not correspond to the value found in the original
+        sequence data in flame.
+        """
+        if not self.has_render_export:
+            raise TankError("Cannot get in frame for segment - no video metadata found!")
+
+        return self._flame_data["handleIn"] + 1
+
+    @property
+    def cut_out_frame(self):
+        """
+        Returns the out frame within the segment.
+        This denotes at which frame playback of the segment should stop within the
+        local media associated with the segment.
+
+        Note that since flame normalizes all sequences as part of its export,
+        this value does not correspond to the value found in the original
+        sequence data in flame.
+        """
+        if not self.has_render_export:
+            raise TankError("Cannot get out frame for segment - no video metadata found!")
+
+        clip_duration = self.edit_out_frame - self.edit_in_frame + 1
+        return self._flame_data["handleIn"] + clip_duration
 
     def set_flame_data(self, flame_data):
         """

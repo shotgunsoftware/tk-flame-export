@@ -615,7 +615,6 @@ class FlameExport(Application):
             args
         )
         
-        
         # If no transcoding is happening (either because we are running with it off
         # or because we are not uploading any quicktimes to Shotgun), explicitly
         # push thumbnails for versions.

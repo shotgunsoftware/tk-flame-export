@@ -135,6 +135,9 @@ class Sequence(object):
         Compute the difference between flame cut data
         and the registered shot data in Shotgun.
 
+        process_shotgun_shot_structure() needs to be executed before
+        this method can be executed.
+
         :returns: A list of shotgun batch updates required
                   in order for Shotgun to be up to date with
                   Flame.
@@ -148,14 +151,14 @@ class Sequence(object):
         # is the flame in frame
         shots_in_cut_order = sorted(
             self._shots.values(),
-            key=lambda x: x.get_cut_in_out()[0]
+            key=lambda x: x.get_edit_in_out()[0]
         )
 
         for index, shot in shots_in_cut_order:
             # make cut order 1 based
             cut_order = index + 1
             # get full cut data
-            (flame_in, flame_out, sg_in, sg_out, sg_cut_order) = shot.get_cut_in_out()
+            (flame_in, flame_out, sg_in, sg_out, sg_cut_order) = shot.get_edit_in_out()
 
             if flame_in != sg_in or flame_out != sg_out or cut_order != sg_cut_order:
 
@@ -182,8 +185,69 @@ class Sequence(object):
 
     def create_cut(self):
         """
-        Create cut in Shotgun
+        Creates a cut with corresponding cut items in Shotgun.
+
+        Before this can be executed, process_shotgun_shot_structure()
+        must have been executed and version ids must have been assigned to
+        all Segment objects.
         """
+        #@TODO - support cut type
+        CUT_NAME = "Flame"
+        MIN_CUT_SG_VERSION = (6, 3, 13)
+
+        sg = self._app.shotgun
+
+        if sg.server_caps.version < MIN_CUT_SG_VERSION:
+            self._app.log_debug(
+                "Shotgun site does not support cuts. Will not update cut information."
+            )
+            return
+
+        # first determine which revision number of the cut to create
+        prev_cut = sg.find_one(
+            "Cut",
+            [["code", "is", CUT_NAME]],
+            ["revision_number"],
+            [{"field_name": "revision_number", "direction": "desc"}]
+        )
+        if prev_cut is None:
+            next_revision_number = 1
+        else:
+            next_revision_number = prev_cut["revision_number"] + 1
+
+        self._app.log_debug("The cut revision number will be %s." % next_revision_number)
+
+        # data to populate on cuts:
+        #
+        # code
+        # description
+        # duration
+        # FPS
+        # entity
+        # project
+        # revision_number
+        # timecode_end
+        # timecode_start
+        # sg_cut_type
+
+        # data for each cutitem
+        #
+        # cut
+        # cut_item_in
+        # cut_item_out
+        # cut_order
+        # code <-- segment name
+        # edit_in
+        # edit_out
+        # project
+        # shot
+        # timecode_cut_item_in
+        # timecode_cut_item_out
+        # timecode_edit_in
+        # timecode_edit_out
+        # version
+        # FPS????
+
 
 
     def _resolve_sg_structure(self):
