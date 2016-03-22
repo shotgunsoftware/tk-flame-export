@@ -117,6 +117,50 @@ class Shot(object):
 
         return int(self._flame_batch_data["versionNumber"])
 
+    def get_base_segment(self):
+        """
+        Returns the base segment for this shot.
+
+        The base segment is the segment that is located lowest down in the stack
+        and it is this segment that is used to determine the cut information for the Shot.
+
+        The logic for picking the base segment is simple and may need adjustment
+        in the future; right now it looks at the list of segments for the Shot
+        and chooses the one with the lowest track id.
+
+        :returns: Segment object
+        """
+        return min(
+            self._segments.values(),
+            key=lambda segment: segment.flame_track_id
+        )
+
+    def get_cut_in_out(self):
+        """
+        Returns cut data for where this shot sits in the cut.
+
+        Returns values based on the base segment, e.g. the segment
+        found lowest in the stack. Returns both existing sg values
+        from the Shot entity and values from Flame.
+
+        Returns a tuple with the following items:
+
+        (flame_in, flame_out, sg_in, sg_out, sg_cut_order)
+
+        The return data is in frames, computed relative to the sequence
+        level time code in Flame.
+
+        :return: see above
+        """
+        cut_data = (
+            self.get_base_segment().in_frame,
+            self.get_base_segment().out_frame,
+            self._sg_cut_in,
+            self._sg_cut_out,
+            self._sg_cut_order
+        )
+        return cut_data
+
     def set_sg_data(self, sg_data, new_in_shotgun):
         """
         Set shotgun data associated with this shot.
@@ -156,50 +200,4 @@ class Shot(object):
         :param data: dictionary with data from flame
         """
         self._flame_batch_data = data
-
-    def update_new_cut_info(self, record_in, record_out, handle_in, handle_out):
-        """
-        Updates the shot cut information based on segment cut information received from Flame.
-        
-        The frame information coming from Flame includes handles and is out frame exclusive, 
-        meaning that the sequence 1,2,3,4,5 is denoted 1-6. 
-        
-        :param record_in: Record in parameter for a segment in Flame belonging to this shot
-        :param record_out: Record out parameter for a segment in Flame belonging to this shot
-        """
-        
-        # the cut in and cut out are reflected by the values stored in the conform
-        # in Flame. These are sometimes defaulted to 10:00:00.00 so there may be some
-        # large numbers here.
-        cut_in = record_in 
-        cut_out = record_out 
-        
-        # now, note that Flame is cut-out-exclusive, meaning that the out frame
-        # is actually not the last frame played back but the frame after that.
-        # in the Shotgun universe, we want last frame *inclusive* instead
-        cut_out = cut_out - 1
-        
-        # now it is time to update the *SHOT* lengths. With Flame's collating,
-        # a single shot may be made up of several *segments*. The cut information
-        # we are getting from Flame is per segment. We need to "grow" the shot range
-        # so that it will encompass all segments.
-        if self.new_cut_in is None:
-            # no value yet
-            self.new_cut_in = cut_in
-        
-        elif self.new_cut_in > cut_in:
-            # we got a value but our current clip started before
-            # the other. We want to capture the maximum range of 
-            # the shot, so update
-            self.new_cut_in = cut_in
-            
-        if self.new_cut_out is None:
-            # no value yet
-            self.new_cut_out = cut_out
-            
-        elif self.new_cut_out < cut_out:
-            # we got a value but our current clip ended after
-            # the other. We want to capture the maximum range of 
-            # the shot, so update
-            self.new_cut_out = cut_out
 

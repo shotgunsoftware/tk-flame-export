@@ -31,7 +31,6 @@ class Segment(object):
 
         # associated shotgun version
         self._shotgun_version_id = None
-        self._default_handles_length = 0
 
     def __repr__(self):
         return "<Segment %s, %s>" % (self._name, self._shot)
@@ -151,6 +150,38 @@ class Segment(object):
 
         return self._flame_data["height"]
 
+    @property
+    def flame_track_id(self):
+        """
+        Returns the track id in flame, as an int
+        """
+        if not self.has_render_export:
+            raise TankError("Cannot get track id for segment - no video metadata found!")
+
+        # get track id as a three zero padded str, e.g. "002"
+        track_id_str = self._flame_data["track"]
+        return int(track_id_str)
+
+    @property
+    def in_frame(self):
+        """
+        Returns the in frame, in frames
+        """
+        if not self.has_render_export:
+            raise TankError("Cannot get in frame for segment - no video metadata found!")
+
+        return self._flame_data["recordIn"]
+
+    @property
+    def out_frame(self):
+        """
+        Returns the out frame, in frames
+        """
+        if not self.has_render_export:
+            raise TankError("Cannot get out frame for segment - no video metadata found!")
+
+        return self._flame_data["recordOut"]
+
     def set_flame_data(self, flame_data):
         """
         Specify the flame hook data dictionary for this segment
@@ -165,12 +196,4 @@ class Segment(object):
         :param version_id: version id as int
         """
         self._shotgun_version_id = version_id
-
-    def set_requested_handles_length(self, length):
-        """
-        Specifies the default handle length for this segment.
-
-        :param length: handles length in frames
-        """
-        self._default_handles_length = length
 

@@ -303,15 +303,6 @@ class FlameExport(Application):
         shot = self._sequence.get_shot(shot_name)
 
         if asset_type == "video":
-            # note: not all versions of Flame pass a handle parameter
-            # so pass in None in case the param is missing
-            shot.update_new_cut_info(
-                info["recordIn"],
-                info["recordOut"],
-                info.get("handleIn"),
-                info.get("handleOut"),
-            )
-
             # resolve template for exported plates or video
             template = self._export_preset.get_render_template()
             
@@ -434,15 +425,19 @@ class FlameExport(Application):
         shot = self._sequence.get_shot(shot_name)
 
         if asset_type == "video":
-
             # create a new segment for the shot
             segment = shot.add_segment(segment_name)
+
+            # note: not all versions of Flame pass a handle parameter
+            # so add the preset default in case value isn't passed.
+            if "handleIn" not in info:
+                info["handleIn"] = self._export_preset.get_handles_length()
+
+            if "handleOut" not in info:
+                info["handleOut"] = self._export_preset.get_handles_length()
+
             # pass in raw data from flame
             segment.set_flame_data(info)
-            # tell what the desired shot handles were
-            segment.set_requested_handles_length(
-                self._export_preset.get_handles_length()
-            )
 
         elif asset_type == "batch":
             # this is a batch export. These are per *shot*, even in the case of a shot

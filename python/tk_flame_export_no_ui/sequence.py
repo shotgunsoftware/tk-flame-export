@@ -8,9 +8,11 @@
 # agreement to the Shotgun Pipeline Toolkit Source Code License. All rights 
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
+import pprint
 from .shot import Shot
 from sgtk import TankError
 import sgtk
+
 
 class Sequence(object):
     """
@@ -56,9 +58,6 @@ class Sequence(object):
         Shots associated with this sequence
         """
         return self._shots.values()
-
-
-
 
     def add_shot(self, shot_name):
         """
@@ -142,56 +141,44 @@ class Sequence(object):
         """
         self._app.log_debug("Computing cut changes between Shotgun and Flame....")
 
-        for seq in self._shots:
-            # get a list of metadata objects for this sequence
-            shot_metadata_list = self._shots[seq].values()
-            # sort it by cut in
-            shot_metadata_list.sort(key=lambda x: x.new_cut_in)
-            # now loop over all items and set an incrementing cut order
-            cut_index = 1
-            for shot_metadata in shot_metadata_list:
-                if shot_metadata.created_this_session:
-                    num_created_shots += 1
-                shot_metadata.new_cut_order = cut_index
-                cut_index += 1
+        shotgun_batch_items = []
 
-            # Now update frame ranges to make sure Shotgun matches Flame.
-            #
-            # ensure that we actually have frame ranges for this shot
-            # it seems sometimes there are shots that don't actually contain any clips.
-            # I think this is anomaly in Flame, but since we have spotted it in QA,
-            # it's good to do this extra check in this code.
-            if shot_metadata.new_cut_in is None or shot_metadata.new_cut_out is None:
-                self.log_warning("No frame ranges calculated for Shot %s!" % shot_metadata.shotgun_id)
+        # get the list of shots, computed in cut order
+        # note that the first item returned from get_cut_in_out()
+        # is the flame in frame
+        shots_in_cut_order = sorted(
+            self._shots.values(),
+            key=lambda x: x.get_cut_in_out()[0]
+        )
 
-            # has the frame range changed?
-            elif shot_metadata.shotgun_cut_in != shot_metadata.new_cut_in or \
-                 shot_metadata.shotgun_cut_out != shot_metadata.new_cut_out or \
-                 shot_metadata.shotgun_cut_order != shot_metadata.new_cut_order:
+        for index, shot in shots_in_cut_order:
+            # make cut order 1 based
+            cut_order = index + 1
+            # get full cut data
+            (flame_in, flame_out, sg_in, sg_out, sg_cut_order) = shot.get_cut_in_out()
 
-                duration = shot_metadata.new_cut_out - shot_metadata.new_cut_in + 1
-                num_cut_changes += 1
+            if flame_in != sg_in or flame_out != sg_out or cut_order != sg_cut_order:
+
+                duration = flame_out - flame_in + 1
 
                 # note that at this point all shots are guaranteed to exist in Shotgun
                 # since they were created in the initial export step.
-
                 sg_cut_batch = {
                     "request_type": "update",
                     "entity_type": "Shot",
-                    "entity_id": shot_metadata.shotgun_id,
+                    "entity_id": self.shotgun_id,
                     "data": {
-                        "sg_cut_in": shot_metadata.new_cut_in,
-                        "sg_cut_out": shot_metadata.new_cut_out,
+                        "sg_cut_in": flame_in,
+                        "sg_cut_out": flame_out,
                         "sg_cut_duration": duration,
-                        "sg_cut_order": shot_metadata.new_cut_order
+                        "sg_cut_order": cut_order
                     }
                 }
 
                 self.log_debug("Registering cut change: %s" % pprint.pformat(sg_cut_batch))
                 shotgun_batch_items.append(sg_cut_batch)
 
-            else:
-                self.log_debug("No frame changes detected. Shotgun and Flame are already in sync.")
+        return shotgun_batch_items
 
     def create_cut(self):
         """
