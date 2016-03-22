@@ -117,7 +117,16 @@ class ExportPreset(object):
         :returns: A name suitable for a render publish
         """
         return self.__get_publish_name(self.get_render_template(), path)        
-    
+
+    def get_handles_length(self):
+        """
+        Returns the length of the requested frame handles that should be generated
+        for each clip.
+
+        @return: Handle length in frames
+        """
+        return self._raw_preset["frame_handles"]
+
     ############################################################################################################
     # values relating to the quicktime output
 
