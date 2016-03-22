@@ -82,22 +82,16 @@ class Segment(object):
         """
         Return the version number associated with the render file
         """
-        if not self.has_render_export:
-            raise TankError("Cannot get render path for segment - no video metadata found!")
-
-        return int(self._flame_data["versionNumber"])
+        return int(self._get_flame_property("versionNumber"))
 
     @property
     def render_path(self):
         """
         Return the export render path for this segment
         """
-        if not self.has_render_export:
-            raise TankError("Cannot get render path for segment - no video metadata found!")
-
         return os.path.join(
-            self._flame_data.get("destinationPath"),
-            self._flame_data.get("resolvedPath")
+            self._get_flame_property("destinationPath"),
+            self._get_flame_property("resolvedPath")
         )
 
     @property
@@ -105,10 +99,7 @@ class Segment(object):
         """
         Return the aspect ratio associated with the render file
         """
-        if not self.has_render_export:
-            raise TankError("Cannot get aspect ratio for segment - no video metadata found!")
-
-        return self._flame_data["aspectRatio"]
+        return self._get_flame_property("aspectRatio")
 
     @property
     def backburner_job_id(self):
@@ -116,8 +107,8 @@ class Segment(object):
         Return the backburner job id associated with this segment or None if not defined.
         """
         backburner_id = None
-        if self._flame_data.get("isBackground"):
-            backburner_id = self._flame_data.get("backgroundJobId")
+        if self._get_flame_property("isBackground"):
+            backburner_id = self._get_flame_property("backgroundJobId")
         return backburner_id
 
     @property
@@ -125,42 +116,29 @@ class Segment(object):
         """
         Returns the width of the flame render
         """
-        if not self.has_render_export:
-            raise TankError("Cannot get width for segment - no video metadata found!")
-
-        return self._flame_data["width"]
+        return self._get_flame_property("width")
 
     @property
     def render_fps(self):
         """
         Returns the width of the flame render
         """
-        if not self.has_render_export:
-            raise TankError("Cannot get fps for segment - no video metadata found!")
-
-        return self._flame_data["fps"]
+        return self._get_flame_property("fps")
 
     @property
     def render_height(self):
         """
         Returns the height of the flame render
         """
-        if not self.has_render_export:
-            raise TankError("Cannot get height for segment - no video metadata found!")
-
-        return self._flame_data["height"]
+        return self._get_flame_property("height")
 
     @property
     def flame_track_id(self):
         """
         Returns the track id in flame, as an int
         """
-        if not self.has_render_export:
-            raise TankError("Cannot get track id for segment - no video metadata found!")
-
-        # get track id as a three zero padded str, e.g. "002"
-        track_id_str = self._flame_data["track"]
-        return int(track_id_str)
+        # flame stores track id as a three zero padded str, e.g. "002"
+        return int(self._get_flame_property("track"))
 
     @property
     def edit_in_frame(self):
@@ -168,10 +146,7 @@ class Segment(object):
         Returns the in frame for the edit point
         This denotes where this segment sits in the sequence based timeline.
         """
-        if not self.has_render_export:
-            raise TankError("Cannot get in frame for segment - no video metadata found!")
-
-        return self._flame_data["recordIn"]
+        return self._get_flame_property("recordIn")
 
     @property
     def edit_out_frame(self):
@@ -179,10 +154,7 @@ class Segment(object):
         Returns the out frame for the edit point.
         This denotes where this segment sits in the sequence based timeline.
         """
-        if not self.has_render_export:
-            raise TankError("Cannot get out frame for segment - no video metadata found!")
-
-        return self._flame_data["recordOut"]
+        return self._get_flame_property("recordOut")
 
     @property
     def cut_in_frame(self):
@@ -195,10 +167,7 @@ class Segment(object):
         this value does not correspond to the value found in the original
         sequence data in flame.
         """
-        if not self.has_render_export:
-            raise TankError("Cannot get in frame for segment - no video metadata found!")
-
-        return self._flame_data["handleIn"] + 1
+        return self._get_flame_property("handleIn") + 1
 
     @property
     def cut_out_frame(self):
@@ -211,11 +180,54 @@ class Segment(object):
         this value does not correspond to the value found in the original
         sequence data in flame.
         """
-        if not self.has_render_export:
-            raise TankError("Cannot get out frame for segment - no video metadata found!")
-
         clip_duration = self.edit_out_frame - self.edit_in_frame + 1
-        return self._flame_data["handleIn"] + clip_duration
+        return self._get_flame_property("handleIn") + clip_duration
+
+    @property
+    def edit_in_timecode(self):
+        """
+        Returns the in timecode for the edit point
+        This denotes where this segment sits in the sequence based timeline.
+        """
+        sequence_fps = self._get_flame_property("sequenceFps")
+        return self._frames_to_timecode(self.edit_in_frame, sequence_fps)
+
+    @property
+    def edit_out_timecode(self):
+        """
+        Returns the out timecode for the edit point.
+        This denotes where this segment sits in the sequence based timeline.
+        """
+        sequence_fps = self._get_flame_property("sequenceFps")
+        return self._frames_to_timecode(self.edit_out_frame, sequence_fps)
+
+    @property
+    def cut_in_timecode(self):
+        """
+        Returns the in timecode within the segment.
+        This denotes at which frame playback of the segment should start within the
+        local media associated with the segment.
+
+        Note that since flame normalizes all sequences as part of its export,
+        this value does not correspond to the value found in the original
+        sequence data in flame.
+        """
+        segment_fps = self._get_flame_property("fps")
+        return self._frames_to_timecode(self.cut_in_frame, segment_fps)
+
+    @property
+    def cut_out_timecode(self):
+        """
+        Returns the out timecode within the segment.
+        This denotes at which frame playback of the segment should stop within the
+        local media associated with the segment.
+
+        Note that since flame normalizes all sequences as part of its export,
+        this value does not correspond to the value found in the original
+        sequence data in flame.
+        """
+        segment_fps = self._get_flame_property("fps")
+        return self._frames_to_timecode(self.cut_out_frame, segment_fps)
 
     def set_flame_data(self, flame_data):
         """
@@ -232,3 +244,31 @@ class Segment(object):
         """
         self._shotgun_version_id = version_id
 
+    def _get_flame_property(self, property_name):
+        """
+        Helper method. Safely returns the given property and raises if it doesn't exist.
+        :param property_name: Property value to return
+        :return: Flame property
+        :raises: ValueError if not found
+        """
+        if self._flame_data is None:
+            raise ValueError("No video metadata found for %s" % self)
+
+        if property_name not in self._flame_data:
+            raise ValueError(
+                "Property '%s' not found in video metadata for %s" % (property_name, self)
+            )
+
+        return self._flame_data[property_name]
+
+    def _frames_to_timecode(self, total_frames, frame_rate):
+        """
+        Helper method that converts frames to time code
+        :param total_frames: Number of frames
+        :param frame_rate: frames per second
+        """
+        hours = total_frames / (3600 * frame_rate)
+        minutes = total_frames / (60 * frame_rate) % 60
+        seconds = total_frames / frame_rate % 60
+        frames = total_frames % frame_rate
+        return "%s:%s:%s.%s" % (hours, minutes, seconds, frames)
