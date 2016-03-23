@@ -115,7 +115,7 @@ class ShotgunSubmitter(object):
                 "created_by": context.user,
                 "task": context.task,
                 "thumbnail_path": jpeg_path,
-            
+
                 "path": path,
                 "name": preset_obj.get_render_publish_name(path),
                 "published_file_type": preset_obj.get_render_publish_type() }
@@ -131,6 +131,7 @@ class ShotgunSubmitter(object):
 
         if quicktime_path:
             # first make a publish for our high res quicktime
+            # note how we set a dependency to the main render
             mov_args = {"tk": self._app.sgtk,
                         "context": context,
                         "comment": comments,
@@ -138,8 +139,7 @@ class ShotgunSubmitter(object):
                         "created_by": context.user,
                         "task": context.task,
                         "thumbnail_path": jpeg_path,
-                        
-                        "dependency_ids": [ sg_publish_data["id"] ], # set a dependency to the main render
+                        "dependency_ids": [ sg_publish_data["id"] ],
                         "path": quicktime_path,
                         "name": preset_obj.get_quicktime_publish_name(quicktime_path),
                         "published_file_type": preset_obj.get_quicktime_publish_type() }
@@ -147,7 +147,6 @@ class ShotgunSubmitter(object):
             self._app.log_debug("Register quicktime publish in Shotgun: %s" % str(mov_args))        
             sg_mov_data = sgtk.util.register_publish(**mov_args)
             self._app.log_debug("Register complete: %s" % sg_mov_data)
-
         
         if jpeg_path:
             # try to clean up

@@ -77,7 +77,7 @@ class Sequence(object):
         :returns: Shot object
         """
         if shot_name not in self._shots:
-            raise ValueError("Cannot find shot % in %s" % (shot_name, self))
+            raise ValueError("Cannot find shot %s in %s" % (shot_name, self))
 
         return self._shots[shot_name]
 
@@ -146,23 +146,22 @@ class Sequence(object):
 
         shotgun_batch_items = []
 
-        # get the list of shots, computed in cut order
-        # note that the first item returned from get_cut_in_out()
-        # is the flame in frame
+        # get the list of shots, computed in order
         shots_in_cut_order = sorted(
-            self._shots.values(),
-            key=lambda x: x.get_edit_in_out()[0]
+            self.shots,
+            key=lambda x: x.get_base_segment().edit_in_frame
         )
 
         for index, shot in shots_in_cut_order:
             # make cut order 1 based
             cut_order = index + 1
             # get full cut data
-            (flame_in, flame_out, sg_in, sg_out, sg_cut_order) = shot.get_edit_in_out()
+            (sg_in, sg_out, sg_cut_order) = shot.get_sg_shot_in_out()
 
-            if flame_in != sg_in or flame_out != sg_out or cut_order != sg_cut_order:
+            # we get the edit points in flame from the base layer
+            base_seg = shot.get_base_segment()
 
-                duration = flame_out - flame_in + 1
+            if base_seg.edit_in_frame != sg_in or base_seg.edit_out_frame != sg_out or cut_order != sg_cut_order:
 
                 # note that at this point all shots are guaranteed to exist in Shotgun
                 # since they were created in the initial export step.
@@ -171,9 +170,9 @@ class Sequence(object):
                     "entity_type": "Shot",
                     "entity_id": self.shotgun_id,
                     "data": {
-                        "sg_cut_in": flame_in,
-                        "sg_cut_out": flame_out,
-                        "sg_cut_duration": duration,
+                        "sg_cut_in": base_seg.edit_in_frame,
+                        "sg_cut_out": base_seg.edit_out_frame,
+                        "sg_cut_duration": base_seg.duration,
                         "sg_cut_order": cut_order
                     }
                 }
@@ -203,6 +202,8 @@ class Sequence(object):
             )
             return
 
+        self._app.engine.show_busy("Updating Shotgun...", "Creating Cut...")
+
         # first determine which revision number of the cut to create
         prev_cut = sg.find_one(
             "Cut",
@@ -217,40 +218,66 @@ class Sequence(object):
 
         self._app.log_debug("The cut revision number will be %s." % next_revision_number)
 
-        # data to populate on cuts:
-        #
-        # code
-        # description
-        # duration
-        # FPS
-        # entity
-        # project
-        # revision_number
-        # timecode_end
-        # timecode_start
-        # sg_cut_type
+        # get the shots in cut order
+        shots_in_cut_order = sorted(
+            self.shots,
+            key=lambda x: x.get_base_segment().edit_in_frame
+        )
 
-        # data for each cutitem
-        #
-        # cut
-        # cut_item_in
-        # cut_item_out
-        # cut_order
-        # code <-- segment name
-        # edit_in
-        # edit_out
-        # project
-        # shot
-        # timecode_cut_item_in
-        # timecode_cut_item_out
-        # timecode_edit_in
-        # timecode_edit_out
-        # version
-        # FPS????
+        # first create a new cut
+        sg_cut = sg.create(
+            "Cut",
+            {
+                "project": self._app.context.project,
+                "entity": self.shotgun_id,
+                "code": CUT_NAME,
+                "description": "Automatically created by the Flame Shot exporter.",
+                "revision_number": next_revision_number,
+                # get the fps for the entire sequence by pulling it from
+                # the first segment
+                "fps": shots_in_cut_order[0].get_base_segment().sequence_fps,
+                "duration": sum([shot.get_base_segment().duration for shot in self.shots]),
+                "timecode_start": shots_in_cut_order[0].get_base_segment().edit_in_timecode,
+                "timecode_end": shots_in_cut_order[-1].get_base_segment().edit_out_timecode,
+            }
+        )
 
+        # now create the cut items in a single batch call
+        sg_batch_data = []
+        for index, shot in shots_in_cut_order:
+            # make cut order 1 based
+            cut_order = index + 1
+            # we are pulling most values from the base layer
+            segment = shot.get_base_segment()
 
+            batch = {
+                "request_type": "create",
+                "entity_type": "CutItem",
+                "data": {
+                    "code": segment.name,
+                    "project": self._app.context.project,
+                    "shot": shot.shotgun_id,
+                    "cut": {"id": sg_cut["id"], "type": sg_cut["type"]},
+                    "version": segment.shotgun_version_id if segment.has_shotgun_version else None,
+                    "cut_item_in": segment.cut_in_frame,
+                    "cut_item_out": segment.cut_out_frame,
+                    "edit_in": segment.edit_in_frame,
+                    "edit_out": segment.edit_out_frame,
+                    "cut_order": cut_order,
+                    "timecode_cut_item_in": segment.cut_in_timecode,
+                    "timecode_cut_item_out": segment.cut_out_timecode,
+                    "timecode_edit_in": segment.edit_in_timecode,
+                    "timecode_edit_out": segment.edit_out_timecode
+                }
+            }
 
-    def _resolve_sg_structure(self):
+            sg_batch_data.append(batch)
+
+        self._app.log_debug("Executing sg batch command for cut items....")
+        sg.batch(sg_batch_data)
+        self._app.log_debug("...done!")
+
+    def _resolve_sg_shot_structure(self):
         """
         Ensures that Shots and sequences exist in Shotgun.
 
@@ -316,7 +343,7 @@ class Sequence(object):
                 {"code": self.name,
                  "task_template": sg_task_template,
                  "description": "Created by the Shotgun Flame exporter.",
-                 "project": project }
+                 "project": project}
             )
             self._shotgun_id = sg_parent["id"]
             self._app.log_debug("Created parent %s" % sg_parent)
@@ -342,6 +369,8 @@ class Sequence(object):
 
         self._app.log_debug("Loading shots from Shotgun...")
 
+        shot_parent_link = {"id": self._shotgun_id, "type": self._shot_parent_entity_type}
+
         # get list of shots as strings
         shot_names = self._shots.keys()
 
@@ -349,7 +378,7 @@ class Sequence(object):
         sg_shots = self._app.shotgun.find(
             "Shot",
             [["code", "in", shot_names],
-             [self._shot_parent_link_field, "is", self._shotgun_id]],
+             [self._shot_parent_link_field, "is", shot_parent_link]],
             ["code", "sg_cut_in", "sg_cut_out", "sg_cut_order"]
         )
         self._app.log_debug("...got %s shots." % len(sg_shots))
@@ -370,7 +399,7 @@ class Sequence(object):
                     "data": {
                         "code": shot.name,
                         "description": "Created by the Shotgun Flame exporter.",
-                        self._shot_parent_link_field: self._shotgun_id,
+                        self._shot_parent_link_field: shot_parent_link,
                         "task_template": sg_task_template,
                         "project": project
                     }

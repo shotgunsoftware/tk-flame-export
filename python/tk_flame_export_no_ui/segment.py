@@ -121,9 +121,16 @@ class Segment(object):
     @property
     def render_fps(self):
         """
-        Returns the width of the flame render
+        Returns the fps of this segment
         """
         return self._get_flame_property("fps")
+
+    @property
+    def sequence_fps(self):
+        """
+        Returns the fps of the sequence that this segment belongs to
+        """
+        return self._get_flame_property("sequenceFps")
 
     @property
     def render_height(self):
@@ -139,6 +146,13 @@ class Segment(object):
         """
         # flame stores track id as a three zero padded str, e.g. "002"
         return int(self._get_flame_property("track"))
+
+    @property
+    def duration(self):
+        """
+        Returns the duration of this segment
+        """
+        return self.edit_out_frame - self.edit_in_frame + 1
 
     @property
     def edit_in_frame(self):

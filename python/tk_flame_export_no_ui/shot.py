@@ -9,6 +9,7 @@
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
 import os
+import sgtk
 from sgtk import TankError
 
 from .segment import Segment
@@ -135,9 +136,9 @@ class Shot(object):
             key=lambda segment: segment.flame_track_id
         )
 
-    def get_edit_in_out(self):
+    def get_sg_shot_in_out(self):
         """
-        Returns cut data for where this shot sits in the cut.
+        Returns shotgun cut data.
 
         Returns values based on the base segment, e.g. the segment
         found lowest in the stack. Returns both existing sg values
@@ -145,7 +146,7 @@ class Shot(object):
 
         Returns a tuple with the following items:
 
-        (flame_in, flame_out, sg_in, sg_out, sg_cut_order)
+        (sg_shot_in, sg_shot_out, sg_cut_order)
 
         The return data is in frames, computed relative to the sequence
         level time code in Flame.
@@ -153,8 +154,6 @@ class Shot(object):
         :return: see above
         """
         cut_data = (
-            self.get_base_segment().edit_in_frame,
-            self.get_base_segment().edit_out_frame,
             self._sg_cut_in,
             self._sg_cut_out,
             self._sg_cut_order
@@ -173,9 +172,10 @@ class Shot(object):
         """
         self._created_this_session = new_in_shotgun
         self._shotgun_id = sg_data["id"]
-        self._sg_cut_in = sg_data["sg_cut_in"]
-        self._sg_cut_out = sg_data["sg_cut_out"]
-        self._sg_cut_order = sg_data["sg_cut_order"]
+        # note - for new shots, the sg_cut_in key may not be part of sg_data
+        self._sg_cut_in = sg_data.get("sg_cut_in")
+        self._sg_cut_out = sg_data.get("sg_cut_out")
+        self._sg_cut_order = sg_data.get("sg_cut_order")
 
     def cache_context(self):
         """
