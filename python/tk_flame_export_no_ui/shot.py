@@ -191,7 +191,9 @@ class Shot(object):
         :param segment_name: Name of segment to add
         :returns: Segment object
         """
-        self._segments[segment_name] = Segment(self, segment_name)
+        segment = Segment(self, segment_name)
+        self._segments[segment_name] = segment
+        return segment
 
     def set_flame_batch_data(self, data):
         """

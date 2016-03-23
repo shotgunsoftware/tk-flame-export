@@ -152,7 +152,7 @@ class Sequence(object):
             key=lambda x: x.get_base_segment().edit_in_frame
         )
 
-        for index, shot in shots_in_cut_order:
+        for index, shot in enumerate(shots_in_cut_order):
             # make cut order 1 based
             cut_order = index + 1
             # get full cut data
@@ -160,6 +160,10 @@ class Sequence(object):
 
             # we get the edit points in flame from the base layer
             base_seg = shot.get_base_segment()
+
+            self._app.log_debug("********** EDIT In Frame %s %s" % (base_seg.edit_in_frame, sg_in))
+            self._app.log_debug("********** EDIT In Frame %s %s" % (base_seg.edit_out_frame, sg_out))
+            self._app.log_debug("********** EDIT In Frame %s %s" % (cut_order, sg_cut_order))
 
             if base_seg.edit_in_frame != sg_in or base_seg.edit_out_frame != sg_out or cut_order != sg_cut_order:
 
@@ -177,7 +181,7 @@ class Sequence(object):
                     }
                 }
 
-                self.log_debug("Registering cut change: %s" % pprint.pformat(sg_cut_batch))
+                self._app.log_debug("Registering cut change: %s" % pprint.pformat(sg_cut_batch))
                 shotgun_batch_items.append(sg_cut_batch)
 
         return shotgun_batch_items
@@ -204,78 +208,87 @@ class Sequence(object):
 
         self._app.engine.show_busy("Updating Shotgun...", "Creating Cut...")
 
-        # first determine which revision number of the cut to create
-        prev_cut = sg.find_one(
-            "Cut",
-            [["code", "is", CUT_NAME]],
-            ["revision_number"],
-            [{"field_name": "revision_number", "direction": "desc"}]
-        )
-        if prev_cut is None:
-            next_revision_number = 1
-        else:
-            next_revision_number = prev_cut["revision_number"] + 1
+        try:
+            # first determine which revision number of the cut to create
+            prev_cut = sg.find_one(
+                "Cut",
+                [["code", "is", CUT_NAME]],
+                ["revision_number"],
+                [{"field_name": "revision_number", "direction": "desc"}]
+            )
+            if prev_cut is None:
+                next_revision_number = 1
+            else:
+                next_revision_number = prev_cut["revision_number"] + 1
 
-        self._app.log_debug("The cut revision number will be %s." % next_revision_number)
+            self._app.log_debug("The cut revision number will be %s." % next_revision_number)
 
-        # get the shots in cut order
-        shots_in_cut_order = sorted(
-            self.shots,
-            key=lambda x: x.get_base_segment().edit_in_frame
-        )
+            # get the shots in cut order
+            shots_in_cut_order = sorted(
+                self.shots,
+                key=lambda x: x.get_base_segment().edit_in_frame
+            )
 
-        # first create a new cut
-        sg_cut = sg.create(
-            "Cut",
-            {
-                "project": self._app.context.project,
-                "entity": self.shotgun_id,
-                "code": CUT_NAME,
-                "description": "Automatically created by the Flame Shot exporter.",
-                "revision_number": next_revision_number,
-                # get the fps for the entire sequence by pulling it from
-                # the first segment
-                "fps": shots_in_cut_order[0].get_base_segment().sequence_fps,
-                "duration": sum([shot.get_base_segment().duration for shot in self.shots]),
-                "timecode_start": shots_in_cut_order[0].get_base_segment().edit_in_timecode,
-                "timecode_end": shots_in_cut_order[-1].get_base_segment().edit_out_timecode,
-            }
-        )
-
-        # now create the cut items in a single batch call
-        sg_batch_data = []
-        for index, shot in shots_in_cut_order:
-            # make cut order 1 based
-            cut_order = index + 1
-            # we are pulling most values from the base layer
-            segment = shot.get_base_segment()
-
-            batch = {
-                "request_type": "create",
-                "entity_type": "CutItem",
-                "data": {
-                    "code": segment.name,
+            # first create a new cut
+            sg_cut = sg.create(
+                "Cut",
+                {
                     "project": self._app.context.project,
-                    "shot": shot.shotgun_id,
-                    "cut": {"id": sg_cut["id"], "type": sg_cut["type"]},
-                    "version": segment.shotgun_version_id if segment.has_shotgun_version else None,
-                    "cut_item_in": segment.cut_in_frame,
-                    "cut_item_out": segment.cut_out_frame,
-                    "edit_in": segment.edit_in_frame,
-                    "edit_out": segment.edit_out_frame,
-                    "cut_order": cut_order,
-                    "timecode_cut_item_in": segment.cut_in_timecode,
-                    "timecode_cut_item_out": segment.cut_out_timecode,
-                    "timecode_edit_in": segment.edit_in_timecode,
-                    "timecode_edit_out": segment.edit_out_timecode
+                    "entity": {"id": self.shotgun_id, "type": self._shot_parent_entity_type},
+                    "code": CUT_NAME,
+                    "description": "Automatically created by the Flame Shot exporter.",
+                    "revision_number": next_revision_number,
+                    # get the fps for the entire sequence by pulling it from
+                    # the first segment
+                    "fps": shots_in_cut_order[0].get_base_segment().sequence_fps,
+                    "duration": sum([shot.get_base_segment().duration for shot in self.shots]),
+                    "timecode_start": shots_in_cut_order[0].get_base_segment().edit_in_timecode,
+                    "timecode_end": shots_in_cut_order[-1].get_base_segment().edit_out_timecode,
                 }
-            }
+            )
 
-            sg_batch_data.append(batch)
+            # now create the cut items in a single batch call
+            sg_batch_data = []
+            for index, shot in enumerate(shots_in_cut_order):
+                # make cut order 1 based
+                cut_order = index + 1
+                # we are pulling most values from the base layer
+                segment = shot.get_base_segment()
 
-        self._app.log_debug("Executing sg batch command for cut items....")
-        sg.batch(sg_batch_data)
-        self._app.log_debug("...done!")
+                version_link = None
+                if segment.has_shotgun_version:
+                    version_link = {"id": segment.shotgun_version_id, "type": "Version"}
+
+                batch = {
+                    "request_type": "create",
+                    "entity_type": "CutItem",
+                    "data": {
+                        "code": segment.name,
+                        "project": self._app.context.project,
+                        "shot": {"id": shot.shotgun_id, "type": "Shot"},
+                        "cut": {"id": sg_cut["id"], "type": sg_cut["type"]},
+                        "version": version_link,
+                        "cut_item_in": segment.cut_in_frame,
+                        "cut_item_out": segment.cut_out_frame,
+                        "edit_in": segment.edit_in_frame,
+                        "edit_out": segment.edit_out_frame,
+                        "cut_order": cut_order,
+                        "timecode_cut_item_in": segment.cut_in_timecode,
+                        "timecode_cut_item_out": segment.cut_out_timecode,
+                        "timecode_edit_in": segment.edit_in_timecode,
+                        "timecode_edit_out": segment.edit_out_timecode
+                    }
+                }
+
+                sg_batch_data.append(batch)
+
+            self._app.log_debug("Executing sg batch command for cut items....")
+            sg.batch(sg_batch_data)
+            self._app.log_debug("...done!")
+
+        finally:
+            # turn off UI prompt
+            self._app.engine.clear_busy()
 
     def _resolve_sg_shot_structure(self):
         """

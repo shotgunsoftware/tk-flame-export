@@ -595,7 +595,7 @@ class FlameExport(Application):
                         "path": segment.render_path,
                         "quicktime_path": quicktime_path,
                         "comments": self._user_comments,
-                        "version_id": segment.version_id,
+                        "version_id": segment.shotgun_version_id,
                         "create_shot_thumbnail": shot.new_in_shotgun,
                         "serialized_context": sgtk.context.serialize(shot.context),
                         "version": segment.render_version_number

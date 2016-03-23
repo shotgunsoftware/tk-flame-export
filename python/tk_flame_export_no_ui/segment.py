@@ -123,14 +123,16 @@ class Segment(object):
         """
         Returns the fps of this segment
         """
-        return self._get_flame_property("fps")
+        # fps is passed as a string by flame
+        return float(self._get_flame_property("fps"))
 
     @property
     def sequence_fps(self):
         """
         Returns the fps of the sequence that this segment belongs to
         """
-        return self._get_flame_property("sequenceFps")
+        # fps is passed as a string by flame
+        return float(self._get_flame_property("sequenceFps"))
 
     @property
     def render_height(self):
@@ -203,8 +205,7 @@ class Segment(object):
         Returns the in timecode for the edit point
         This denotes where this segment sits in the sequence based timeline.
         """
-        sequence_fps = self._get_flame_property("sequenceFps")
-        return self._frames_to_timecode(self.edit_in_frame, sequence_fps)
+        return self._frames_to_timecode(self.edit_in_frame, self.sequence_fps)
 
     @property
     def edit_out_timecode(self):
@@ -212,8 +213,7 @@ class Segment(object):
         Returns the out timecode for the edit point.
         This denotes where this segment sits in the sequence based timeline.
         """
-        sequence_fps = self._get_flame_property("sequenceFps")
-        return self._frames_to_timecode(self.edit_out_frame, sequence_fps)
+        return self._frames_to_timecode(self.edit_out_frame, self.sequence_fps)
 
     @property
     def cut_in_timecode(self):
@@ -226,8 +226,7 @@ class Segment(object):
         this value does not correspond to the value found in the original
         sequence data in flame.
         """
-        segment_fps = self._get_flame_property("fps")
-        return self._frames_to_timecode(self.cut_in_frame, segment_fps)
+        return self._frames_to_timecode(self.cut_in_frame, self.render_fps)
 
     @property
     def cut_out_timecode(self):
@@ -240,8 +239,7 @@ class Segment(object):
         this value does not correspond to the value found in the original
         sequence data in flame.
         """
-        segment_fps = self._get_flame_property("fps")
-        return self._frames_to_timecode(self.cut_out_frame, segment_fps)
+        return self._frames_to_timecode(self.cut_out_frame, self.render_fps)
 
     def set_flame_data(self, flame_data):
         """
@@ -277,12 +275,13 @@ class Segment(object):
 
     def _frames_to_timecode(self, total_frames, frame_rate):
         """
-        Helper method that converts frames to time code
+        Helper method that converts frames to SMPTE timecode
         :param total_frames: Number of frames
         :param frame_rate: frames per second
+        :returns: SMPTE timecode as string, e.g. '01:02:12:32'
         """
-        hours = total_frames / (3600 * frame_rate)
-        minutes = total_frames / (60 * frame_rate) % 60
-        seconds = total_frames / frame_rate % 60
-        frames = total_frames % frame_rate
-        return "%s:%s:%s.%s" % (hours, minutes, seconds, frames)
+        hours = int(total_frames / (3600 * frame_rate))
+        minutes = int(total_frames / (60 * frame_rate) % 60)
+        seconds = int(total_frames / frame_rate % 60)
+        frames = int(total_frames % frame_rate)
+        return "%02d:%02d:%02d:%02d" % (hours, minutes, seconds, frames)
