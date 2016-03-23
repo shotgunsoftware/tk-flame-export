@@ -161,10 +161,6 @@ class Sequence(object):
             # we get the edit points in flame from the base layer
             base_seg = shot.get_base_segment()
 
-            self._app.log_debug("********** EDIT In Frame %s %s" % (base_seg.edit_in_frame, sg_in))
-            self._app.log_debug("********** EDIT In Frame %s %s" % (base_seg.edit_out_frame, sg_out))
-            self._app.log_debug("********** EDIT In Frame %s %s" % (cut_order, sg_cut_order))
-
             if base_seg.edit_in_frame != sg_in or base_seg.edit_out_frame != sg_out or cut_order != sg_cut_order:
 
                 # note that at this point all shots are guaranteed to exist in Shotgun
@@ -172,7 +168,7 @@ class Sequence(object):
                 sg_cut_batch = {
                     "request_type": "update",
                     "entity_type": "Shot",
-                    "entity_id": self.shotgun_id,
+                    "entity_id": shot.shotgun_id,
                     "data": {
                         "sg_cut_in": base_seg.edit_in_frame,
                         "sg_cut_out": base_seg.edit_out_frame,
@@ -200,6 +196,8 @@ class Sequence(object):
 
         sg = self._app.shotgun
 
+        parent_entity_link = {"id": self.shotgun_id, "type": self._shot_parent_entity_type}
+
         if sg.server_caps.version < MIN_CUT_SG_VERSION:
             self._app.log_debug(
                 "Shotgun site does not support cuts. Will not update cut information."
@@ -212,7 +210,8 @@ class Sequence(object):
             # first determine which revision number of the cut to create
             prev_cut = sg.find_one(
                 "Cut",
-                [["code", "is", CUT_NAME]],
+                [["code", "is", CUT_NAME],
+                 ["entity", "is", parent_entity_link]],
                 ["revision_number"],
                 [{"field_name": "revision_number", "direction": "desc"}]
             )
@@ -234,7 +233,7 @@ class Sequence(object):
                 "Cut",
                 {
                     "project": self._app.context.project,
-                    "entity": {"id": self.shotgun_id, "type": self._shot_parent_entity_type},
+                    "entity": parent_entity_link,
                     "code": CUT_NAME,
                     "description": "Automatically created by the Flame Shot exporter.",
                     "revision_number": next_revision_number,
