@@ -182,16 +182,22 @@ class Sequence(object):
 
         return shotgun_batch_items
 
-    def create_cut(self):
+    def create_cut(self, cut_name, cut_type):
         """
         Creates a cut with corresponding cut items in Shotgun.
+
+        Checks if any existing cut exists and in that case computes
+        the highest revision number available and creates a cut with
+        one version higher.
 
         Before this can be executed, process_shotgun_shot_structure()
         must have been executed and version ids must have been assigned to
         all Segment objects.
+
+        :param cut_name: Name of the cut to create
+        :param cut_type: Type of the cut to create. None or "" for no cut type.
         """
-        #@TODO - support cut type
-        CUT_NAME = "Flame"
+        # minimum shotgun version that supports new cut schema
         MIN_CUT_SG_VERSION = (6, 3, 13)
 
         sg = self._app.shotgun
@@ -210,7 +216,7 @@ class Sequence(object):
             # first determine which revision number of the cut to create
             prev_cut = sg.find_one(
                 "Cut",
-                [["code", "is", CUT_NAME],
+                [["code", "is", cut_name],
                  ["entity", "is", parent_entity_link]],
                 ["revision_number"],
                 [{"field_name": "revision_number", "direction": "desc"}]
@@ -234,7 +240,8 @@ class Sequence(object):
                 {
                     "project": self._app.context.project,
                     "entity": parent_entity_link,
-                    "code": CUT_NAME,
+                    "code": cut_name,
+                    "sg_cut_type": cut_type,
                     "description": "Automatically created by the Flame Shot exporter.",
                     "revision_number": next_revision_number,
                     # get the fps for the entire sequence by pulling it from

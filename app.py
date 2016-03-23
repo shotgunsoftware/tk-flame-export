@@ -72,7 +72,7 @@ class FlameExport(Application):
         
         # Shot export user UI input
         self._user_comments = ""
-        self._export_preset_name = None
+        self._export_preset = None
 
         # flag to indicate that something was actually submitted by the export process
         self._reached_post_asset_phase = False
@@ -539,7 +539,10 @@ class FlameExport(Application):
 
         # now that we have resolved all cut changes and created versions,
         # request the creation of a new cut in Shotgun
-        self._sequence.create_cut()
+        self._sequence.create_cut(
+            self._export_preset.get_cut_name(),
+            self._export_preset.get_cut_type()
+        )
 
         # Now submit a series of backburner jobs to handle the rest of the processing.
 

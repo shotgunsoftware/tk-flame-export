@@ -68,6 +68,16 @@ configuration:
                     type: str
                     description: The name of this preset.
 
+                cut_name:
+                    type: str
+                    description: The name for cuts created by this preset.
+                    default_value: "Flame Export"
+
+                cut_type:
+                    type: str
+                    description: The cut type to associate with this preset.
+                    default_value: ""
+
                 publish_type:
                     type: tank_type
                     description: The publish type for Flame plates.

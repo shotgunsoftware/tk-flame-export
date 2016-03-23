@@ -127,6 +127,22 @@ class ExportPreset(object):
         """
         return self._raw_preset["frame_handles"]
 
+    def get_cut_name(self):
+        """
+        Returns the name for cuts created by this preset
+
+        @return: cut name as string
+        """
+        return self._raw_preset["cut_name"]
+
+    def get_cut_type(self):
+        """
+        Returns the name for cuts created by this preset
+
+        @return: cut name as string
+        """
+        return self._raw_preset["cut_type"]
+
     ############################################################################################################
     # values relating to the quicktime output
 
