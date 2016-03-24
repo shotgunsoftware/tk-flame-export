@@ -45,7 +45,7 @@ class Segment(object):
     @property
     def name(self):
         """
-        Returns the name of the sequence
+        Returns the name of the segment
         """
         return self._name
 

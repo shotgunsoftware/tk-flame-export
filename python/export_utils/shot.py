@@ -52,14 +52,14 @@ class Shot(object):
     @property
     def name(self):
         """
-        Returns the name of the sequence
+        Returns the name of the shot
         """
         return self._name
 
     @property
     def context(self):
         """
-        Returns the name of the sequence
+        Returns the context associated with this shot
         """
         return self._context
 

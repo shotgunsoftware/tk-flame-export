@@ -101,7 +101,7 @@ class Sequence(object):
 
         try:
             # find and create shots and sequence in Shotgun
-            self._resolve_sg_shot_structure()
+            self._ensure_sg_shot_structure()
 
             # now get a list of all new shots
             new_shots = [shot for shot in self._shots.values() if shot.new_in_shotgun]
@@ -182,7 +182,7 @@ class Sequence(object):
 
         return shotgun_batch_items
 
-    def create_cut(self, cut_name, cut_type):
+    def create_cut(self, cut_type):
         """
         Creates a cut with corresponding cut items in Shotgun.
 
@@ -194,7 +194,6 @@ class Sequence(object):
         must have been executed and version ids must have been assigned to
         all Segment objects.
 
-        :param cut_name: Name of the cut to create
         :param cut_type: Type of the cut to create. None or "" for no cut type.
         """
         # minimum shotgun version that supports new cut schema
@@ -220,7 +219,7 @@ class Sequence(object):
             # first determine which revision number of the cut to create
             prev_cut = sg.find_one(
                 "Cut",
-                [["code", "is", cut_name],
+                [["code", "is", self.name],
                  ["entity", "is", parent_entity_link]],
                 ["revision_number"],
                 [{"field_name": "revision_number", "direction": "desc"}]
@@ -244,7 +243,7 @@ class Sequence(object):
                 {
                     "project": self._app.context.project,
                     "entity": parent_entity_link,
-                    "code": cut_name,
+                    "code": self.name,
                     "sg_cut_type": cut_type,
                     "description": "Automatically created by the Flame Shot exporter.",
                     "revision_number": next_revision_number,
@@ -300,7 +299,7 @@ class Sequence(object):
             # turn off UI prompt
             self._app.engine.clear_busy()
 
-    def _resolve_sg_shot_structure(self):
+    def _ensure_sg_shot_structure(self):
         """
         Ensures that Shots and sequences exist in Shotgun.
 
