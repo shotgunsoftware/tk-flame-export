@@ -127,6 +127,15 @@ class ExportPreset(object):
         """
         return self._raw_preset["frame_handles"]
 
+    def get_start_frame(self):
+        """
+        Returns the start frame for any generated media in Flame.
+        This is the very first frame in the rendered media, so
+        if start frame is 100 and handles length is 5, the first
+        visible frame in the cut will be 105
+        """
+        return self._raw_preset["start_frame"]
+
     def get_cut_name(self):
         """
         Returns the name for cuts created by this preset

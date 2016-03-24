@@ -199,7 +199,7 @@ class Segment(object):
         this value does not correspond to the value found in the original
         sequence data in flame.
         """
-        return self._get_flame_property("handleIn") + 1
+        return self._get_flame_property("startFrame") + self._get_flame_property("handleIn")
 
     @property
     def cut_out_frame(self):
@@ -212,8 +212,7 @@ class Segment(object):
         this value does not correspond to the value found in the original
         sequence data in flame.
         """
-        clip_duration = self.edit_out_frame - self.edit_in_frame + 1
-        return self._get_flame_property("handleIn") + clip_duration
+        return self._get_flame_property("startFrame") + self._get_flame_property("handleIn") + self.duration
 
     @property
     def edit_in_timecode(self):
