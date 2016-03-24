@@ -11,7 +11,7 @@
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
 # The path to output all built .py files to: 
-UI_PYTHON_PATH=../python/tk_flame_export/ui
+UI_PYTHON_PATH=../python/dialogs/ui
 
 
 # Helper functions to build UI files

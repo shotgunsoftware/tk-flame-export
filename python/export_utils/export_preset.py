@@ -117,7 +117,33 @@ class ExportPreset(object):
         :returns: A name suitable for a render publish
         """
         return self.__get_publish_name(self.get_render_template(), path)        
-    
+
+    def get_handles_length(self):
+        """
+        Returns the length of the requested frame handles that should be generated
+        for each clip.
+
+        :return: Handle length in frames
+        """
+        return self._raw_preset["frame_handles"]
+
+    def get_start_frame(self):
+        """
+        Returns the start frame for any generated media in Flame.
+        This is the very first frame in the rendered media, so
+        if start frame is 100 and handles length is 5, the first
+        visible frame in the cut will be 105
+        """
+        return self._raw_preset["start_frame"]
+
+    def get_cut_type(self):
+        """
+        Returns the name for cuts created by this preset
+
+        :return: cut name as string
+        """
+        return self._raw_preset["cut_type"]
+
     ############################################################################################################
     # values relating to the quicktime output
 
@@ -329,9 +355,9 @@ class ExportPreset(object):
         # now perform substitutions based on the rest of the resolved Flame templates
         # make sure we escape any < and > before we add them to the xml
         xml = xml.replace("{SEGMENT_CLIP_NAME_PATTERN}", cgi.escape(resolved_flame_templates["segment_clip_template"]))
-        xml = xml.replace("{BATCH_NAME_PATTERN}",        cgi.escape(resolved_flame_templates["batch_template"]))
-        xml = xml.replace("{SHOT_CLIP_NAME_PATTERN}",    cgi.escape(resolved_flame_templates["shot_clip_template"]))
-        xml = xml.replace("{OUTPUT_PATH_PATTERN}",    cgi.escape(resolved_flame_templates["batch_render_template"]))
+        xml = xml.replace("{BATCH_NAME_PATTERN}", cgi.escape(resolved_flame_templates["batch_template"]))
+        xml = xml.replace("{SHOT_CLIP_NAME_PATTERN}", cgi.escape(resolved_flame_templates["shot_clip_template"]))
+        xml = xml.replace("{OUTPUT_PATH_PATTERN}", cgi.escape(resolved_flame_templates["batch_render_template"]))
 
         # now adjust some parameters in the export xml based on the template setup. 
         template = self.get_render_template()

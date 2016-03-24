@@ -49,24 +49,22 @@ class FlameExport(Application):
     """
     Export functionality to automate and streamline content export out of Flame.
     """
-    
+
     def init_app(self):
         """
         Called as the application is being initialized.
         """
         self.log_debug("%s: Initializing" % self)
                 
-        # shot metadata. As the exporter steps through its various callbacks,
-        # this data structure will be populated and used to pass information
-        # down between methods.
-        self._shots = {}
+        # sequence that is being exported
+        self._sequence = None
         
         # create a submit helper
         # because parts of this app runs on the farm, which doesn't have a UI,
         # there are two distinct modules on disk, one which is QT dependent and
         # one which isn't.
-        tk_flame_export_no_ui = self.import_module("tk_flame_export_no_ui")
-        self._sg_submit_helper = tk_flame_export_no_ui.ShotgunSubmitter()
+        export_utils = self.import_module("export_utils")
+        self._sg_submit_helper = export_utils.ShotgunSubmitter()
         
         # batch render tracking - when doing a batch render, 
         # this is used to indicate that the user wants to send the render to review.
@@ -74,14 +72,14 @@ class FlameExport(Application):
         
         # Shot export user UI input
         self._user_comments = ""
-        self._export_preset_name = None
-        
+        self._export_preset = None
+
         # flag to indicate that something was actually submitted by the export process
         self._reached_post_asset_phase = False
         
         # load up our export presets
         # this wrapper class is used later on to access export presets in various ways
-        self.export_preset_handler = tk_flame_export_no_ui.ExportPresetHandler()
+        self.export_preset_handler = export_utils.ExportPresetHandler()
         
         # register our desired interaction with Flame hooks
         # set up callbacks for the engine to trigger 
@@ -123,15 +121,15 @@ class FlameExport(Application):
         from PySide import QtGui
         
         # reset export session data
-        self._shots = {}
+        self._sequence = None
         self._reached_post_asset_phase = False
         
         # pop up a UI asking the user for description
-        tk_flame_export = self.import_module("tk_flame_export")  
+        dialogs = self.import_module("dialogs")
                       
         (return_code, widget) = self.engine.show_modal("Export Shots",
                                                        self,
-                                                       tk_flame_export.SubmitDialog, 
+                                                       dialogs.SubmitDialog,
                                                        self.export_preset_handler.get_preset_names())
         
         if return_code == QtGui.QDialog.Rejected:
@@ -158,11 +156,9 @@ class FlameExport(Application):
             self.log_debug("%s: Starting custom export session with preset '%s'" % (self, info["presetPath"]))
 
         # Log usage metrics
-        try:
+        if hasattr(self, "log_metric"):
+            # core supports metrics logging
             self.log_metric("Export", log_version=True)
-        except:
-            # ingore any errors. ex: metrics logging not supported
-            pass
 
     def pre_export_sequence(self, session_id, info):
         """
@@ -186,9 +182,12 @@ class FlameExport(Application):
         # Note - Since Flame is a PySide only environment, we import it directly
         # rather than going through the sgtk wrappers.         
         from PySide import QtGui
+
+        export_utils = self.import_module("export_utils")
+
         sequence_name = info["sequenceName"]
         shot_names = info["shotNames"]
-        
+
         if len(shot_names) == 0:
             QtGui.QMessageBox.warning(None,
                                       "Please name your shots!",
@@ -199,6 +198,7 @@ class FlameExport(Application):
             info["abortMessage"] = "Cannot export due to missing shot names."
             return
         
+        # @TODO - add more generic validation
         if " " in sequence_name:
             QtGui.QMessageBox.warning(None,
                                       "Sequence name cannot contain spaces!",
@@ -209,12 +209,13 @@ class FlameExport(Application):
             info["abortMessage"] = "Cannot export due to spaces in sequence names."
             return
 
-        # process a sequence and some shots:
+        # set up object to represent sequence and shots
+        self._sequence = export_utils.Sequence(sequence_name)
+        for shot_name in shot_names:
+            self._sequence.add_shot(shot_name)
+
         # create entities in Shotgun, create folders on disk and compute shot contexts.
-        sequence_data = self._sg_submit_helper.create_shotgun_structure(sequence_name, shot_names)
-        
-        # add it to the full dictionary of things to export
-        self._shots.update(sequence_data)
+        self._sequence.process_shotgun_shot_structure()
 
     
     def pre_export_asset(self, session_id, info):
@@ -250,6 +251,8 @@ class FlameExport(Application):
            sourceOut:       Source out point in frame and asset frame rate.
            recordIn:        Record in point in frame and sequence frame rate.
            recordOut:       Record out point in frame and sequence frame rate.
+           handleIn:        Head as a frame, using the asset frame rate (fps key).
+           handleOut:       Tail as a frame, using the asset frame rate (fps key).
            track:           ID of the sequence's track that contains the asset.
            trackName:       Name of the sequence's track that contains the asset.
            segmentIndex:    Asset index (1 based) in the track.
@@ -262,6 +265,11 @@ class FlameExport(Application):
         shot_name = info["shotName"]
         sequence_name = info["sequenceName"]
 
+        # only support the export of one sequence at a time
+        if self._sequence is None or self._sequence.name != sequence_name:
+            self.log_error("Skipping unknown sequence %s" % sequence_name)
+            return
+
         if asset_type not in ["video", "batch", "batchOpenClip", "openClip"]:
             # the review system ignores any other assets. The export profiles are defined
             # in the app's settings hook, so technically there shouldn't be any other items
@@ -269,16 +277,18 @@ class FlameExport(Application):
             # ignore these.
             return
         
-        # first check that the clip has a shot name - otherwise things won't work!
+        # check that the clip has a shot name - otherwise things won't work!
         if shot_name == "":
             # Note - Since Flame is a PySide only environment, we import it directly
             # rather than going through the sgtk wrappers.             
             from PySide import QtGui
-            QtGui.QMessageBox.warning(None,
-                                      "Missing shot name!",
-                                      ("The clip '%s' does not have a shot name and therefore cannot be exported. "
-                                      "Please ensure that all shots you wish to exports "
-                                      "have been named. " % asset_name) )
+            QtGui.QMessageBox.warning(
+                None,
+                "Missing shot name!",
+                ("The clip '%s' does not have a shot name and therefore cannot be exported. "
+                 "Please ensure that all shots you wish to exports "
+                 "have been named. " % asset_name)
+            )
             
             # TODO: send the clip to the trash for now. no way to abort at this point
             # but we don't have enough information to be able to proceed at this point either
@@ -287,35 +297,30 @@ class FlameExport(Application):
             # TODO: can we avoid this export altogether?
             return
         
-        # first, calculate cut data fields
+        # prepare for export of asset
+        shot = self._sequence.get_shot(shot_name)
+
         if asset_type == "video":
-            self._shots[sequence_name][shot_name].update_new_cut_info(int(info["recordIn"]), int(info["recordOut"]))
-                
-        # get the appropriate file system template
-        if asset_type == "video":
-            # exported plates or video
+            # resolve template for exported plates or video
             template = self._export_preset.get_render_template()
             
         elif asset_type == "batch":
-            # batch file
+            # resolve template for batch file
             template = self.get_template("batch_template")
             
         elif asset_type == "batchOpenClip":
-            # shot level open scene clip xml
+            # resolve template for shot level open scene clip xml
             template = self.get_template("shot_clip_template")            
 
         elif asset_type == "openClip":
-            # segment level open scene clip xml
-            template = self.get_template("segment_clip_template")            
-        
+            # resolve template for segment level open scene clip xml
+            template = self.get_template("segment_clip_template")
+
         self.log_debug("Attempting to resolve template %s..." % template)
         
-        # resolve the template via the context
-        context = self._shots[sequence_name][shot_name].context
-
         # resolve the fields out of the context
-        self.log_debug("Resolving template %s using context %s" % (template, context))
-        fields = context.as_template_fields(template)
+        self.log_debug("Resolving template %s using context %s" % (template, shot.context))
+        fields = shot.context.as_template_fields(template)
         self.log_debug("Resolved context based fields: %s" % fields)
         
         if asset_type == "video":
@@ -396,6 +401,8 @@ class FlameExport(Application):
            sourceOut:       Source out point in frame and asset frame rate.
            recordIn:        Record in point in frame and sequence frame rate.
            recordOut:       Record out point in frame and sequence frame rate.
+           handleIn:        Head as a frame, using the asset frame rate (fps key).
+           handleOut:       Tail as a frame, using the asset frame rate (fps key).
            track:           ID of the sequence's track that contains the asset.
            trackName:       Name of the sequence's track that contains the asset.
            segmentIndex:    Asset index (1 based) in the track.       
@@ -403,35 +410,41 @@ class FlameExport(Application):
            versionNumber:   Current version number of export (0 if unversioned).
 
         """
-        
-        tk_flame_export_no_ui = self.import_module("tk_flame_export_no_ui")
-        
         asset_type = info["assetType"]
         segment_name = info["assetName"]
         shot_name = info["shotName"]
         sequence_name = info["sequenceName"]        
-        
+
         if asset_type not in ["video", "batch"]:
             # ignore anything that isn't video or batch
             return
         
-        metadata = self._shots[sequence_name][shot_name]
-        
+        # resolve shot object
+        shot = self._sequence.get_shot(shot_name)
+
         if asset_type == "video":
-            # this is a video export for a segment.
-            # first, make sure that we have an object for this segment
-            if segment_name not in metadata.segment_metadata:
-                # create new metadata to represent this segment
-                metadata.segment_metadata[segment_name] = tk_flame_export_no_ui.SegmentMetadata()
-            
-            # now cache the info for this segment
-            segment_metadata = metadata.segment_metadata[segment_name]
-            segment_metadata.video_info = info
-            
+            # create a new segment for the shot
+            segment = shot.add_segment(segment_name)
+
+            # note: not all versions of Flame pass a handle parameter
+            # so add the preset default in case value isn't passed.
+            if "handleIn" not in info:
+                info["handleIn"] = self._export_preset.get_handles_length()
+
+            if "handleOut" not in info:
+                info["handleOut"] = self._export_preset.get_handles_length()
+
+            # add start frame parameter to the flame chunk that we pass in
+            # to the segment
+            info["startFrame"] = self._export_preset.get_start_frame()
+
+            # pass in raw data from flame
+            segment.set_flame_data(info)
+
         elif asset_type == "batch":
             # this is a batch export. These are per *shot*, even in the case of a shot
             # with multiple clips, only one batch file gets output.
-            metadata.batch_info = info
+            shot.set_flame_batch_data(info)
                 
         # indicate that the export has reached its last stage
         self._reached_post_asset_phase = True
@@ -452,115 +465,62 @@ class FlameExport(Application):
                      - presetPath: Path to the preset used for the export.
         
         """
-        tk_flame_export = self.import_module("tk_flame_export")
+        dialogs = self.import_module("dialogs")
         
         # if we haven't reached the post export stage, that means that something
         # has gone wrong along the way. Display the "oops, something went wrong" 
         # dialog.
         if not self._reached_post_asset_phase:
-            self.engine.show_modal("Submission Failed", self, tk_flame_export.SubmissionFailedDialog) 
+            self.engine.show_modal(
+                "Submission Failed",
+                self,
+                dialogs.SubmissionFailedDialog
+            )
             return
-                
-        ##########################################################################################
-        #
-        # Stage 1 - Cut calculations
-        #
-        num_created_shots = 0
-        for seq in self._shots:
-            # get a list of metadata objects for this sequence
-            shot_metadata_list = self._shots[seq].values()
-            # sort it by cut in
-            shot_metadata_list.sort(key=lambda x: x.new_cut_in)
-            # now loop over all items and set an incrementing cut order
-            cut_index = 1
-            for shot_metadata in shot_metadata_list:
-                if shot_metadata.created_this_session:
-                    num_created_shots += 1
-                shot_metadata.new_cut_order = cut_index
-                cut_index += 1
 
-        ##########################################################################################
-        #
-        # Stage 2 - Creating Shotgun versions and run potential cut updates to shots.
-        #           This happens as a single Shotgun batch call.
-        # 
-        
-        # we push all changes to Shotgun as a single batch call
+        # figure out which shots are new
+        created_shots = [shot for shot in self._sequence.shots if shot.new_in_shotgun]
+        num_created_shots = len(created_shots)
+
+        # push shot cut changes and version records to shotgun
+        # as a single batch call
         shotgun_batch_items = []
         version_path_lookup = {}
-                
-        # loop over all shots in our metadata data structure
-        self.log_debug("Looping over all shots and segments to submit Shotgun data...")
-        num_cut_changes = 0
-        for seq in self._shots:
-            for shot_metadata in self._shots[seq].values():
-                
-                self.log_debug("Looking at shot %s" % shot_metadata.name)
-                
-                # First, create versions for all video segments.
-                #
-                # register all versions that we should submit for review
-                # for each shot. Note that a shot may have multiple video segments
-                for segment_metadata in shot_metadata.segment_metadata.values():
-                    
-                    # it is possible that the user has manually cancelled the process, so
-                    # it's possible that a segment doesn't have a video export associated
-                    # this can happen if for example a user chooses not to overwrite an 
-                    # existing file on disk. 
-                    if segment_metadata.has_render_export():
-                        
-                        # we have a video submission associated with this segment!
-                        # compute a version-create Shotgun batch dictionary
-                        sg_version_batch = self._sg_submit_helper.create_version_batch(shot_metadata.context, 
-                                                                                       segment_metadata.get_render_path(), 
-                                                                                       self._user_comments, 
-                                                                                       None, 
-                                                                                       segment_metadata.video_info["aspectRatio"])                
-                        # append to our main batch listing
-                        self.log_debug("Registering version: %s" % pprint.pformat(sg_version_batch))
-                        shotgun_batch_items.append(sg_version_batch)
-                        
-                        # once the batch has been executed and the versions have been created in Shotgun,
-                        # we need to update our segment metadata with the Shotgun version id.
-                        # in order to do that, maintain a lookup dictionary:
-                        path_to_frames = sg_version_batch["data"]["sg_path_to_frames"]
-                        version_path_lookup[path_to_frames] = segment_metadata
-                
-                # Now update frame ranges to make sure Shotgun matches Flame.
-                #
-                # ensure that we actually have frame ranges for this shot
-                # it seems sometimes there are shots that don't actually contain any clips.
-                # I think this is anomaly in Flame, but since we have spotted it in QA,
-                # it's good to do this extra check in this code.
-                if shot_metadata.new_cut_in is None or shot_metadata.new_cut_out is None:
-                    self.log_warning("No frame ranges calculated for Shot %s!" % shot_metadata.shotgun_id)
-                
-                # has the frame range changed?
-                elif shot_metadata.shotgun_cut_in != shot_metadata.new_cut_in or \
-                     shot_metadata.shotgun_cut_out != shot_metadata.new_cut_out or \
-                     shot_metadata.shotgun_cut_order != shot_metadata.new_cut_order:
-                    
-                    duration = shot_metadata.new_cut_out - shot_metadata.new_cut_in + 1
-                    num_cut_changes += 1
-                    
-                    # note that at this point all shots are guaranteed to exist in Shotgun
-                    # since they were created in the initial export step.
-                    
-                    sg_cut_batch = {"request_type":"update", 
-                                    "entity_type": "Shot",
-                                    "entity_id": shot_metadata.shotgun_id,
-                                    "data":{ "sg_cut_in": shot_metadata.new_cut_in,
-                                             "sg_cut_out": shot_metadata.new_cut_out,
-                                             "sg_cut_duration": duration, 
-                                             "sg_cut_order": shot_metadata.new_cut_order }}
-                    
-                    self.log_debug("Registering cut change: %s" % pprint.pformat(sg_cut_batch))
-                    shotgun_batch_items.append(sg_cut_batch)
-                
-                else:
-                    self.log_debug("No frame changes detected. Shotgun and Flame are already in sync.")
-        
-        # now push all new versions and cut changes to Shotgun in a single batch call.
+
+        # make sure all shots have their frame in/outs set correctly
+        shotgun_batch_items += self._sequence.compute_shot_cut_changes()
+        num_cut_changes = len(shotgun_batch_items)
+
+        # create versions for all segments
+        self.log_debug("Looping over all shots and segments to submit versions...")
+        for shot in self._sequence.shots:
+            for segment in shot.segments:
+
+                # it is possible that the user has manually cancelled the process, so
+                # it's possible that a segment doesn't have a video export associated
+                # this can happen if for example a user chooses not to overwrite an
+                # existing file on disk.
+                if segment.has_render_export:
+
+                    # compute a version-create Shotgun batch dictionary
+                    sg_version_batch = self._sg_submit_helper.create_version_batch(
+                        shot.context,
+                        segment.render_path,
+                        self._user_comments,
+                        None,
+                        segment.render_aspect_ratio
+                    )
+                    # append to our main batch listing
+                    self.log_debug("Registering version: %s" % pprint.pformat(sg_version_batch))
+                    shotgun_batch_items.append(sg_version_batch)
+
+                    # once the batch has been executed and the versions have been created in Shotgun
+                    # we need to update our segment metadata with the Shotgun version id.
+                    # in order to do that, maintain a lookup dictionary:
+                    path_to_frames = sg_version_batch["data"]["sg_path_to_frames"]
+                    version_path_lookup[path_to_frames] = segment
+
+        # push all new versions and cut changes to Shotgun in a single batch call.
         sg_data = []
         if len(shotgun_batch_items) > 0:
             self.engine.show_busy("Updating Shotgun...", "Registering review and cut data...")
@@ -572,247 +532,195 @@ class FlameExport(Application):
                 # kill progress indicator
                 self.engine.clear_busy()
 
-                
-        ##########################################################################################
-        #
-        # Stage 3 - Update metadata with created Shotgun version ids so we can access it later
-        #                 
-                
-        # now update the shot metadata with version ids
+        # Update segment metadata with created Shotgun version ids so we can access it later
         for sg_entity in sg_data:
             if sg_entity["type"] == "Version":
                 # using our lookup table, find the metadata object
-                segment_metadata = version_path_lookup[sg_entity["sg_path_to_frames"]]
-                segment_metadata.shotgun_version = sg_entity
-        
-        # also, find out the highest backburner ID so that we can create a dependency later on
+                segment = version_path_lookup[sg_entity["sg_path_to_frames"]]
+                segment.set_shotgun_version_id(sg_entity["id"])
+
+        # now that we have resolved all cut changes and created versions,
+        # request the creation of a new cut in Shotgun
+        self._sequence.create_cut(self._export_preset.get_cut_type())
+
+        # Now submit a series of backburner jobs to handle the rest of the processing.
+
+        # Find out the highest backburner ID so that we can create a dependency later on.
         # because the various Flame exports may be running in backburner jobs, we need to figure out 
         # the last backburner job id and create a dependency from our jobs to this job. This is 
         # because stuff such as thumbnails etc are extracted as part of publishing and other jobs
         # and we cannot do that before the actual render export has completed.
         # 
-        # assume that the highest backburner job id is the last one to run.
+        # we assume that the highest backburner job id was the last one to run.
+        # and will use this as a dependency for all further processing
         #
-        prev_backburner_id = None
-        for seq in self._shots:
-            for shot_metadata in self._shots[seq].values():
-                for segment_metadata in shot_metadata.segment_metadata.values():
-                    if segment_metadata.video_info.get("isBackground"):
-                        job_id = segment_metadata.video_info.get("backgroundJobId")
-                        if prev_backburner_id is None or job_id > prev_backburner_id:
-                            prev_backburner_id = job_id        
-        
-        ##########################################################################################
-        #
-        # Stage 4 - Submit single backburner job to register all batch and render publishes
-        #                 
-        # first, push a backburner job that will register all publishes in Shotgun given our shot metadata
+        max_backburner_id = None
+        for shot in self._sequence.shots:
+            for segment in shot.segments:
+                max_backburner_id = max(max_backburner_id, segment.backburner_job_id)
+
+
+        # Submit single backburner job to register publishes
+        # publish records are created for all renders and batch files
         sg_publishes = []
-        
-        for seq in self._shots:
-            for shot_metadata in self._shots[seq].values():
-                
-                # first see if we have a batch file being exported for this shot
-                if shot_metadata.has_batch_export():
-                    # there is a batch publish associated with this segment! Add a publish request
-                    sg_publishes.append({"type": "batch",
-                                          "path": shot_metadata.get_batch_path(),
-                                          "comments": self._user_comments,
-                                          "serialized_context": sgtk.context.serialize(shot_metadata.context),
-                                          "version": shot_metadata.get_batch_version_number() })
-                                
-                for segment_metadata in shot_metadata.segment_metadata.values():
 
-                    if segment_metadata.has_render_export():
-                        # there is a video publish associated with this segment!
-                        # create a publish in Shotgun.
-                        
-                        # figure out if this shot is new. In that case, upload a thumbnail to the shot
-                        # at the same time as we push the publish
-                        push_thumbnail_to_shot = False
-                        if shot_metadata.created_this_session and not shot_metadata.thumbnail_uploaded:
-                            shot_metadata.thumbnail_uploaded = False
-                            push_thumbnail_to_shot = True
+        self.log_debug("Looping over all shots and segments to submit publishes...")
+        for shot in self._sequence.shots:
 
-                        # maybe this is overly cautious? Technically speaking there should be a version
-                        # for every render at this point.
-                        version_id = None
-                        if segment_metadata.has_shotgun_version():
-                            version_id = segment_metadata.get_shotgun_version_id()
-                            
-                        # check if we should also generate a quicktime. In that case, we make a publish for
-                        # that too at the same time.
-                        quicktime_path = None
-                        if self._export_preset.highres_quicktime_enabled():
-                            render_path = segment_metadata.get_render_path()
-                            quicktime_path = self._export_preset.quicktime_path_from_render_path(render_path)
-                        
-                        sg_publishes.append({"type": "video",
-                                              "width": segment_metadata.video_info.get("width"),
-                                              "height": segment_metadata.video_info.get("height"),
-                                              "path": segment_metadata.get_render_path(),
-                                              "quicktime_path": quicktime_path,
-                                              "comments": self._user_comments,
-                                              "shot_thumbnail": push_thumbnail_to_shot,
-                                              "version_id": version_id,
-                                              "serialized_context": sgtk.context.serialize(shot_metadata.context),
-                                              "version": segment_metadata.get_render_version_number() })                        
-                        
+            # first see if we have a batch file being exported for this shot
+            if shot.has_batch_export:
+                sg_publishes.append({
+                    "type": "batch",
+                    "path": shot.batch_path,
+                    "comments": self._user_comments,
+                    "serialized_context": sgtk.context.serialize(shot.context),
+                    "version": shot.batch_version_number
+                })
+
+            for segment in shot.segments:
+
+                if segment.has_render_export:
+                    # there is video rendered out for this segment!
+
+                    # check if we should also generate a quicktime.
+                    # In that case, we make a publish for that too at the same time.
+                    quicktime_path = None
+                    if self._export_preset.highres_quicktime_enabled():
+                        quicktime_path = self._export_preset.quicktime_path_from_render_path(
+                            segment.render_path
+                        )
+
+                    sg_publishes.append({
+                        "type": "video",
+                        "width": segment.render_width,
+                        "height": segment.render_height,
+                        "path": segment.render_path,
+                        "quicktime_path": quicktime_path,
+                        "comments": self._user_comments,
+                        "version_id": segment.shotgun_version_id,
+                        "create_shot_thumbnail": shot.new_in_shotgun,
+                        "serialized_context": sgtk.context.serialize(shot.context),
+                        "version": segment.render_version_number
+                    })
                                                 
-        # push all publish requests as a single job
-        args = {"publish_requests": sg_publishes, 
-                "export_preset": self._export_preset.get_name()
-                }
-        self.engine.create_local_backburner_job("Shotgun Publish", 
-                                                "Generates publishes in Shotgun.", 
-                                                prev_backburner_id, 
-                                                self, 
-                                                "backburner_register_publishes", 
-                                                args)
+        # push all publish requests as a single backburner job
+        args = {
+            "publish_requests": sg_publishes,
+            "export_preset": self._export_preset.get_name()
+        }
+        self.engine.create_local_backburner_job(
+            "Shotgun Publish",
+            "Generates publishes in Shotgun.",
+            max_backburner_id,
+            self,
+            "backburner_register_publishes",
+            args
+        )
         
-        
-        ##########################################################################################
-        #
-        # Stage 5 - If no transcoding is happening (either because we are running with it off
-        #           or because we are not uploading any quicktimes to Shotgun), instead explicitly
-        #           push thumbnails for versions.
-        #                 
-                
-        if self._export_preset.upload_quicktime() == False or self.get_setting("bypass_shotgun_transcoding"):
+        # If no transcoding is happening (either because we are running with it off
+        # or because we are not uploading any quicktimes to Shotgun), explicitly
+        # push thumbnails for versions.
+        if not self._export_preset.upload_quicktime() or self.get_setting("bypass_shotgun_transcoding"):
         
             # Create a single backburner job to handle this.
-            job_title = "Shotgun Thumbnails"
-            job_desc = "Generating thumbnails for review versions."
-            
             items = []
-            for seq in self._shots:
-                for shot_metadata in self._shots[seq].values():
-                    for segment_metadata in shot_metadata.segment_metadata.values():   
-                        
-                        if segment_metadata.has_shotgun_version():
-                            # this segment has video and has a version!
-                            item = {"path": segment_metadata.get_render_path(), 
-                                    "width": segment_metadata.video_info.get("width"),
-                                    "height": segment_metadata.video_info.get("height"),
-                                    "version_id": segment_metadata.get_shotgun_version_id()}
-                            items.append(item)
+            self.log_debug("Looping over all shots and segments to submit thumbnails...")
+            for shot in self._sequence.shots:
+                for segment in shot.segments:
+                    if segment.has_shotgun_version:
+                        # this segment has video and has a version!
+                        item = {
+                            "path": segment.render_path,
+                            "width": segment.render_width,
+                            "height": segment.render_height,
+                            "version_id": segment.shotgun_version_id
+                        }
+                        items.append(item)
             
             args = {"items": items}
                             
             # kick off backburner job
-            self.engine.create_local_backburner_job(job_title,
-                                                    job_desc,
-                                                    prev_backburner_id,
-                                                    self,
-                                                    "backburner_upload_version_thumbnails",
-                                                    args)
+            self.engine.create_local_backburner_job(
+                "Shotgun Thumbnails",
+                "Generating thumbnails for review versions.",
+                max_backburner_id,
+                self,
+                "backburner_upload_version_thumbnails",
+                args
+            )
             
             
-        ##########################################################################################
-        #
-        # Stage 6 - For each segment, generate and upload a quicktime to Shotgun.
-        #           Each item will be processed in a separate backburner job.
-        #                 
-        
+        # For each segment, generate and upload a quicktime to Shotgun.
+        # Each item will be processed in a separate backburner job.
         if self._export_preset.upload_quicktime():
-            
-            # let's create quicktimes suitable for Shotgun and upload these.
-            # create one separate backburner job for each upload for parallelisation  
-            for seq in self._shots:
-                for shot_metadata in self._shots[seq].values():
-                    for segment_metadata in shot_metadata.segment_metadata.values():
-                                                    
-                        if segment_metadata.has_shotgun_version():
-                            # this segment has video and has a version!
-                            # schedule quicktime generation!
-                            
-                            job_title = "Shot %s - Shotgun Quicktime Upload" % shot_metadata.name
-                            job_desc = "Generating quicktimes and uploading to Shotgun."         
-                            
-                            # if the video media is generated in a backburner job, make sure that 
-                            # our quicktime job is executed *after* this job has finished                        
-                            if segment_metadata.video_info.get("isBackground"):
-                                run_after_job_id = segment_metadata.video_info.get("backgroundJobId")
-                            else:
-                                run_after_job_id = None
-            
-                            render_path = segment_metadata.get_render_path()
-                            
-                            args = {"version_id": segment_metadata.get_shotgun_version_id(), 
-                                    "path": render_path,
-                                    "width": segment_metadata.video_info.get("width"),
-                                    "height": segment_metadata.video_info.get("height"),
-                                    "fps": segment_metadata.video_info.get("fps")
-                                    }
-            
-                            # kick off backburner job
-                            self.engine.create_local_backburner_job(job_title, 
-                                                                    job_desc, 
-                                                                    run_after_job_id, 
-                                                                    self, 
-                                                                    "backburner_upload_quicktime", 
-                                                                    args)
+            self.log_debug("Looping over all shots and segments to submit quicktimes...")
+            for shot in self._sequence.shots:
+                for segment in shot.segments:
+                    if segment.has_shotgun_version:
+                        # this segment has video and has a version!
 
-        ##########################################################################################
-        #
-        # Stage 7 - Submit multiple backburner jobs, one for each *local* (high res) quicktime
-        #
-        
-        # note that this happens in a separate loop after the upload loop to ensure that 
-        # these tasks happen last.
+                        # if the video media is generated in a backburner job, make sure that
+                        # our quicktime job is executed *after* this job has finished
+                        run_after_job_id = segment.backburner_job_id
 
+                        args = {
+                            "version_id": segment.shotgun_version_id,
+                            "path": segment.render_path,
+                            "width": segment.render_width,
+                            "height": segment.render_height,
+                            "fps": segment.fps
+                        }
+
+                        self.engine.create_local_backburner_job(
+                            "Shot %s - Shotgun Quicktime Upload" % shot.name,
+                            "Generating quicktimes and uploading to Shotgun.",
+                            run_after_job_id,
+                            self,
+                            "backburner_upload_quicktime",
+                            args
+                        )
+
+        # For each segment, generate a high res quicktime (for local playback in say RV)
+        # Each item will be processed in a separate backburner job.
+        # note that this happens in a separate loop after the upload quicktime loop
+        # to ensure that these tasks happen last.
         if self._export_preset.highres_quicktime_enabled():
-            # let's create quicktimes suitable for local playback (for example in RV)
-            # create one separate backburner job for each upload for parallelisation 
-            # this are pushed onto the queue after any Shotgun transcoding jobs. 
-            for seq in self._shots:
-                for shot_metadata in self._shots[seq].values():
-                    for segment_metadata in shot_metadata.segment_metadata.values():
-                                                    
-                        if segment_metadata.has_shotgun_version():
-                            # this segment has video and has a version!
-                            # schedule quicktime generation!
-                            
-                            job_title = "Shot %s - Local Quicktime Render" % shot_metadata.name
-                            job_desc = "Generating quicktimes for local playback."         
+            self.log_debug("Looping over all shots and segments to generate high-res quicktimes...")
+            for shot in self._sequence.shots:
+                for segment in shot.segments:
+                    if segment.has_shotgun_version:
 
-                            # get the render path
-                            render_path = segment_metadata.get_render_path()
-                            
-                            # convert it to the equivalent quicktime path
-                            quicktime_path = self._export_preset.quicktime_path_from_render_path(render_path)
-                            
-                            # if the video media is generated in a backburner job, make sure that 
-                            # our quicktime job is executed *after* this job has finished                        
-                            if segment_metadata.video_info.get("isBackground"):
-                                run_after_job_id = segment_metadata.video_info.get("backgroundJobId")
-                            else:
-                                run_after_job_id = None
-            
-                            args = {"export_preset_name": self._export_preset.get_name(),
-                                    "version_id": segment_metadata.get_shotgun_version_id(), 
-                                    "path": render_path,
-                                    "quicktime_path": quicktime_path,
-                                    "width": segment_metadata.video_info.get("width"),
-                                    "height": segment_metadata.video_info.get("height"),
-                                    "fps": segment_metadata.video_info.get("fps")
-                                    }
-            
-                            # kick off backburner job
-                            self.engine.create_local_backburner_job(job_title, 
-                                                                    job_desc, 
-                                                                    run_after_job_id, 
-                                                                    self, 
-                                                                    "backburner_generate_local_quicktime", 
-                                                                    args)
+                        # compute quicktime path from frames
+                        quicktime_path = self._export_preset.quicktime_path_from_render_path(
+                            segment.render_path
+                        )
+
+                        # if the video media is generated in a backburner job, make sure that
+                        # our quicktime job is executed *after* this job has finished
+                        run_after_job_id = segment.backburner_job_id
+
+                        args = {
+                            "export_preset_name": self._export_preset.get_name(),
+                            "version_id": segment.shotgun_version_id,
+                            "path": segment.render_path,
+                            "quicktime_path": quicktime_path,
+                            "width": segment.render_width,
+                            "height": segment.render_height,
+                            "fps": segment.fps
+                        }
+
+                        # kick off backburner job
+                        self.engine.create_local_backburner_job(
+                            "Shot %s - Local Quicktime Render" % shot.name,
+                            "Generating quicktimes for local playback.",
+                            run_after_job_id,
+                            self,
+                            "backburner_generate_local_quicktime",
+                            args
+                        )
         
 
-        ##########################################################################################
-        #
-        # Stage 8 - Pop up a summary UI!
-        #
-        
-        # now, as a very last step, show a summary UI to the user, including a 
+        # now, as a last step, show a summary UI to the user, including a
         # very brief overview of what changes have been carried out.
         comments = "Your export has been pushed to the Backburner queue for processing.<br><br>"
         
@@ -827,7 +735,12 @@ class FlameExport(Application):
         elif num_cut_updates > 1:
             comments += "- %d Shots had their cut information updated. <br>" % num_cut_updates 
                 
-        self.engine.show_modal("Submission Complete", self, tk_flame_export.SubmissionCompleteDialog, comments)
+        self.engine.show_modal(
+            "Submission Complete",
+            self,
+            dialogs.SubmissionCompleteDialog,
+            comments
+        )
         
         
         
@@ -914,8 +827,12 @@ class FlameExport(Application):
         from PySide import QtGui
          
         # pop up a UI asking the user for description
-        tk_flame_export = self.import_module("tk_flame_export")        
-        (return_code, widget) = self.engine.show_modal("Send to Review", self, tk_flame_export.BatchRenderDialog)
+        dialogs = self.import_module("dialogs")
+        (return_code, widget) = self.engine.show_modal(
+            "Send to Review",
+            self,
+            dialogs.BatchRenderDialog
+        )
         
         if return_code != QtGui.QDialog.Rejected:
             # user wants review!
@@ -968,34 +885,28 @@ class FlameExport(Application):
             self.log_warning("Batch export preset was not populated in the pre-batch render hook. "
                              "Aborting post batch render hook.")
             return
-
         
         # now start preparing a remote job
-        args = {"info": info, 
-                "export_preset": self._batch_export_preset.get_name(),
-                "serialized_context": sgtk.context.serialize(self._batch_context),
-                "comments": self._user_comments,
-                "send_to_review": self._send_batch_render_to_review }
-        
-        # and populate backburner job parameters
-        job_title = "Render %s - Shotgun Upload" % info.get("nodeName")
-        job_desc = "Generating quicktime and uploading to Shotgun."
-        
-        # kick off async job
-        self.engine.create_local_backburner_job(job_title, 
-                                                job_desc, 
-                                                None, # run_after_job_id 
-                                                self, 
-                                                "backburner_process_rendered_batch", 
-                                                args)
+        args = {
+            "info": info,
+            "export_preset": self._batch_export_preset.get_name(),
+            "serialized_context": sgtk.context.serialize(self._batch_context),
+            "comments": self._user_comments,
+            "send_to_review": self._send_batch_render_to_review
+        }
 
+        self.engine.create_local_backburner_job(
+            "Render %s - Shotgun Upload" % info.get("nodeName"),
+            "Generating quicktime and uploading to Shotgun.",
+            None, # run_after_job_id
+            self,
+            "backburner_process_rendered_batch",
+            args
+        )
 
-
-
-
-    ##############################################################################################################
-    # backburner callbacks. These methods are executed as backburner jobs and not inside the main Flame UI.
-    # at this point, there is no access to any UI.
+    ###############################################################################################
+    # backburner callbacks. These methods are executed as backburner jobs and not inside
+    # the main Flame UI. at this point, there is no access to any UI.
 
     def backburner_register_publishes(self, publish_requests, export_preset):
         """
@@ -1015,7 +926,7 @@ class FlameExport(Application):
           "path": "/foo/bar",
           "quicktime_path": "/path/to/quicktime.mov" # optional, may be None
           "comments": "Some user comments",
-          "shot_thumbnail": True,             # should a thumbnail be pushed to the shot?
+          "create_shot_thumbnail": True
           "version_id": 121323,               # associate publish with review version
           "serialized_context": "xxxxx", 
           "version": 13})
@@ -1031,25 +942,31 @@ class FlameExport(Application):
             context = sgtk.context.deserialize(request["serialized_context"])
             
             if request["type"] == "batch":    
-                self._sg_submit_helper.register_batch_publish(context, 
-                                                              request["path"], 
-                                                              request["comments"], 
-                                                              request["version"])
+                self._sg_submit_helper.register_batch_publish(
+                    context,
+                    request["path"],
+                    request["comments"],
+                    request["version"]
+                )
 
             elif request["type"] == "video":
-                sg_data = self._sg_submit_helper.register_video_publish(export_preset,
-                                                                        context,
-                                                                        request["width"], 
-                                                                        request["height"],                                                                        
-                                                                        request["path"], 
-                                                                        request["quicktime_path"],
-                                                                        request["comments"], 
-                                                                        request["version"],
-                                                                        request["shot_thumbnail"])
+                sg_data = self._sg_submit_helper.register_video_publish(
+                    export_preset,
+                    context,
+                    request["width"],
+                    request["height"],
+                    request["path"],
+                    request["quicktime_path"],
+                    request["comments"],
+                    request["version"],
+                    request["create_shot_thumbnail"]
+                )
 
                 if request["version_id"]:
-                    self._sg_submit_helper.update_version_dependencies(request["version_id"], sg_data)
-
+                    self._sg_submit_helper.update_version_dependencies(
+                        request["version_id"],
+                        sg_data
+                    )
             
         self.log_debug("Publish complete!")
     
@@ -1063,7 +980,13 @@ class FlameExport(Application):
         :param height: Height of source
         :param fps: The fps for the source media
         """
-        self._sg_submit_helper.upload_quicktime(version_id, path, width, height, fps)        
+        self._sg_submit_helper.upload_quicktime(
+            version_id,
+            path,
+            width,
+            height,
+            fps
+        )
 
     def backburner_generate_local_quicktime(self, export_preset_name, version_id, path, quicktime_path, width, height, fps):
         """
@@ -1077,14 +1000,15 @@ class FlameExport(Application):
         :param height: Height of source
         :param fps: The fps for the source media
         """
-        self._sg_submit_helper.create_local_quicktime(export_preset_name, 
-                                                      version_id, 
-                                                      path, 
-                                                      quicktime_path, 
-                                                      width, 
-                                                      height, 
-                                                      fps)
-
+        self._sg_submit_helper.create_local_quicktime(
+            export_preset_name,
+            version_id,
+            path,
+            quicktime_path,
+            width,
+            height,
+            fps
+        )
 
     def backburner_upload_version_thumbnails(self, items):
         """
@@ -1096,7 +1020,6 @@ class FlameExport(Application):
         :param items: List of dictionaries. See above
         """
         self._sg_submit_helper.upload_version_thumbnails(items)
-
 
     def backburner_process_rendered_batch(self, info, export_preset, serialized_context, comments, send_to_review):
         """
@@ -1161,52 +1084,62 @@ class FlameExport(Application):
             # note 2: at this point we have already validated the path and know it conforms with the toolkit templates.
             quicktime_path = export_preset_obj.batch_quicktime_path_from_render_path(full_flame_batch_render_path)
         
-        sg_data = self._sg_submit_helper.register_video_publish(export_preset_obj.get_name(),
-                                                                context, 
-                                                                info["width"], 
-                                                                info["height"],                                                                
-                                                                full_flame_batch_render_path, 
-                                                                quicktime_path,
-                                                                description,
-                                                                version_number, 
-                                                                make_shot_thumb=False)
+        sg_data = self._sg_submit_helper.register_video_publish(
+            export_preset_obj.get_name(),
+            context,
+            info["width"],
+            info["height"],
+            full_flame_batch_render_path,
+            quicktime_path,
+            description,
+            version_number,
+            make_shot_thumb=False
+        )
         
         # Finally, create a version record in Shotgun, generate a quicktime and upload it
         # only do this if the user clicked "send to review" in the UI.
         if send_to_review:
                         
             # Step 1 - Create Shotgun Version
-            sg_version_data = self._sg_submit_helper.create_version(context, 
-                                                                    full_flame_batch_render_path,
-                                                                    description,
-                                                                    sg_data, 
-                                                                    info["aspectRatio"])     
+            sg_version_data = self._sg_submit_helper.create_version(
+                context,
+                full_flame_batch_render_path,
+                description,
+                sg_data,
+                info["aspectRatio"]
+            )
             
             # step 2 - See if we should push a thumbnail
-            if export_preset_obj.upload_quicktime() == False or self.get_setting("bypass_shotgun_transcoding"):            
+            if not export_preset_obj.upload_quicktime() or self.get_setting("bypass_shotgun_transcoding"):
                 # there will be no transcoding happening on the server so pass a manual thumbnail
-                version_info = {"version_id": sg_version_data["id"], 
-                                "width": info["width"],
-                                "height": info["height"],
-                                "path": full_flame_batch_render_path}
+                version_info = {
+                    "version_id": sg_version_data["id"],
+                    "width": info["width"],
+                    "height": info["height"],
+                    "path": full_flame_batch_render_path
+                }
                 self._sg_submit_helper.upload_version_thumbnails([version_info])                
                 
             # Step 3 - Generate and upload quicktime
             if export_preset_obj.upload_quicktime():
                 # and upload a quicktime to Shotgun
-                self._sg_submit_helper.upload_quicktime(sg_version_data["id"], 
-                                                        full_flame_batch_render_path, 
-                                                        info["width"], 
-                                                        info["height"],
-                                                        info["fps"])
-            
+                self._sg_submit_helper.upload_quicktime(
+                    sg_version_data["id"],
+                    full_flame_batch_render_path,
+                    info["width"],
+                    info["height"],
+                    info["fps"]
+                )
+
             # Step 4 - Generate high res local quicktime
             if export_preset_obj.batch_highres_quicktime_enabled():
-                self._sg_submit_helper.create_local_quicktime(export_preset_obj.get_name(),
-                                                              sg_version_data["id"], 
-                                                              full_flame_batch_render_path, 
-                                                              quicktime_path, 
-                                                              info["width"], 
-                                                              info["height"],
-                                                              info["fps"])
-                
+                self._sg_submit_helper.create_local_quicktime(
+                    export_preset_obj.get_name(),
+                    sg_version_data["id"],
+                    full_flame_batch_render_path,
+                    quicktime_path,
+                    info["width"],
+                    info["height"],
+                    info["fps"]
+                )
+

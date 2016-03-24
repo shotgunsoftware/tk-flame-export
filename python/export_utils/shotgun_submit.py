@@ -11,15 +11,12 @@
 import sgtk
 import pprint
 import subprocess
-import math
 import uuid
 from sgtk import TankError
 import os
 import re
 
-from .shot_metadata import ShotMetadata
 from .util import subprocess_check_output, SubprocessCalledProcessError
-
 
 
 class ShotgunSubmitter(object):
@@ -31,7 +28,7 @@ class ShotgunSubmitter(object):
     
     # default height for Shotgun uploads
     # see https://support.shotgunsoftware.com/entries/26303513-Transcoding
-    SHOTGUN_QUICKTIME_TARGET_HEIGHT = 720 
+    SHOTGUN_QUICKTIME_TARGET_HEIGHT = 720
     
     # default height for thumbs
     SHOTGUN_THUMBNAIL_TARGET_HEIGHT = 400
@@ -44,205 +41,6 @@ class ShotgunSubmitter(object):
         Constructor
         """
         self._app = sgtk.platform.current_bundle()
-        
-        # get some app settings configuring how shots are parented
-        self._shot_parent_entity_type = self._app.get_setting("shot_parent_entity_type")
-        self._shot_parent_link_field = self._app.get_setting("shot_parent_link_field")
-
-    def create_shotgun_structure(self, parent_name, shot_names):
-        """
-        Create a scaffold in Shotgun and on disk to represent Shots.
-        This method will
-        
-        - Create sequences and shots in Shotgun if they don't already exist
-        - Create folders on disk for new shots
-        - Compute tk contexts for all shots
-        
-        Returns a dictionary of sequences. Each sequence name contains a dict
-        
-        { "Sequence_x": { "Shot_x_1":  ShotMetadata,
-                          "Shot_x_2":  ShotMetadata,
-                          "Shot_x_2":  ShotMetadata }}
-        
-        :returns: dict with shot data        
-        """
-        data = {}
-        
-        self._app.log_debug("Preparing export structure for %s %s and shots %s" % (self._shot_parent_entity_type, 
-                                                                                   parent_name, 
-                                                                                   shot_names))
-        self._app.engine.show_busy("Preparing Shotgun...", "Preparing Shots for export...")
-        
-        try:
-            # find and create objects in Shotgun
-            shot_metadata_list = self._resolve_sg_shot_structure(parent_name, shot_names)
-            
-            # set up metadata objects grouped by sequence in our data structure
-            data[parent_name] = {}
-            
-            for shot_metadata in shot_metadata_list:
-                data[parent_name][shot_metadata.name] = shot_metadata
-            
-            # now get the metadata objects for all shots that were created by the folder creation
-            new_shot_metadata = [x for x in data[parent_name].values() if x.created_this_session]
-            
-            # run folder creation for our newly created shots
-            for (idx, shot_metadata) in enumerate(new_shot_metadata):
-                # this is a new shot
-                msg = "Step %s/%s: Creating folders for Shot %s..." % (idx+1, len(new_shot_metadata), shot_metadata.name)
-                self._app.engine.show_busy("Preparing Shotgun...", msg)
-                self._app.log_debug("Creating folders on disk for Shot id %s..." % shot_metadata.shotgun_id)
-                self._app.sgtk.create_filesystem_structure("Shot", shot_metadata.shotgun_id, engine="tk-flame")
-                self._app.log_debug("...folder creation complete")
-                
-            # establish a context for all objects
-            self._app.engine.show_busy("Preparing Shotgun...", "Resolving Shot contexts...")
-            for shot_metadata in data[parent_name].values():
-                shot_metadata.context = self._app.sgtk.context_from_entity("Shot", shot_metadata.shotgun_id)
-            
-        finally:
-            # kill progress indicator
-            self._app.engine.clear_busy()
-        
-        return data
-
-    def _resolve_sg_shot_structure(self, parent_name, shot_names):
-        """
-        Ensures that Shots exists in Shotgun. Will automatically create
-        Shots and Shot parents (e.g. sequences) if necessary and assign
-        task templates. Returns a dictionary with Shot metadata
-        
-        :param parent_name: Name of the shot parent (usually this is the sequence)
-        :param shot_names: List of shot names
-        :returns: List of ShotMetadata objects  
-        """
-        # get some configuration settings first
-        shot_task_template = self._app.get_setting("task_template")
-        if shot_task_template == "":
-            shot_task_template = None
-
-        parent_task_template = self._app.get_setting("shot_parent_task_template")
-        if parent_task_template == "":
-            parent_task_template = None
-
-        # handy shorthand
-        project = self._app.context.project
-
-        # --------------------------------------------------------------------------------------------
-        # first, ensure that a parent exists in Shotgun with the parent name
-        self._app.engine.show_busy("Preparing Shotgun...", 
-                                   "Locating %s %s..." % (self._shot_parent_entity_type, parent_name))
-        
-        sg_parent = self._app.shotgun.find_one(self._shot_parent_entity_type, 
-                                               [["code", "is", parent_name], ["project", "is", project]]) 
-        
-        if sg_parent:
-            self._app.log_debug("Parent %s already exists in Shotgun." % sg_parent)
-            
-        else:
-            # Create a new parent object in Shotgun
-            
-            # First see if we should assign a task template
-            if parent_task_template:
-                # resolve task template
-                self._app.engine.show_busy("Preparing Shotgun...", "Loading task template...")
-                sg_task_template = self._app.shotgun.find_one("TaskTemplate", [["code", "is", parent_task_template]])
-                if not sg_task_template:
-                    raise TankError("The task template '%s' does not exist in Shotgun!" % parent_task_template)
-            else:
-                sg_task_template = None
-
-            self._app.engine.show_busy("Preparing Shotgun...", 
-                                       "Creating %s %s..." % (self._shot_parent_entity_type, parent_name))
-            
-            sg_parent = self._app.shotgun.create(self._shot_parent_entity_type, 
-                                                 {"code": parent_name, 
-                                                  "task_template": sg_task_template,
-                                                  "description": "Created by the Shotgun Flame exporter.",
-                                                  "project": project})
-            self._app.log_debug("Created parent %s" % sg_parent)
-  
-        
-        # --------------------------------------------------------------------------------------------
-        # First locate a task template for shots
-        if shot_task_template:
-            # resolve task template
-            self._app.engine.show_busy("Preparing Shotgun...", "Loading task template...")
-            sg_task_template = self._app.shotgun.find_one("TaskTemplate", [["code", "is", shot_task_template]])
-            if not sg_task_template:
-                raise TankError("The task template '%s' does not exist in Shotgun!" % shot_task_template)
-        else:
-            sg_task_template = None
-  
-        # now attempt to retrieve metadata for all shots. The shots that are not found are then created.
-        self._app.engine.show_busy("Preparing Shotgun...", "Loading Shot data...")
-        
-        self._app.log_debug("Loading shots from Shotgun...")
-        sg_shots = self._app.shotgun.find("Shot", 
-                                          [["code", "in", shot_names], 
-                                           [self._shot_parent_link_field, "is", sg_parent]],
-                                          ["code", "sg_cut_in", "sg_cut_out", "sg_cut_order"])
-        self._app.log_debug("...Got %s shots." % len(sg_shots))
-        
-        # key it by name. Check for duplicates.
-        sg_shot_dict = {}
-        for sg_shot in sg_shots:
-            shot_name = sg_shot["code"]
-            if shot_name in sg_shots:
-                raise TankError("There are several Shots linked to %s %s and named '%s' "
-                                "in Shotgun!" % (self._shot_parent_entity_type, parent_name, shot_name))
-            sg_shot_dict[shot_name] = sg_shot
-        
-        # start gathering metadata objects to represent all required shots.
-        # some of these shots will need to be created in Shotgun.
-        final_shots_metadata = []
-        
-        # first create all shots that don't exist. Use a single batch call for speed.
-        sg_batch_data = []
-        for shot_name in shot_names:
-            if shot_name not in sg_shot_dict:
-                # this shot does not yet exist in Shotgun
-                batch = {"request_type": "create", 
-                         "entity_type": "Shot", 
-                         "data": {"code": shot_name, 
-                                  "description": "Created by the Shotgun Flame exporter.",
-                                  self._shot_parent_link_field: sg_parent,
-                                  "task_template": sg_task_template,
-                                  "project": project} }
-                self._app.log_debug("Adding to Shotgun batch queue: %s" % batch)
-                sg_batch_data.append(batch)
-        
-        if len(sg_batch_data) > 0:
-            self._app.engine.show_busy("Preparing Shotgun...", "Creating new shots...")
-            
-            self._app.log_debug("Executing sg batch command....")
-            sg_batch_response = self._app.shotgun.batch(sg_batch_data)
-            self._app.log_debug("...done!")
-
-            # for each new shot, create a metadata object
-            for sg_data in sg_batch_response: 
-                metadata = ShotMetadata()
-                metadata.name = sg_data["code"]
-                metadata.shotgun_id = sg_data["id"]
-                metadata.parent_name = parent_name
-                metadata.shotgun_parent = sg_parent
-                metadata.created_this_session = True
-                final_shots_metadata.append(metadata)
-            
-        # now add all existing shots to our return metadata structure        
-        for shot_name in shot_names:
-            if shot_name in sg_shot_dict:
-                metadata = ShotMetadata()
-                metadata.name = shot_name
-                metadata.parent_name = parent_name
-                metadata.shotgun_parent = sg_parent
-                metadata.shotgun_id = sg_shot_dict[shot_name]["id"]
-                metadata.shotgun_cut_in = sg_shot_dict[shot_name]["sg_cut_in"]
-                metadata.shotgun_cut_out = sg_shot_dict[shot_name]["sg_cut_out"]
-                final_shots_metadata.append(metadata)
-            
-        # all done!
-        return final_shots_metadata
 
     def register_batch_publish(self, context, path, comments, version_number):
         """
@@ -283,8 +81,7 @@ class ShotgunSubmitter(object):
         self._app.log_debug("Register complete: %s" % sg_publish_data)
         return sg_publish_data
         
-        
-    def register_video_publish(self, export_preset, context, width, height, path, quicktime_path, comments, version_number, make_shot_thumb):        
+    def register_video_publish(self, export_preset, context, width, height, path, quicktime_path, comments, version_number, make_shot_thumb):
         """
         Creates a publish record in Shotgun for a Flame video file.
         Optionally also creates a second publish record for an equivalent local quicktime
@@ -298,7 +95,7 @@ class ShotgunSubmitter(object):
                                will be generated in parallel to the video sequence publish.
         :param comments: Details about the publish
         :param version_number: The version number to use
-        :param make_shot_thumb: If set to True, the thumbnail that gets associated with the 
+        :param make_shot_thumb: If set to True, the thumbnail that gets associated with the
                                 publish will also be pushed to the associated entity.
         :returns: Shotgun data for the created item
         """
@@ -311,29 +108,31 @@ class ShotgunSubmitter(object):
         jpeg_path = self.__extract_thumbnail(path, width, height)
         
         # now do the main sequence publish
-        args = {"tk": self._app.sgtk,
-                "context": context,
-                "comment": comments,
-                "version_number": version_number,
-                "created_by": context.user,
-                "task": context.task,
-                "thumbnail_path": jpeg_path,
-            
-                "path": path,
-                "name": preset_obj.get_render_publish_name(path),
-                "published_file_type": preset_obj.get_render_publish_type() }
+        args = {
+            "tk": self._app.sgtk,
+            "context": context,
+            "comment": comments,
+            "version_number": version_number,
+            "created_by": context.user,
+            "task": context.task,
+            "thumbnail_path": jpeg_path,
+            "path": path,
+            "name": preset_obj.get_render_publish_name(path),
+            "published_file_type": preset_obj.get_render_publish_type()
+        }
                 
         # check if the shot needs a thumbnail
         if make_shot_thumb and jpeg_path:
             args["update_entity_thumbnail"] = True
-        
-        self._app.log_debug("Register render publish in Shotgun: %s" % str(args))        
+
+        self._app.log_debug("Register render publish in Shotgun: %s" % str(args))
         sg_publish_data = sgtk.util.register_publish(**args)
         self._app.log_debug("Register complete: %s" % sg_publish_data)
 
 
         if quicktime_path:
             # first make a publish for our high res quicktime
+            # note how we set a dependency to the main render
             mov_args = {"tk": self._app.sgtk,
                         "context": context,
                         "comment": comments,
@@ -341,8 +140,7 @@ class ShotgunSubmitter(object):
                         "created_by": context.user,
                         "task": context.task,
                         "thumbnail_path": jpeg_path,
-                        
-                        "dependency_ids": [ sg_publish_data["id"] ], # set a dependency to the main render
+                        "dependency_ids": [ sg_publish_data["id"] ],
                         "path": quicktime_path,
                         "name": preset_obj.get_quicktime_publish_name(quicktime_path),
                         "published_file_type": preset_obj.get_quicktime_publish_type() }
@@ -350,7 +148,6 @@ class ShotgunSubmitter(object):
             self._app.log_debug("Register quicktime publish in Shotgun: %s" % str(mov_args))        
             sg_mov_data = sgtk.util.register_publish(**mov_args)
             self._app.log_debug("Register complete: %s" % sg_mov_data)
-
         
         if jpeg_path:
             # try to clean up
@@ -493,7 +290,7 @@ class ShotgunSubmitter(object):
         
         Given a list of already existing versions, extract thumbnails from Flame
         and upload these to Shotgun. The items input is a list of dictionaries with
-        each dictionary having keys version_id width, height and path, where path is a path to 
+        each dictionary having keys version_id, width, height and path, where path is a path to
         an exported Flame render from which a thumbnail is being extracted.
         
         :param items: list of dicts. For details, see above.
@@ -677,11 +474,13 @@ class ShotgunSubmitter(object):
         #  -N -1                  <-- output all frames 
         #  -r                     <-- output raw rgb stream
         # 
-        input_cmd = "%s -n \"%s@CLIP\" -h %s -W %s -H %s -L -N -1 -r" % (self._app.engine.get_read_frame_path(),
-                                                                         input_path,
-                                                                         "%s:Gateway" % self._app.engine.get_server_hostname(),
-                                                                         target_width,
-                                                                         target_height)
+        input_cmd = "%s -n \"%s@CLIP\" -h %s -W %s -H %s -L -N -1 -r" % (
+            self._app.engine.get_read_frame_path(),
+            input_path,
+            "%s:Gateway" % self._app.engine.get_server_hostname(),
+            target_width,
+            target_height
+        )
 
         # we now pipe this image stream into ffmpeg and generate a quicktime
         #
@@ -709,10 +508,12 @@ class ShotgunSubmitter(object):
             # use Flame default
             ffmpeg_executable = self._app.engine.get_ffmpeg_path()
         
-        ffmpeg_cmd = "%s -f rawvideo -top -1 -r %s -pix_fmt rgb24 -s %sx%s -i - -y" % (ffmpeg_executable,
-                                                                                       fps,
-                                                                                       target_width,
-                                                                                       target_height)
+        ffmpeg_cmd = "%s -f rawvideo -top -1 -r %s -pix_fmt rgb24 -s %sx%s -i - -y" % (
+            ffmpeg_executable,
+            fps,
+            target_width,
+            target_height
+        )
                                                                                        
         full_cmd = "%s | %s %s %s" % (input_cmd, ffmpeg_cmd, ffmpeg_presets, output_path)
         
@@ -814,20 +615,24 @@ class ShotgunSubmitter(object):
         :returns: None if extraction didn't work, otherwise a path to a jpeg file
         """
         # first figure out a good scale-down res
-        (scaled_down_width, scaled_down_height) = self.__calculate_aspect_ratio(self.SHOTGUN_THUMBNAIL_TARGET_HEIGHT,
-                                                                                width, 
-                                                                                height) 
+        (scaled_down_width, scaled_down_height) = self.__calculate_aspect_ratio(
+            self.SHOTGUN_THUMBNAIL_TARGET_HEIGHT,
+            width,
+            height
+        )
         
         self._app.log_debug("Generating thumbnail with resolution %sx%s" % (scaled_down_width, scaled_down_height))
         
         # now try to extract a thumbnail from the asset data stream.
         # we use the same mechanism that the quicktime generation is using - see
         # the quicktime code below for details:
-        input_cmd = "%s -n \"%s@CLIP\" -h %s -W %s -H %s -L" % (self._app.engine.get_read_frame_path(),
-                                                                path,
-                                                                "%s:Gateway" % self._app.engine.get_server_hostname(),
-                                                                scaled_down_width,
-                                                                scaled_down_height) 
+        input_cmd = "%s -n \"%s@CLIP\" -h %s -W %s -H %s -L" % (
+            self._app.engine.get_read_frame_path(),
+            path,
+            "%s:Gateway" % self._app.engine.get_server_hostname(),
+            scaled_down_width,
+            scaled_down_height
+        )
         
         thumbnail_jpg = os.path.join(self._app.engine.get_backburner_tmp(), "tk_thumb_%s.jpg" % uuid.uuid4().hex)
         full_cmd = "%s > %s" % (input_cmd, thumbnail_jpg)
