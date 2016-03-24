@@ -15,6 +15,7 @@ import cgi
 
 HookBaseClass = sgtk.get_hook_baseclass()
 
+
 class ExportSettings(HookBaseClass):
     """
     This hook controls the settings that Flame will use when it exports plates and generates 
@@ -219,4 +220,4 @@ class ExportSettings(HookBaseClass):
         params += "-crf 18 " 
         
         return params
-    
+

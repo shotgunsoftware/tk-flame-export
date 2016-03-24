@@ -20,10 +20,10 @@
 
 
 # system wide stuff - always import
-from . import tk_flame_export_no_ui
+from . import processing
 
 # only needed for UIs - don't import if we don't have QT:
 from sgtk.platform.qt import QtCore
 if QtCore:
-    from . import tk_flame_export
+    from . import dialogs
 

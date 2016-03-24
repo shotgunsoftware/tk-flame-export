@@ -63,8 +63,8 @@ class FlameExport(Application):
         # because parts of this app runs on the farm, which doesn't have a UI,
         # there are two distinct modules on disk, one which is QT dependent and
         # one which isn't.
-        tk_flame_export_no_ui = self.import_module("tk_flame_export_no_ui")
-        self._sg_submit_helper = tk_flame_export_no_ui.ShotgunSubmitter()
+        processing = self.import_module("processing")
+        self._sg_submit_helper = processing.ShotgunSubmitter()
         
         # batch render tracking - when doing a batch render, 
         # this is used to indicate that the user wants to send the render to review.
@@ -79,7 +79,7 @@ class FlameExport(Application):
         
         # load up our export presets
         # this wrapper class is used later on to access export presets in various ways
-        self.export_preset_handler = tk_flame_export_no_ui.ExportPresetHandler()
+        self.export_preset_handler = processing.ExportPresetHandler()
         
         # register our desired interaction with Flame hooks
         # set up callbacks for the engine to trigger 
@@ -125,11 +125,11 @@ class FlameExport(Application):
         self._reached_post_asset_phase = False
         
         # pop up a UI asking the user for description
-        tk_flame_export = self.import_module("tk_flame_export")  
+        dialogs = self.import_module("dialogs")
                       
         (return_code, widget) = self.engine.show_modal("Export Shots",
                                                        self,
-                                                       tk_flame_export.SubmitDialog, 
+                                                       dialogs.SubmitDialog,
                                                        self.export_preset_handler.get_preset_names())
         
         if return_code == QtGui.QDialog.Rejected:
@@ -185,7 +185,7 @@ class FlameExport(Application):
         # rather than going through the sgtk wrappers.         
         from PySide import QtGui
 
-        tk_flame_export_no_ui = self.import_module("tk_flame_export_no_ui")
+        processing = self.import_module("processing")
 
         sequence_name = info["sequenceName"]
         shot_names = info["shotNames"]
@@ -212,7 +212,7 @@ class FlameExport(Application):
             return
 
         # set up object to represent sequence and shots
-        self._sequence = tk_flame_export_no_ui.Sequence(sequence_name)
+        self._sequence = processing.Sequence(sequence_name)
         for shot_name in shot_names:
             self._sequence.add_shot(shot_name)
 
@@ -463,7 +463,7 @@ class FlameExport(Application):
                      - presetPath: Path to the preset used for the export.
         
         """
-        tk_flame_export = self.import_module("tk_flame_export")
+        dialogs = self.import_module("dialogs")
         
         # if we haven't reached the post export stage, that means that something
         # has gone wrong along the way. Display the "oops, something went wrong" 
@@ -472,7 +472,7 @@ class FlameExport(Application):
             self.engine.show_modal(
                 "Submission Failed",
                 self,
-                tk_flame_export.SubmissionFailedDialog
+                dialogs.SubmissionFailedDialog
             )
             return
 
@@ -741,7 +741,7 @@ class FlameExport(Application):
         self.engine.show_modal(
             "Submission Complete",
             self,
-            tk_flame_export.SubmissionCompleteDialog,
+            dialogs.SubmissionCompleteDialog,
             comments
         )
         
@@ -830,11 +830,11 @@ class FlameExport(Application):
         from PySide import QtGui
          
         # pop up a UI asking the user for description
-        tk_flame_export = self.import_module("tk_flame_export")        
+        dialogs = self.import_module("dialogs")
         (return_code, widget) = self.engine.show_modal(
             "Send to Review",
             self,
-            tk_flame_export.BatchRenderDialog
+            dialogs.BatchRenderDialog
         )
         
         if return_code != QtGui.QDialog.Rejected:
