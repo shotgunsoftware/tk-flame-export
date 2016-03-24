@@ -156,11 +156,9 @@ class FlameExport(Application):
             self.log_debug("%s: Starting custom export session with preset '%s'" % (self, info["presetPath"]))
 
         # Log usage metrics
-        try:
+        if getattr(self, "log_metric", None):
+            # core supports metrics logging
             self.log_metric("Export", log_version=True)
-        except:
-            # ignore any errors. ex: metrics logging not supported
-            pass
 
     def pre_export_sequence(self, session_id, info):
         """
