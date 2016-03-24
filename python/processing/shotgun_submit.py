@@ -108,17 +108,18 @@ class ShotgunSubmitter(object):
         jpeg_path = self.__extract_thumbnail(path, width, height)
         
         # now do the main sequence publish
-        args = {"tk": self._app.sgtk,
-                "context": context,
-                "comment": comments,
-                "version_number": version_number,
-                "created_by": context.user,
-                "task": context.task,
-                "thumbnail_path": jpeg_path,
-
-                "path": path,
-                "name": preset_obj.get_render_publish_name(path),
-                "published_file_type": preset_obj.get_render_publish_type() }
+        args = {
+            "tk": self._app.sgtk,
+            "context": context,
+            "comment": comments,
+            "version_number": version_number,
+            "created_by": context.user,
+            "task": context.task,
+            "thumbnail_path": jpeg_path,
+            "path": path,
+            "name": preset_obj.get_render_publish_name(path),
+            "published_file_type": preset_obj.get_render_publish_type()
+        }
                 
         # check if the shot needs a thumbnail
         if make_shot_thumb and jpeg_path:
@@ -473,11 +474,13 @@ class ShotgunSubmitter(object):
         #  -N -1                  <-- output all frames 
         #  -r                     <-- output raw rgb stream
         # 
-        input_cmd = "%s -n \"%s@CLIP\" -h %s -W %s -H %s -L -N -1 -r" % (self._app.engine.get_read_frame_path(),
-                                                                         input_path,
-                                                                         "%s:Gateway" % self._app.engine.get_server_hostname(),
-                                                                         target_width,
-                                                                         target_height)
+        input_cmd = "%s -n \"%s@CLIP\" -h %s -W %s -H %s -L -N -1 -r" % (
+            self._app.engine.get_read_frame_path(),
+            input_path,
+            "%s:Gateway" % self._app.engine.get_server_hostname(),
+            target_width,
+            target_height
+        )
 
         # we now pipe this image stream into ffmpeg and generate a quicktime
         #
@@ -505,10 +508,12 @@ class ShotgunSubmitter(object):
             # use Flame default
             ffmpeg_executable = self._app.engine.get_ffmpeg_path()
         
-        ffmpeg_cmd = "%s -f rawvideo -top -1 -r %s -pix_fmt rgb24 -s %sx%s -i - -y" % (ffmpeg_executable,
-                                                                                       fps,
-                                                                                       target_width,
-                                                                                       target_height)
+        ffmpeg_cmd = "%s -f rawvideo -top -1 -r %s -pix_fmt rgb24 -s %sx%s -i - -y" % (
+            ffmpeg_executable,
+            fps,
+            target_width,
+            target_height
+        )
                                                                                        
         full_cmd = "%s | %s %s %s" % (input_cmd, ffmpeg_cmd, ffmpeg_presets, output_path)
         
@@ -610,20 +615,24 @@ class ShotgunSubmitter(object):
         :returns: None if extraction didn't work, otherwise a path to a jpeg file
         """
         # first figure out a good scale-down res
-        (scaled_down_width, scaled_down_height) = self.__calculate_aspect_ratio(self.SHOTGUN_THUMBNAIL_TARGET_HEIGHT,
-                                                                                width, 
-                                                                                height) 
+        (scaled_down_width, scaled_down_height) = self.__calculate_aspect_ratio(
+            self.SHOTGUN_THUMBNAIL_TARGET_HEIGHT,
+            width,
+            height
+        )
         
         self._app.log_debug("Generating thumbnail with resolution %sx%s" % (scaled_down_width, scaled_down_height))
         
         # now try to extract a thumbnail from the asset data stream.
         # we use the same mechanism that the quicktime generation is using - see
         # the quicktime code below for details:
-        input_cmd = "%s -n \"%s@CLIP\" -h %s -W %s -H %s -L" % (self._app.engine.get_read_frame_path(),
-                                                                path,
-                                                                "%s:Gateway" % self._app.engine.get_server_hostname(),
-                                                                scaled_down_width,
-                                                                scaled_down_height) 
+        input_cmd = "%s -n \"%s@CLIP\" -h %s -W %s -H %s -L" % (
+            self._app.engine.get_read_frame_path(),
+            path,
+            "%s:Gateway" % self._app.engine.get_server_hostname(),
+            scaled_down_width,
+            scaled_down_height
+        )
         
         thumbnail_jpg = os.path.join(self._app.engine.get_backburner_tmp(), "tk_thumb_%s.jpg" % uuid.uuid4().hex)
         full_cmd = "%s > %s" % (input_cmd, thumbnail_jpg)

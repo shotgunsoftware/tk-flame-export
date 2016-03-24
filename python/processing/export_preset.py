@@ -354,9 +354,9 @@ class ExportPreset(object):
         # now perform substitutions based on the rest of the resolved Flame templates
         # make sure we escape any < and > before we add them to the xml
         xml = xml.replace("{SEGMENT_CLIP_NAME_PATTERN}", cgi.escape(resolved_flame_templates["segment_clip_template"]))
-        xml = xml.replace("{BATCH_NAME_PATTERN}",        cgi.escape(resolved_flame_templates["batch_template"]))
-        xml = xml.replace("{SHOT_CLIP_NAME_PATTERN}",    cgi.escape(resolved_flame_templates["shot_clip_template"]))
-        xml = xml.replace("{OUTPUT_PATH_PATTERN}",    cgi.escape(resolved_flame_templates["batch_render_template"]))
+        xml = xml.replace("{BATCH_NAME_PATTERN}", cgi.escape(resolved_flame_templates["batch_template"]))
+        xml = xml.replace("{SHOT_CLIP_NAME_PATTERN}", cgi.escape(resolved_flame_templates["shot_clip_template"]))
+        xml = xml.replace("{OUTPUT_PATH_PATTERN}", cgi.escape(resolved_flame_templates["batch_render_template"]))
 
         # now adjust some parameters in the export xml based on the template setup. 
         template = self.get_render_template()

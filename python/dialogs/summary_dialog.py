@@ -59,7 +59,8 @@ class SubmissionCompleteDialog(QtGui.QWidget):
         """
         self.__exit_code = QtGui.QDialog.Accepted
         self.close()
-        
+
+
 class SubmissionFailedDialog(QtGui.QWidget):
     """
     Summary dialog popping up when a Shot export fails.
@@ -103,4 +104,4 @@ class SubmissionFailedDialog(QtGui.QWidget):
         """
         self.__exit_code = QtGui.QDialog.Accepted
         self.close()
-        
+

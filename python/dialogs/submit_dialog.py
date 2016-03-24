@@ -12,6 +12,7 @@ import sgtk
 from sgtk.platform.qt import QtCore, QtGui
 from .ui.submit_dialog import Ui_SubmitDialog
 
+
 class SubmitDialog(QtGui.QWidget):
     """
     Main UI dialog for the custom Shot Export. This will 

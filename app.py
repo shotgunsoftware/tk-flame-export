@@ -159,7 +159,7 @@ class FlameExport(Application):
         try:
             self.log_metric("Export", log_version=True)
         except:
-            # ingore any errors. ex: metrics logging not supported
+            # ignore any errors. ex: metrics logging not supported
             pass
 
     def pre_export_sequence(self, session_id, info):
@@ -316,8 +316,8 @@ class FlameExport(Application):
 
         elif asset_type == "openClip":
             # resolve template for segment level open scene clip xml
-            template = self.get_template("segment_clip_template")            
-        
+            template = self.get_template("segment_clip_template")
+
         self.log_debug("Attempting to resolve template %s..." % template)
         
         # resolve the fields out of the context
