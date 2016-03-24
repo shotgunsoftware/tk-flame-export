@@ -669,7 +669,7 @@ class FlameExport(Application):
                             "path": segment.render_path,
                             "width": segment.render_width,
                             "height": segment.render_height,
-                            "fps": segment.render_fps
+                            "fps": segment.fps
                         }
 
                         self.engine.create_local_backburner_job(
@@ -707,7 +707,7 @@ class FlameExport(Application):
                             "quicktime_path": quicktime_path,
                             "width": segment.render_width,
                             "height": segment.render_height,
-                            "fps": segment.render_fps
+                            "fps": segment.fps
                         }
 
                         # kick off backburner job

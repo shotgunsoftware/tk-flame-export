@@ -202,8 +202,6 @@ class Sequence(object):
 
         sg = self._app.shotgun
 
-        parent_entity_link = {"id": self.shotgun_id, "type": self._shot_parent_entity_type}
-
         if sg.server_caps.version < MIN_CUT_SG_VERSION:
             self._app.log_debug(
                 "Shotgun site does not support cuts. Will not update cut information."
@@ -213,6 +211,12 @@ class Sequence(object):
         self._app.engine.show_busy("Updating Shotgun...", "Creating Cut...")
 
         try:
+
+            parent_entity_link = {
+                "id": self.shotgun_id,
+                "type": self._shot_parent_entity_type
+            }
+
             # first determine which revision number of the cut to create
             prev_cut = sg.find_one(
                 "Cut",
