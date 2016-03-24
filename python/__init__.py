@@ -20,7 +20,7 @@
 
 
 # system wide stuff - always import
-from . import processing
+from . import export_utils
 
 # only needed for UIs - don't import if we don't have QT:
 from sgtk.platform.qt import QtCore

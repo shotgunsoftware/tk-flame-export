@@ -63,8 +63,8 @@ class FlameExport(Application):
         # because parts of this app runs on the farm, which doesn't have a UI,
         # there are two distinct modules on disk, one which is QT dependent and
         # one which isn't.
-        processing = self.import_module("processing")
-        self._sg_submit_helper = processing.ShotgunSubmitter()
+        export_utils = self.import_module("export_utils")
+        self._sg_submit_helper = export_utils.ShotgunSubmitter()
         
         # batch render tracking - when doing a batch render, 
         # this is used to indicate that the user wants to send the render to review.
@@ -79,7 +79,7 @@ class FlameExport(Application):
         
         # load up our export presets
         # this wrapper class is used later on to access export presets in various ways
-        self.export_preset_handler = processing.ExportPresetHandler()
+        self.export_preset_handler = export_utils.ExportPresetHandler()
         
         # register our desired interaction with Flame hooks
         # set up callbacks for the engine to trigger 
@@ -185,7 +185,7 @@ class FlameExport(Application):
         # rather than going through the sgtk wrappers.         
         from PySide import QtGui
 
-        processing = self.import_module("processing")
+        export_utils = self.import_module("export_utils")
 
         sequence_name = info["sequenceName"]
         shot_names = info["shotNames"]
@@ -212,7 +212,7 @@ class FlameExport(Application):
             return
 
         # set up object to represent sequence and shots
-        self._sequence = processing.Sequence(sequence_name)
+        self._sequence = export_utils.Sequence(sequence_name)
         for shot_name in shot_names:
             self._sequence.add_shot(shot_name)
 
