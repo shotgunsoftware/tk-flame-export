@@ -725,8 +725,6 @@ class FlameExport(Application):
                         )
         
 
-        # Pop up a summary UI!
-        #
         # now, as a last step, show a summary UI to the user, including a
         # very brief overview of what changes have been carried out.
         comments = "Your export has been pushed to the Backburner queue for processing.<br><br>"

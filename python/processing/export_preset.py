@@ -123,7 +123,7 @@ class ExportPreset(object):
         Returns the length of the requested frame handles that should be generated
         for each clip.
 
-        @return: Handle length in frames
+        :return: Handle length in frames
         """
         return self._raw_preset["frame_handles"]
 
@@ -140,7 +140,7 @@ class ExportPreset(object):
         """
         Returns the name for cuts created by this preset
 
-        @return: cut name as string
+        :return: cut name as string
         """
         return self._raw_preset["cut_name"]
 
@@ -148,7 +148,7 @@ class ExportPreset(object):
         """
         Returns the name for cuts created by this preset
 
-        @return: cut name as string
+        :return: cut name as string
         """
         return self._raw_preset["cut_type"]
 
