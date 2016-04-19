@@ -212,7 +212,21 @@ class Segment(object):
         this value does not correspond to the value found in the original
         sequence data in flame.
         """
-        return self._get_flame_property("startFrame") + self._get_flame_property("handleIn") + self.duration
+        return self._get_flame_property("startFrame") + self._get_flame_property("handleIn") + (self.edit_out_frame - self.edit_in_frame) -1
+
+    @property
+    def head_in_frame(self):
+        """
+        Returns the in frame within the segment, including any handles.
+        """
+        return self._get_flame_property("startFrame")
+
+    @property
+    def tail_out_frame(self):
+        """
+        Returns the out frame within the segment, including any handles
+        """
+        return self.cut_out_frame + self._get_flame_property("handleOut")
 
     @property
     def edit_in_timecode(self):

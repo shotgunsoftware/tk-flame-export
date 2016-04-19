@@ -146,9 +146,16 @@ class Sequence(object):
 
         shotgun_batch_items = []
 
-        # get the list of shots, computed in order
+        # get the shots which have segments
+        # note: there may be shots present without a segment due
+        # to a user cancelling parts of the export during the process
+        # - for example, flame may prompt whether a user wants to override
+        # an existing sequence or not, resulting in shots with no segments.
+        shots_with_segments = [shot for shot in self.shots if len(shot.segments) > 0]
+
+        # now sort in order
         shots_in_cut_order = sorted(
-            self.shots,
+            shots_with_segments,
             key=lambda x: x.get_base_segment().edit_in_frame
         )
 
@@ -161,7 +168,7 @@ class Sequence(object):
             # we get the edit points in flame from the base layer
             base_seg = shot.get_base_segment()
 
-            if base_seg.edit_in_frame != sg_in or base_seg.edit_out_frame != sg_out or cut_order != sg_cut_order:
+            if base_seg.cut_in_frame != sg_in or base_seg.cut_out_frame != sg_out or cut_order != sg_cut_order:
 
                 # note that at this point all shots are guaranteed to exist in Shotgun
                 # since they were created in the initial export step.
@@ -170,8 +177,10 @@ class Sequence(object):
                     "entity_type": "Shot",
                     "entity_id": shot.shotgun_id,
                     "data": {
-                        "sg_cut_in": base_seg.edit_in_frame,
-                        "sg_cut_out": base_seg.edit_out_frame,
+                        "sg_cut_in": base_seg.cut_in_frame,
+                        "sg_cut_out": base_seg.cut_out_frame,
+                        "sg_head_in": base_seg.head_in_frame,
+                        "sg_tail_out": base_seg.tail_out_frame,
                         "sg_cut_duration": base_seg.duration,
                         "sg_cut_order": cut_order
                     }

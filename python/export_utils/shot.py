@@ -129,8 +129,15 @@ class Shot(object):
         in the future; right now it looks at the list of segments for the Shot
         and chooses the one with the lowest track id.
 
-        :returns: Segment object
+        Shots without segments may return None. This is an edge case which may
+        happen if for example Flame prompts a user "do you want to overwrite an
+        existing render", and the user responds with No.
+
+        :returns: Segment object or None if not defined
         """
+        if len(self._segments) == 0:
+            return None
+
         return min(
             self._segments.values(),
             key=lambda segment: segment.flame_track_id
