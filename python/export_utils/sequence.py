@@ -206,7 +206,7 @@ class Sequence(object):
         :param cut_type: Type of the cut to create. None or "" for no cut type.
         """
         # minimum shotgun version that supports new cut schema
-        MIN_CUT_SG_VERSION = (6, 3, 13)
+        MIN_CUT_SG_VERSION = (7, 0, 0)
 
         sg = self._app.shotgun
 
