@@ -59,6 +59,22 @@ class Sequence(object):
         """
         return self._shots.values()
 
+    @property
+    def shots_with_segments(self):
+        """
+        Non-empty shots associated with this sequence
+
+        Note: there may be shots present without a segment due
+        to a user cancelling parts of the export during the process
+        - for example, flame may prompt whether a user wants to override
+        an existing sequence or not, resulting in shots with no segments.
+
+        This property ensures that all shots returned contain segments
+        and thus aren't just "empty wrappers" but contain cut data.
+        """
+        return [shot for shot in self.shots if len(shot.segments) > 0]
+
+
     def add_shot(self, shot_name):
         """
         Adds a shot to this sequence.
@@ -146,16 +162,9 @@ class Sequence(object):
 
         shotgun_batch_items = []
 
-        # get the shots which have segments
-        # note: there may be shots present without a segment due
-        # to a user cancelling parts of the export during the process
-        # - for example, flame may prompt whether a user wants to override
-        # an existing sequence or not, resulting in shots with no segments.
-        shots_with_segments = [shot for shot in self.shots if len(shot.segments) > 0]
-
         # now sort in order
         shots_in_cut_order = sorted(
-            shots_with_segments,
+            self.shots_with_segments,
             key=lambda x: x.get_base_segment().edit_in_frame
         )
 
@@ -242,7 +251,7 @@ class Sequence(object):
 
             # get the shots in cut order
             shots_in_cut_order = sorted(
-                self.shots,
+                self.shots_with_segments,
                 key=lambda x: x.get_base_segment().edit_in_frame
             )
 
