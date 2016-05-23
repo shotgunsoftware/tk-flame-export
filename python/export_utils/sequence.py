@@ -269,8 +269,8 @@ class Sequence(object):
                     # the first segment
                     "fps": shots_in_cut_order[0].get_base_segment().sequence_fps,
                     "duration": sum([shot.get_base_segment().duration for shot in self.shots]),
-                    "timecode_start": shots_in_cut_order[0].get_base_segment().edit_in_timecode,
-                    "timecode_end": shots_in_cut_order[-1].get_base_segment().edit_out_timecode,
+                    "timecode_start_text": shots_in_cut_order[0].get_base_segment().edit_in_timecode,
+                    "timecode_end_text": shots_in_cut_order[-1].get_base_segment().edit_out_timecode,
                 }
             )
 
@@ -300,10 +300,10 @@ class Sequence(object):
                         "edit_in": segment.edit_in_frame,
                         "edit_out": segment.edit_out_frame,
                         "cut_order": cut_order,
-                        "timecode_cut_item_in": segment.cut_in_timecode,
-                        "timecode_cut_item_out": segment.cut_out_timecode,
-                        "timecode_edit_in": segment.edit_in_timecode,
-                        "timecode_edit_out": segment.edit_out_timecode
+                        "timecode_cut_item_in_text": segment.cut_in_timecode,
+                        "timecode_cut_item_out_text": segment.cut_out_timecode,
+                        "timecode_edit_in_text": segment.edit_in_timecode,
+                        "timecode_edit_out_text": segment.edit_out_timecode
                     }
                 }
 
