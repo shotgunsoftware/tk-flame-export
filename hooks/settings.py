@@ -43,12 +43,17 @@ class ExportSettings(HookBaseClass):
         
         :returns: the <video> xml section of a Flame export.
         """ 
-        
+        preset_version = self.parent.engine.preset_version
+
         if preset_name == "10 bit DPX":
+
+            # it seems the codec ids have changed between flame 2016 and 2017
+            codec_id = 923680 if preset_version < 7 else 6176
+
             xml = """
                    <video>
                       <fileType>Dpx</fileType>
-                      <codec>923680</codec>
+                      <codec>%d</codec>
                       <codecProfile />
                       <namePattern>{VIDEO_NAME_PATTERN}</namePattern>
                       <compressionQuality>50</compressionQuality>
@@ -70,7 +75,7 @@ class ExportSettings(HookBaseClass):
                          <scanFormat>P</scanFormat>
                       </resize>
                    </video>
-                """        
+                """ % codec_id
             
         elif preset_name == "16 bit OpenEXR":
             xml = """
