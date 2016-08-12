@@ -42,12 +42,12 @@ class ExportSettings(HookBaseClass):
         :param publish_linked: Data to inject into the <publishLinked> tag in the xml structure.
         
         :returns: the <video> xml section of a Flame export.
-        """ 
-        preset_version = self.parent.engine.preset_version
-
+        """
         if preset_name == "10 bit DPX":
 
-            # it seems the codec ids have changed between flame 2016 and 2017
+            # The codec ids have changed between flame 2016 and 2017
+            preset_version_str = self.parent.engine.preset_version
+            preset_version = int(preset_version_str)
             codec_id = 923680 if preset_version < 7 else 6176
 
             xml = """
