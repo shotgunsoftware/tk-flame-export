@@ -116,10 +116,10 @@ class ExportPreset(object):
         :param path: Path to generate name for
         :returns: A name suitable for a render publish
         """
-        publish_name = self.__get_publish_name(self.get_batch_render_template(), path)
+        publish_name = self.__get_publish_name(self.get_render_template(), path)
 
-        if publish_name == "Unknown":
-            publish_name = self.__get_publish_name(self.get_render_template(), path)
+        if publish_name == "Unknown": 
+            publish_name = self.__get_publish_name(self.get_batch_render_template(), path)
 
         return publish_name
 
