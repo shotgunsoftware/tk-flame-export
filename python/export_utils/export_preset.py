@@ -108,15 +108,25 @@ class ExportPreset(object):
         :returns: The publish type to use for renders
         """
         return self._raw_preset["publish_type"]
-    
+
     def get_render_publish_name(self, path):
         """
-        Generate a name suitable for a publish.
-        
+        Generate a name suitable for a publish based on the render template
+
         :param path: Path to generate name for
         :returns: A name suitable for a render publish
         """
-        return self.__get_publish_name(self.get_render_template(), path)        
+        return self.__get_publish_name(self.get_render_template(), path)
+
+    def get_batch_render_publish_name(self, path):
+        """
+        Generate a name suitable for a publish based on the batch render template
+
+        :param path: Path to generate name for
+        :returns: A name suitable for a render publish
+        """
+        return self.__get_publish_name(self.get_batch_render_template(), path)
+
 
     def get_handles_length(self):
         """

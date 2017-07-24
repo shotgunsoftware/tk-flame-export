@@ -959,7 +959,8 @@ class FlameExport(Application):
                     request["quicktime_path"],
                     request["comments"],
                     request["version"],
-                    request["create_shot_thumbnail"]
+                    request["create_shot_thumbnail"],
+                    is_batch_render=False
                 )
 
                 if request["version_id"]:
@@ -1093,7 +1094,8 @@ class FlameExport(Application):
             quicktime_path,
             description,
             version_number,
-            make_shot_thumb=False
+            make_shot_thumb=False,
+            is_batch_render=True
         )
         
         # Finally, create a version record in Shotgun, generate a quicktime and upload it

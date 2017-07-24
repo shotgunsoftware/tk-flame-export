@@ -81,7 +81,7 @@ class ShotgunSubmitter(object):
         self._app.log_debug("Register complete: %s" % sg_publish_data)
         return sg_publish_data
         
-    def register_video_publish(self, export_preset, context, width, height, path, quicktime_path, comments, version_number, make_shot_thumb):
+    def register_video_publish(self, export_preset, context, width, height, path, quicktime_path, comments, version_number, make_shot_thumb, is_batch_render):
         """
         Creates a publish record in Shotgun for a Flame video file.
         Optionally also creates a second publish record for an equivalent local quicktime
@@ -97,6 +97,7 @@ class ShotgunSubmitter(object):
         :param version_number: The version number to use
         :param make_shot_thumb: If set to True, the thumbnail that gets associated with the
                                 publish will also be pushed to the associated entity.
+        :param is_batch_render: If set to True, the publish is generated from a Batch render
         :returns: Shotgun data for the created item
         """
         self._app.log_debug("Creating video publish in Shotgun for %s..." % path)
@@ -106,7 +107,13 @@ class ShotgunSubmitter(object):
 
         # extract thumbnail
         jpeg_path = self.__extract_thumbnail(path, width, height)
-        
+
+        # The video publish is the result of a Batch render
+        if is_batch_render:
+            publish_name = preset_obj.get_batch_render_publish_name(path)
+        else:
+            publish_name = preset_obj.get_render_publish_name(path)
+
         # now do the main sequence publish
         args = {
             "tk": self._app.sgtk,
@@ -117,7 +124,7 @@ class ShotgunSubmitter(object):
             "task": context.task,
             "thumbnail_path": jpeg_path,
             "path": path,
-            "name": preset_obj.get_render_publish_name(path),
+            "name": publish_name,
             "published_file_type": preset_obj.get_render_publish_type()
         }
                 
