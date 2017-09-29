@@ -546,7 +546,7 @@ class ShotgunSubmitter(object):
         the following constraints:
         
         - the height should be as close to target_height as possible (but not lower)
-        - width and height both need to be divisible by two (ffmpeg requirement)
+        - width and height both need to be divisible by four (ffmpeg requirement)
         
         :param target_height: The desired height
         :param width: The current width
@@ -574,8 +574,8 @@ class ShotgunSubmitter(object):
             new_width = float(new_height) * aspect_ratio
 
             # check if this resolution is good
-            if new_height%2==0 and new_width.is_integer() and int(new_width) % 2 == 0:
-                # both width and height is an integer divisible by two.
+            if new_height % 4 == 0 and new_width.is_integer() and int(new_width) % 4 == 0:
+                # both width and height is an integer divisible by four.
                 return (int(new_width), int(new_height))
             else:
                 # no match, increment by one and try again
