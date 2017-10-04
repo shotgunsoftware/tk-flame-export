@@ -545,9 +545,10 @@ class ShotgunSubmitter(object):
         Takes the given width and height and produces a scaled width and height given
         the following constraints:
         
-        - the height should be as close to target_height as possible (but not lower)
+        - the height should be target_height or lower if the original height is lower
         - width and height both need to be divisible by four (ffmpeg requirement)
-        
+        - the aspect ratio needs to be as close as possible to the original one
+
         :param target_height: The desired height
         :param width: The current width
         :param height: The current height
@@ -556,32 +557,26 @@ class ShotgunSubmitter(object):
         
         self._app.log_debug("Trying to find a scaled down resolution " 
                             "with height %s for %sx%s" % (target_height, width, height))
-        
-        # if the target height is larger than the original height, 
-        # return straight away. 
+
+        # If the target_height is bigger than the height, we don't want to enlarge the resolution but we still want to
+        # make sure that both width and height is divisible by four
         if target_height > height:
-            return (width, height)
-        
-        # calculate initial values
+            target_height = height
+
+        # Generate the target resolution keeping the original aspect ratio and the target_height
         aspect_ratio = float(width) / float(height)
         new_height = target_height
-        new_width = 0.5
-    
-        # loop until a match is found or until we reach original resolution
-        while new_height < height:
-                        
-            # calculate our width given the current height
-            new_width = float(new_height) * aspect_ratio
+        new_width = int(new_height * aspect_ratio)
 
-            # check if this resolution is good
-            if new_height % 4 == 0 and new_width.is_integer() and int(new_width) % 4 == 0:
-                # both width and height is an integer divisible by four.
-                return (int(new_width), int(new_height))
-            else:
-                # no match, increment by one and try again
-                new_height += 1
-        
-        return (width, height)
+        # Find the nearest height that's divisible by four
+        for i in range(0, 3):
+            if ((new_width - i) % 4) == 0:
+                return new_width - i, new_height
+            elif ((new_width + i) % 4) == 0:
+                return new_width + i, new_height
+
+        # Return the original dimension if all the above fail
+        return width, height
 
     def __get_tk_path_from_flame_plate_path(self, flame_path):
         """
