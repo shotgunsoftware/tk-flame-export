@@ -555,7 +555,20 @@ class ExportPresetHandler(object):
         
         :returns: list of export preset strings 
         """
-        return self._export_presets.keys()
+        raw_preset_data = self._app.get_setting("plate_presets")
+
+        preset_names = []
+
+        for raw_preset in raw_preset_data:
+            preset_min_version = raw_preset.get("min_version", "0")
+
+            if sgtk.platform.current_engine().is_version_less_than(preset_min_version):
+                continue
+
+            preset_names.append(raw_preset["name"])
+
+        return sorted(preset_names)
+
 
     def get_preset_by_name(self, preset_name):
         """

@@ -104,7 +104,33 @@ class ExportSettings(HookBaseClass):
                       </resize>
                    </video>
                 """
-                
+        elif preset_name == "16 bit OpenEXR - Multi-Channel":
+            xml = """
+                   <video>
+                      <fileType>OpenEXR</fileType>
+                      <codec>596088</codec>
+                      <codecProfile></codecProfile>
+                      <namePattern>{VIDEO_NAME_PATTERN}</namePattern>
+                      <compressionQuality>50</compressionQuality>
+                      <transferCharacteristic>2</transferCharacteristic>
+                      <colorimetricSpecification>4</colorimetricSpecification>
+                      <multiTrack>True</multiTrack>
+                      <overwriteWithVersions>False</overwriteWithVersions>
+                      <resize>
+                         <resizeType>fit</resizeType>
+                         <resizeFilter>lanczos</resizeFilter>
+                         <width>0</width>
+                         <height>0</height>
+                         <bitsPerChannel>16</bitsPerChannel>
+                         <numChannels>3</numChannels>
+                         <floatingPoint>True</floatingPoint>
+                         <bigEndian>False</bigEndian>
+                         <pixelRatio>1</pixelRatio>
+                         <scanFormat>P</scanFormat>
+                      </resize>
+                   </video>
+
+                """
         else:
             raise TankError("Unknown video export preset '%s'!" % preset_name)
         
