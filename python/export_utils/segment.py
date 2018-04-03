@@ -186,7 +186,7 @@ class Segment(object):
         Returns the out frame for the edit point.
         This denotes where this segment sits in the sequence based timeline.
         """
-        return self._get_flame_property("recordOut")
+        return self._get_flame_property("recordOut") - 1
 
     @property
     def cut_in_frame(self):
@@ -199,7 +199,7 @@ class Segment(object):
         this value does not correspond to the value found in the original
         sequence data in flame.
         """
-        return self._get_flame_property("startFrame") + self._get_flame_property("handleIn")
+        return self._get_flame_property("sourceIn") + self._get_flame_property("handleIn")
 
     @property
     def cut_out_frame(self):
@@ -212,21 +212,21 @@ class Segment(object):
         this value does not correspond to the value found in the original
         sequence data in flame.
         """
-        return self._get_flame_property("startFrame") + self._get_flame_property("handleIn") + (self.edit_out_frame - self.edit_in_frame) -1
+        return self._get_flame_property("sourceOut") - self._get_flame_property("handleOut") - 1
 
     @property
     def head_in_frame(self):
         """
         Returns the in frame within the segment, including any handles.
         """
-        return self._get_flame_property("startFrame")
+        return self._get_flame_property("sourceIn")
 
     @property
     def tail_out_frame(self):
         """
         Returns the out frame within the segment, including any handles
         """
-        return self.cut_out_frame + self._get_flame_property("handleOut")
+        return self._get_flame_property("sourceOut") - 1
 
     @property
     def edit_in_timecode(self):
