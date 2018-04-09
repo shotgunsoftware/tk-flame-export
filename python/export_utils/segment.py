@@ -18,6 +18,9 @@ class Segment(object):
     Represents a timeline segment in flame.
 
     Each timeline segment is parented under a shot.
+
+    Details on Flame's data sent thru the exported hooks can be found at
+    https://knowledge.autodesk.com/search-result/caas/CloudHelp/cloudhelp/2017/ENU/Flame-API/files/GUID-8EE47B4F-16F0-41D6-97BB-1226C0BDCC45-htm.html
     """
     def __init__(self, parent, name):
         """
@@ -175,7 +178,7 @@ class Segment(object):
     @property
     def edit_in_frame(self):
         """
-        Returns the in frame for the edit point
+        Returns the in frame timecode for the edit point
         This denotes where this segment sits in the sequence based timeline.
         """
         return self._get_flame_property("recordIn")
@@ -183,7 +186,7 @@ class Segment(object):
     @property
     def edit_out_frame(self):
         """
-        Returns the out frame for the edit point.
+        Returns the out frame timcode for the edit point.
         This denotes where this segment sits in the sequence based timeline.
         """
         return self._get_flame_property("recordOut") - 1

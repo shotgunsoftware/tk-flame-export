@@ -48,6 +48,9 @@ from sgtk.platform import Application
 class FlameExport(Application):
     """
     Export functionality to automate and streamline content export out of Flame.
+
+    Details on Flame's data sent thru the exported hooks can be found at
+    https://knowledge.autodesk.com/search-result/caas/CloudHelp/cloudhelp/2017/ENU/Flame-API/files/GUID-8EE47B4F-16F0-41D6-97BB-1226C0BDCC45-htm.html
     """
 
     def init_app(self):
