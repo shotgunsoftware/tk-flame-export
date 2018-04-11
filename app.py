@@ -48,6 +48,9 @@ from sgtk.platform import Application
 class FlameExport(Application):
     """
     Export functionality to automate and streamline content export out of Flame.
+
+    Details on Flame's data sent thru the exported hooks can be found at
+    https://knowledge.autodesk.com/search-result/caas/CloudHelp/cloudhelp/2017/ENU/Flame-API/files/GUID-8EE47B4F-16F0-41D6-97BB-1226C0BDCC45-htm.html
     """
 
     def init_app(self):
@@ -433,10 +436,6 @@ class FlameExport(Application):
 
             if "handleOut" not in info:
                 info["handleOut"] = self._export_preset.get_handles_length()
-
-            # add start frame parameter to the flame chunk that we pass in
-            # to the segment
-            info["startFrame"] = self._export_preset.get_start_frame()
 
             # pass in raw data from flame
             segment.set_flame_data(info)
