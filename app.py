@@ -303,7 +303,7 @@ class FlameExport(Application):
         # prepare for export of asset
         shot = self._sequence.get_shot(shot_name)
 
-        if asset_type == "video" or asset_type == "movie":
+        if asset_type in ["video", "movie"]:
             # resolve template for exported plates or video
             template = self._export_preset.get_render_template()
             
@@ -425,7 +425,7 @@ class FlameExport(Application):
         # resolve shot object
         shot = self._sequence.get_shot(shot_name)
 
-        if asset_type == "video" or asset_type == "movie":
+        if asset_type in ["video", "movie"]:
             # create a new segment for the shot
             segment = shot.add_segment(segment_name)
 
