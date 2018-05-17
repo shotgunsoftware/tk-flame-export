@@ -242,7 +242,7 @@ class FlameExport(Application):
            assetName:       Name of the exported asset.
            sequenceName:    Name of the sequence the asset is part of.
            shotName:        Name of the shot the asset is part of.
-           assetType:       Type of exported asset. ( 'video', 'audio', 'batch', 'openClip', 'batchOpenClip' )
+           assetType:       Type of exported asset. ( 'video', 'movie', 'audio', 'batch', 'openClip', 'batchOpenClip' )
            width:           Frame width of the exported asset.
            height:          Frame height of the exported asset.
            aspectRatio:     Frame aspect ratio of the exported asset.
@@ -273,7 +273,7 @@ class FlameExport(Application):
             self.log_error("Skipping unknown sequence %s" % sequence_name)
             return
 
-        if asset_type not in ["video", "batch", "batchOpenClip", "openClip"]:
+        if asset_type not in ["video", 'movie', "batch", "batchOpenClip", "openClip"]:
             # the review system ignores any other assets. The export profiles are defined
             # in the app's settings hook, so technically there shouldn't be any other items
             # generated - but just in case there are (because of customizations), we'll simply
@@ -303,7 +303,7 @@ class FlameExport(Application):
         # prepare for export of asset
         shot = self._sequence.get_shot(shot_name)
 
-        if asset_type == "video":
+        if asset_type in ["video", "movie"]:
             # resolve template for exported plates or video
             template = self._export_preset.get_render_template()
             
@@ -389,7 +389,7 @@ class FlameExport(Application):
            assetName:       Name of the exported asset.
            sequenceName:    Name of the sequence the asset is part of.
            shotName:        Name of the shot the asset is part of.
-           assetType:       Type of exported asset. ( 'video', 'audio', 'batch', 'openClip', 'batchOpenClip' )
+           assetType:       Type of exported asset. ( 'video', 'movie', 'audio', 'batch', 'openClip', 'batchOpenClip' )
            isBackground:    True if the export of the asset happened in the background.
            backgroundJobId: Id of the background job given by the backburner manager upon submission. 
                             Empty if job is done in foreground.
@@ -418,14 +418,14 @@ class FlameExport(Application):
         shot_name = info["shotName"]
         sequence_name = info["sequenceName"]        
 
-        if asset_type not in ["video", "batch"]:
+        if asset_type not in ["video", 'movie', "batch"]:
             # ignore anything that isn't video or batch
             return
         
         # resolve shot object
         shot = self._sequence.get_shot(shot_name)
 
-        if asset_type == "video":
+        if asset_type in ["video", "movie"]:
             # create a new segment for the shot
             segment = shot.add_segment(segment_name)
 
