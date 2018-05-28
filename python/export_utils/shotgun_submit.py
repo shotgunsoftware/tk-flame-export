@@ -250,29 +250,35 @@ class ShotgunSubmitter(object):
         # lets keep it simple and look at the sequence file path to extract this data.
         #
         # Flame sequence tokens are on the form "[1001-1100]"
-        re_match = re.search("\[([0-9]+)-([0-9]+)\]\.", path)
-        if not re_match:
-            self._app.log_warning("No frame range information found in path '%s'. "
-                                  "Will proceed with undefined frame range." % path)
-        else:
-            try:
+        try:
+            re_match = re.search(".*\[([0-9]+)-([0-9]+)\]\..*", path)
+            if re_match:
                 (first_str, last_str) = re_match.groups()
                 first_frame = int(first_str)
                 last_frame = int(last_str)
-            
-            except Exception, e:
-                self._app.log_warning("Could not extract frame data from path '%s'. "
-                                      "Will proceed without frame data. Error reported: %s" % (path, e))
             else:
-                # add frame data to version metadata
-                batch_item["data"]["sg_first_frame"] = first_frame
-                batch_item["data"]["sg_last_frame"] = last_frame
-                batch_item["data"]["frame_count"] = last_frame - first_frame + 1
-                batch_item["data"]["frame_range"] = "%s-%s" % (first_frame, last_frame)
-                batch_item["data"]["sg_frames_have_slate"] = False
-                batch_item["data"]["sg_movie_has_slate"] = False
-                batch_item["data"]["sg_frames_aspect_ratio"] = aspect_ratio
-                batch_item["data"]["sg_movie_aspect_ratio"] = aspect_ratio
+                re_match = re.search(".*([0-9]+)\..*", path)
+                if not re_match:
+                    raise Exception("No frame number found")
+
+                frame_str = re_match.group(1)
+                first_frame = int(frame_str)
+                last_frame = int(frame_str)
+
+            # add frame data to version metadata
+            batch_item["data"]["sg_first_frame"] = first_frame
+            batch_item["data"]["sg_last_frame"] = last_frame
+            batch_item["data"]["frame_count"] = last_frame - first_frame + 1
+            batch_item["data"]["frame_range"] = "%s-%s" % (first_frame, last_frame)
+
+        except Exception, e:
+            self._app.log_warning("Could not extract frame data from path '%s'. "
+                                  "Will proceed without frame data. Error reported: %s" % (path, e))
+
+        batch_item["data"]["sg_frames_have_slate"] = False
+        batch_item["data"]["sg_movie_has_slate"] = False
+        batch_item["data"]["sg_frames_aspect_ratio"] = aspect_ratio
+        batch_item["data"]["sg_movie_aspect_ratio"] = aspect_ratio
 
         # link to the publish
         if sg_publish_data:
