@@ -322,10 +322,9 @@ class FlameExport(Application):
         
         if asset_type == "video":
             # handle the Flame sequence token - it will come in as "[1001-1100]"
-            re_match = re.search("(\[[0-9]+-[0-9]+\])\.", info["resolvedPath"])
-            if not re_match:
-                raise TankError("Cannot find frame number token in export data!")
-            fields["SEQ"] = re_match.group(1)
+            re_match = re.search(".*(\[[0-9]+-[0-9]+\])\..*", info["resolvedPath"])
+            if re_match:
+                fields["SEQ"] = re_match.group(1)
 
         # create some fields based on the info in the info params                
         if "versionNumber" in info:
