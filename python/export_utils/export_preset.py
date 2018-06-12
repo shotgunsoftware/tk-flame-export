@@ -137,15 +137,6 @@ class ExportPreset(object):
         """
         return self._raw_preset["frame_handles"]
 
-    def get_start_frame(self):
-        """
-        Returns the start frame for any generated media in Flame.
-        This is the very first frame in the rendered media, so
-        if start frame is 100 and handles length is 5, the first
-        visible frame in the cut will be 105
-        """
-        return self._raw_preset["start_frame"]
-
     def get_cut_type(self):
         """
         Returns the name for cuts created by this preset
@@ -332,9 +323,7 @@ class ExportPreset(object):
                {VIDEO_EXPORT_PRESET}
 
                <name>
-                  <framePadding>{FRAME_PADDING}</framePadding>
-                  <startFrame>{START_FRAME}</startFrame>
-                  <useTimecode>False</useTimecode>
+                  <useTimecode>True</useTimecode>
                </name>
                <createOpenClip>
                   <namePattern>{SEGMENT_CLIP_NAME_PATTERN}</namePattern>
@@ -359,7 +348,6 @@ class ExportPreset(object):
         xml = xml.replace("{VIDEO_EXPORT_PRESET}", video_preset_xml)
 
         # and simple data type settings
-        xml = xml.replace("{START_FRAME}", str(self._raw_preset["start_frame"]))
         xml = xml.replace("{FRAME_HANDLES}", str(self._raw_preset["frame_handles"]))
 
         # now perform substitutions based on the rest of the resolved Flame templates
@@ -369,23 +357,10 @@ class ExportPreset(object):
         xml = xml.replace("{SHOT_CLIP_NAME_PATTERN}", cgi.escape(resolved_flame_templates["shot_clip_template"]))
         xml = xml.replace("{OUTPUT_PATH_PATTERN}", cgi.escape(resolved_flame_templates["batch_render_template"]))
 
-        # now adjust some parameters in the export xml based on the template setup. 
+        # now adjust some parameters in the export xml based on the template setup.
         template = self.get_render_template()
-        
-        # First up is the padding for sequences:        
-        sequence_key = template.keys["SEQ"]
-        
-        # The format spec is something like "04"
-        # strip off leading zeroes
-        # TODO: Flame defaults to zero-padded numbers (e.g. 001, 002, 003 instead of 1, 2, 3)
-        # raise an error in case someone tries to use a template which 
-        # does use non-zero padded token.
-        format_spec = sequence_key.format_spec.lstrip("0")        
-        xml = xml.replace("{FRAME_PADDING}", format_spec)
-        self._app.log_debug("Flame preset generation: Setting frame padding to %s based on "
-                            "SEQ token in template %s" % (format_spec, template))
 
-        # also align the padding for versions with the definition in the version template
+        # Align the padding for versions with the definition in the version template
         version_key = template.keys["version"]
         # the format spec is something like "03"
         # TODO: Flame defaults to zero-padded numbers (e.g. 001, 002, 003 instead of 1, 2, 3)
@@ -395,10 +370,10 @@ class ExportPreset(object):
         xml = xml.replace("{VERSION_PADDING}", format_spec)        
         self._app.log_debug("Flame preset generation: Setting version padding to %s based on "
                             "version token in template %s" % (format_spec, template))
-        
+
         # write it to disk
         preset_path = self.__write_content_to_file(xml, "export_preset.xml")
-        
+
         return preset_path
 
     ###############################################################################################

@@ -268,7 +268,7 @@ class Sequence(object):
                     # get the fps for the entire sequence by pulling it from
                     # the first segment
                     "fps": shots_in_cut_order[0].get_base_segment().sequence_fps,
-                    "duration": sum([shot.get_base_segment().duration for shot in self.shots]),
+                    "duration": sum([shot.get_base_segment().duration for shot in self.shots if shot.get_base_segment() is not None]),
                     "timecode_start_text": shots_in_cut_order[0].get_base_segment().edit_in_timecode,
                     "timecode_end_text": shots_in_cut_order[-1].get_base_segment().edit_out_timecode,
                 }
