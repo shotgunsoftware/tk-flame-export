@@ -126,11 +126,6 @@ configuration:
                     type: bool
                     default_value: true
 
-                start_frame:
-                    description: Start frame for created image sequences.
-                    type: int
-                    default_value: 100
-
                 frame_handles:
                     description: Length of handles to include as part of exported media.
                     type: int
