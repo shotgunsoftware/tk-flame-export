@@ -323,6 +323,7 @@ class ExportPreset(object):
                {VIDEO_EXPORT_PRESET}
 
                <name>
+                  <framePadding>{FRAME_PADDING}</framePadding>
                   <useTimecode>True</useTimecode>
                </name>
                <createOpenClip>
@@ -359,6 +360,19 @@ class ExportPreset(object):
 
         # now adjust some parameters in the export xml based on the template setup.
         template = self.get_render_template()
+        
+        # First up is the padding for sequences:        
+        sequence_key = template.keys["SEQ"]
+        
+        # The format spec is something like "04"
+        # strip off leading zeroes
+        # TODO: Flame defaults to zero-padded numbers (e.g. 001, 002, 003 instead of 1, 2, 3)
+        # raise an error in case someone tries to use a template which 
+        # does use non-zero padded token.
+        format_spec = sequence_key.format_spec.lstrip("0")        
+        xml = xml.replace("{FRAME_PADDING}", format_spec)
+        self._app.log_debug("Flame preset generation: Setting frame padding to %s based on "
+                            "SEQ token in template %s" % (format_spec, template))
 
         # Align the padding for versions with the definition in the version template
         version_key = template.keys["version"]
