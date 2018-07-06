@@ -606,9 +606,10 @@ class ShotgunSubmitter(object):
                             "This sometimes happens if Flame sequences or clips contain special characters "
                             "such as slashes or spaces." % flame_path)
         
-        fields = template.get_fields(flame_path)    
+        fields = template.get_fields(flame_path)
         fields["SEQ"] = "FORMAT: %d"
-        return template.apply_fields(fields)        
+        fields["timecode"] = "FORMAT: %d"
+        return template.apply_fields(fields)
 
     def __extract_thumbnail(self, path, width, height):
         """

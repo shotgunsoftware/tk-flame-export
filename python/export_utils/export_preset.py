@@ -324,7 +324,7 @@ class ExportPreset(object):
 
                <name>
                   <framePadding>{FRAME_PADDING}</framePadding>
-                  <useTimecode>True</useTimecode>
+                  <useTimecode>{USE_TIMECODE}</useTimecode>
                </name>
                <createOpenClip>
                   <namePattern>{SEGMENT_CLIP_NAME_PATTERN}</namePattern>
@@ -361,29 +361,45 @@ class ExportPreset(object):
         # now adjust some parameters in the export xml based on the template setup.
         template = self.get_render_template()
         
-        # First up is the padding for sequences:        
-        sequence_key = template.keys["SEQ"]
-        
-        # The format spec is something like "04"
-        # strip off leading zeroes
-        # TODO: Flame defaults to zero-padded numbers (e.g. 001, 002, 003 instead of 1, 2, 3)
-        # raise an error in case someone tries to use a template which 
-        # does use non-zero padded token.
-        format_spec = sequence_key.format_spec.lstrip("0")        
-        xml = xml.replace("{FRAME_PADDING}", format_spec)
+        import pdb
+        pdb.set_trace()
+
+        def get_padding_from_key(key, default):
+            """
+            Convert a key format spec into a padding that can be used in flame
+            export preset.  The format spec is something like "04" for 0
+            prefixed 4 digit padding.
+            """
+            if key is None:
+                return str(default)
+            if key.format_spec[0] != "0":
+                return "1"
+            return key.format_spec.lstrip("0")
+
+        # First up is the padding for sequences
+        # (use timecode token first else fallback on SEQ)
+        frame_token = "timecode"
+        sequence_key = template.keys.get(frame_token)
+        if sequence_key is None:
+            frame_token = "SEQ"
+            sequence_key = template.keys.get(frame_token)
+        use_timecode = frame_token == "timecode"
+
+        frame_padding = get_padding_from_key(key=sequence_key, default="4")
+        xml = xml.replace("{FRAME_PADDING}", frame_padding)
         self._app.log_debug("Flame preset generation: Setting frame padding to %s based on "
-                            "SEQ token in template %s" % (format_spec, template))
+                            "%s token in template %s" % (frame_padding, frame_token, template))
+
+        xml = xml.replace("{USE_TIMECODE}", str(use_timecode))
+        self._app.log_debug("Flame preset generation: Setting use timecode to %s based on "
+                            "%s token in template %s" % (use_timecode, frame_token, template))
 
         # Align the padding for versions with the definition in the version template
-        version_key = template.keys["version"]
-        # the format spec is something like "03"
-        # TODO: Flame defaults to zero-padded numbers (e.g. 001, 002, 003 instead of 1, 2, 3)
-        # raise an error in case someone tries to use a template which 
-        # does use non-zero padded token.
-        format_spec = version_key.format_spec.lstrip("0")
-        xml = xml.replace("{VERSION_PADDING}", format_spec)        
+        version_key = template.keys.get("version")
+        vesion_padding = get_padding_from_key(key=sequence_key, default="3")
+        xml = xml.replace("{VERSION_PADDING}", vesion_padding)
         self._app.log_debug("Flame preset generation: Setting version padding to %s based on "
-                            "version token in template %s" % (format_spec, template))
+                            "version token in template %s" % (vesion_padding, template))
 
         # write it to disk
         preset_path = self.__write_content_to_file(xml, "export_preset.xml")

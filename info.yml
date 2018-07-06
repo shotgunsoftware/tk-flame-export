@@ -81,7 +81,7 @@ configuration:
                 template:
                     description: Toolkit file system template to control where plate output goes on disk.
                     type: template
-                    fields: context, SEQ, Shot, version, segment_name, [YYYY], [MM], [DD], [hh], [mm], [ss], [width], [height], *
+                    fields: context, [SEQ], [timecode], Shot, version, segment_name, [YYYY], [MM], [DD], [hh], [mm], [ss], [width], [height], *
 
                 quicktime_template:
                     description: If not set to null, a higher res quicktime will be generated and stored on disk,
@@ -102,7 +102,7 @@ configuration:
                     type: template
                     allows_empty: True
                     default_value: null
-                    fields: context, SEQ, Shot, version, segment_name, [YYYY], [MM], [DD], [hh], [mm], [ss], [width], [height], *
+                    fields: context, [SEQ], [timecode], Shot, version, segment_name, [YYYY], [MM], [DD], [hh], [mm], [ss], [width], [height], *
 
 
                 batch_quicktime_template:
