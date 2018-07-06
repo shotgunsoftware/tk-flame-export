@@ -361,9 +361,6 @@ class ExportPreset(object):
         # now adjust some parameters in the export xml based on the template setup.
         template = self.get_render_template()
         
-        import pdb
-        pdb.set_trace()
-
         def get_padding_from_key(key, default):
             """
             Convert a key format spec into a padding that can be used in flame
