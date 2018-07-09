@@ -608,7 +608,7 @@ class ShotgunSubmitter(object):
         
         fields = template.get_fields(flame_path)
         fields["SEQ"] = "FORMAT: %d"
-        fields["timecode"] = "FORMAT: %d"
+        fields["flame.frame"] = "FORMAT: %d"
         return template.apply_fields(fields)
 
     def __extract_thumbnail(self, path, width, height):

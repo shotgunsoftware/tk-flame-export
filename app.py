@@ -326,7 +326,7 @@ class FlameExport(Application):
             if re_match:
                 frames = re_match.group(1)
                 fields["SEQ"] = frames
-                fields["timecode"] = frames
+                fields["flame.frame"] = frames
 
         # create some fields based on the info in the info params                
         if "versionNumber" in info:

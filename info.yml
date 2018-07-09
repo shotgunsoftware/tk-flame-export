@@ -81,7 +81,7 @@ configuration:
                 template:
                     description: Toolkit file system template to control where plate output goes on disk.
                     type: template
-                    fields: context, [SEQ], [timecode], Shot, version, segment_name, [YYYY], [MM], [DD], [hh], [mm], [ss], [width], [height], *
+                    fields: context, [SEQ], [flame.frame], Shot, version, segment_name, [YYYY], [MM], [DD], [hh], [mm], [ss], [width], [height], *
 
                 quicktime_template:
                     description: If not set to null, a higher res quicktime will be generated and stored on disk,
@@ -102,7 +102,7 @@ configuration:
                     type: template
                     allows_empty: True
                     default_value: null
-                    fields: context, [SEQ], [timecode], Shot, version, segment_name, [YYYY], [MM], [DD], [hh], [mm], [ss], [width], [height], *
+                    fields: context, [SEQ], [flame.frame], Shot, version, segment_name, [YYYY], [MM], [DD], [hh], [mm], [ss], [width], [height], *
 
 
                 batch_quicktime_template:
@@ -130,6 +130,11 @@ configuration:
                     description: Length of handles to include as part of exported media.
                     type: int
                     default_value: 10
+
+                use_timecode_as_frame_number:
+                    description: Use timecode frame numbering when exporting frame sequences
+                    type: bool
+                    default_value: True
 
     segment_clip_template:
         description: "Toolkit file system template to control where segment based clip files go on disk.

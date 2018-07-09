@@ -374,19 +374,19 @@ class ExportPreset(object):
             return key.format_spec.lstrip("0")
 
         # First up is the padding for sequences
-        # (use timecode token first else fallback on SEQ)
-        frame_token = "timecode"
+        # (use flame.frame token first else fallback on SEQ for legacy configs)
+        frame_token = "flame.frame"
         sequence_key = template.keys.get(frame_token)
         if sequence_key is None:
             frame_token = "SEQ"
             sequence_key = template.keys.get(frame_token)
-        use_timecode = frame_token == "timecode"
 
         frame_padding = get_padding_from_key(key=sequence_key, default="4")
         xml = xml.replace("{FRAME_PADDING}", frame_padding)
         self._app.log_debug("Flame preset generation: Setting frame padding to %s based on "
                             "%s token in template %s" % (frame_padding, frame_token, template))
 
+        use_timecode = str(self._raw_preset["use_timecode_as_frame_number"])
         xml = xml.replace("{USE_TIMECODE}", str(use_timecode))
         self._app.log_debug("Flame preset generation: Setting use timecode to %s based on "
                             "%s token in template %s" % (use_timecode, frame_token, template))
