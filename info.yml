@@ -131,10 +131,10 @@ configuration:
                     type: int
                     default_value: 10
 
-                use_timecode_as_frame_number:
-                    description: Use timecode frame numbering when exporting frame sequences
-                    type: bool
-                    default_value: True
+                #use_timecode_as_frame_number:
+                #    description: Use timecode frame numbering when exporting frame sequences (optional)
+                #    type: bool
+                #    default_value: True
 
     segment_clip_template:
         description: "Toolkit file system template to control where segment based clip files go on disk.
