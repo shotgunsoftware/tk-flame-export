@@ -386,7 +386,7 @@ class ExportPreset(object):
         self._app.log_debug("Flame preset generation: Setting frame padding to %s based on "
                             "%s token in template %s" % (frame_padding, frame_token, template))
 
-        use_timecode = str(self._raw_preset["use_timecode_as_frame_number"])
+        use_timecode = str(self._raw_preset.get("use_timecode_as_frame_number", True))
         xml = xml.replace("{USE_TIMECODE}", str(use_timecode))
         self._app.log_debug("Flame preset generation: Setting use timecode to %s based on "
                             "%s token in template %s" % (use_timecode, frame_token, template))
