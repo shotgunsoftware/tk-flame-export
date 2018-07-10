@@ -393,7 +393,7 @@ class ExportPreset(object):
 
         # Align the padding for versions with the definition in the version template
         version_key = template.keys.get("version")
-        vesion_padding = get_padding_from_key(key=sequence_key, default="3")
+        vesion_padding = get_padding_from_key(key=version_key, default="3")
         xml = xml.replace("{VERSION_PADDING}", vesion_padding)
         self._app.log_debug("Flame preset generation: Setting version padding to %s based on "
                             "version token in template %s" % (vesion_padding, template))
