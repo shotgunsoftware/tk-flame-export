@@ -324,7 +324,9 @@ class FlameExport(Application):
             # handle the Flame sequence token - it will come in as "[1001-1100]"
             re_match = re.search(".*(\[[0-9]+-[0-9]+\])\..*", info["resolvedPath"])
             if re_match:
-                fields["SEQ"] = re_match.group(1)
+                frames = re_match.group(1)
+                fields["SEQ"] = frames
+                fields["flame.frame"] = frames
 
         # create some fields based on the info in the info params                
         if "versionNumber" in info:
