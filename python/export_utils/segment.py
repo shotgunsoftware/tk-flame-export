@@ -78,7 +78,7 @@ class Segment(object):
         prompts the user, asking her/him if they want to override an existing file and they
         select 'no'
         """
-        return self._flame_data is not None
+        return self.flame_data is not None
 
     @property
     def render_version_number(self):
@@ -289,13 +289,18 @@ class Segment(object):
             self.use_drop_frames
         )
 
-    def set_flame_data(self, flame_data):
+    @property
+    def flame_data(self):
         """
-        Specify the flame hook data dictionary for this segment
+        Flame hook data dictionary for this segment
+        """
+        return self._flame_data
 
-        :param flame_data: dictionary with data from flame
+    def set_flame_data(self, value):
         """
-        self._flame_data = flame_data
+        Set Flame hook data dictionary for this segment
+        """
+        self._flame_data = value
 
     def set_shotgun_version_id(self, version_id):
         """
@@ -311,15 +316,15 @@ class Segment(object):
         :return: Flame property
         :raises: ValueError if not found
         """
-        if self._flame_data is None:
-            raise ValueError("No video metadata found for %s" % self)
+        if self.flame_data is None:
+            raise ValueError("No Flame metadata found for %s" % self)
 
-        if property_name not in self._flame_data:
+        if property_name not in self.flame_data:
             raise ValueError(
-                "Property '%s' not found in video metadata for %s" % (property_name, self)
+                "Property '%s' not found in Flame metadata for %s" % (property_name, self)
             )
 
-        return self._flame_data[property_name]
+        return self.flame_data[property_name]
 
     def _frames_to_timecode(self, total_frames, frame_rate, drop):
         """
