@@ -292,13 +292,23 @@ class Segment(object):
     @property
     def flame_data(self):
         """
-        Flame hook data dictionary for this segment
+        Flame hook data dictionary for this segment.
+
+        See tk-flame/flame_hooks/sg_export_hook.py and
+        tk-flame/flame_hooks/sg_batch_hook.py for details on what this
+        dictionary can contain.
         """
         return self._flame_data
 
     def set_flame_data(self, value):
         """
-        Set Flame hook data dictionary for this segment
+        Set Flame hook data dictionary for this segment.
+
+        See tk-flame/flame_hooks/sg_export_hook.py and
+        tk-flame/flame_hooks/sg_batch_hook.py for details on what this
+        dictionary can contain.
+
+        :param value: Flame hook data dictionary for this segment.
         """
         self._flame_data = value
 
