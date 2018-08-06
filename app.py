@@ -580,83 +580,91 @@ class FlameExport(Application):
 
         self.log_debug("Looping over all shots and segments to submit thumbnails...")
         try:
-            for shot in self._sequence.shots:
-                for segment in shot.segments:
-                    if segment.has_shotgun_version:
+            self.engine.show_busy("Updating Shotgun...", "Generating thumbnails...")
+            try:
+                for shot in self._sequence.shots:
+                    for segment in shot.segments:
+                        if segment.has_shotgun_version:
 
-                        # if the video media is generated in a backburner job, make sure that
-                        # our quicktime job is executed *after* this job has finished
-                        run_after_job_id = segment.backburner_job_id
-                        target_entities = [
-                            {
-                                "type": "Version",
-                                "id": segment.shotgun_version_id
-                            }
-                        ]
+                            # if the video media is generated in a backburner job, make sure that
+                            # our quicktime job is executed *after* this job has finished
+                            dependencies = segment.backburner_job_id
+                            target_entities = [
+                                {
+                                    "type": "Version",
+                                    "id": segment.shotgun_version_id
+                                }
+                            ]
 
-                        self.engine.thumbnail_generator.generate(
-                            display_name=segment.name,
-                            path=segment.render_path,
-                            dependencies=run_after_job_id,
-                            target_entities=target_entities,
-                            asset_info=segment.flame_data,
-                            favor_preview=self._export_preset.upload_quicktime()
-                        )
+                            self.engine.thumbnail_generator.generate(
+                                display_name=segment.name,
+                                path=segment.render_path,
+                                dependencies=dependencies,
+                                target_entities=target_entities,
+                                asset_info=segment.flame_data,
+                                favor_preview=self._export_preset.upload_quicktime()
+                            )
+            finally:
+                # The thumbnail generator will bundle request for same paths to
+                # avoid rendering multiple time the same asset. We must call
+                # finalize to actually send the job requests
+                #
+                self.engine.thumbnail_generator.finalize()
         finally:
-            # The thumbnail generator will bundle request for same paths to
-            # avoid rendering multiple time the same asset. We must call
-            # finalize to actually send the job requests
-            #
-            self.engine.thumbnail_generator.finalize()
+            self.engine.clear_busy()
 
         # For each segment, generate a high res quicktime (for local playback in say RV)
         # Each item will be processed in a separate backburner job.
         # note that this happens in a separate loop after the upload quicktime loop
         # to ensure that these tasks happen last.
         if self._export_preset.highres_quicktime_enabled():
-            self.log_debug("Looping over all shots and segments to generate high-res quicktimes...")
-            for shot in self._sequence.shots:
-                for segment in shot.segments:
-                    if segment.has_shotgun_version:
+            try:
+                self.engine.show_busy("Updating Shotgun...", "Generating high-res quicktimes...")
+                self.log_debug("Looping over all shots and segments to generate high-res quicktimes...")
+                for shot in self._sequence.shots:
+                    for segment in shot.segments:
+                        if segment.has_shotgun_version:
 
-                        # compute quicktime path from frames
-                        quicktime_path = self._export_preset.quicktime_path_from_render_path(
-                            segment.render_path
-                        )
+                            # compute quicktime path from frames
+                            quicktime_path = self._export_preset.quicktime_path_from_render_path(
+                                segment.render_path
+                            )
 
-                        # if the video media is generated in a backburner job, make sure that
-                        # our quicktime job is executed *after* this job has finished
-                        run_after_job_id = segment.backburner_job_id
+                            # if the video media is generated in a backburner job, make sure that
+                            # our quicktime job is executed *after* this job has finished
+                            dependencies = segment.backburner_job_id
 
-                        args = {
-                            "export_preset_name": self._export_preset.get_name(),
-                            "version_id": segment.shotgun_version_id,
-                            "path": segment.render_path,
-                            "quicktime_path": quicktime_path,
-                            "width": segment.render_width,
-                            "height": segment.render_height,
-                            "fps": segment.fps
-                        }
-
-                        target_entities = [
-                            {
-                                "type": "Version",
-                                "id": segment.shotgun_version_id
+                            args = {
+                                "export_preset_name": self._export_preset.get_name(),
+                                "version_id": segment.shotgun_version_id,
+                                "path": segment.render_path,
+                                "quicktime_path": quicktime_path,
+                                "width": segment.render_width,
+                                "height": segment.render_height,
+                                "fps": segment.fps
                             }
-                        ]
 
-                        # Generate a movie file that will not be uploaded to
-                        # Shotgun server but instead will be linked using the
-                        # Path to Movie field.
-                        #
-                        self.engine.local_movie_generator.generate(
-                            src_path=segment.render_path,
-                            dst_path=quicktime_path,
-                            display_name=segment.name,
-                            target_entities=target_entities,
-                            asset_info=segment.flame_data,
-                            dependencies=run_after_job_id
-                        )
+                            target_entities = [
+                                {
+                                    "type": "Version",
+                                    "id": segment.shotgun_version_id
+                                }
+                            ]
+
+                            # Generate a movie file that will not be uploaded to
+                            # Shotgun server but instead will be linked using the
+                            # Path to Movie field.
+                            #
+                            self.engine.local_movie_generator.generate(
+                                src_path=segment.render_path,
+                                dst_path=quicktime_path,
+                                display_name=segment.name,
+                                target_entities=target_entities,
+                                asset_info=segment.flame_data,
+                                dependencies=dependencies
+                            )
+            finally:
+                self.engine.clear_busy()
 
         # now, as a last step, show a summary UI to the user, including a
         # very brief overview of what changes have been carried out.
@@ -831,7 +839,7 @@ class FlameExport(Application):
         self.engine.create_local_backburner_job(
             "Render %s - Shotgun Upload" % info.get("nodeName"),
             "Generating quicktime and uploading to Shotgun.",
-            None, # run_after_job_id
+            None, # dependencies
             self,
             "backburner_process_rendered_batch",
             args
