@@ -544,57 +544,61 @@ class FlameExport(Application):
         sg_publishes = []
 
         self.log_debug("Looping over all shots and segments to submit publishes...")
-        for shot in self._sequence.shots:
-
-            # first see if we have a batch file being exported for this shot
-            if shot.has_batch_export:
-                sg_publishes.append({
-                    "type": "batch",
-                    "path": shot.batch_path,
-                    "comments": self._user_comments,
-                    "serialized_context": sgtk.context.serialize(shot.context),
-                    "version": shot.batch_version_number
-                })
-
-            for segment in shot.segments:
-
-                if segment.has_render_export:
-                    # there is video rendered out for this segment!
-                    sg_publishes.append({
-                        "type": "video",
-                        "width": segment.render_width,
-                        "height": segment.render_height,
-                        "path": segment.render_path,
-                        "comments": self._user_comments,
-                        "version_id": segment.shotgun_version_id,
-                        "create_shot_thumbnail": shot.new_in_shotgun,
-                        "serialized_context": sgtk.context.serialize(shot.context),
-                        "version": segment.render_version_number
-                    })
-
-        # push all publish requests as a single backburner job
-        self.backburner_register_publishes(
-            publish_requests=sg_publishes,
-            export_preset=self._export_preset.get_name()
-        )
-
-        self.log_debug("Looping over all shots and segments to submit thumbnails...")
         try:
-            self.engine.show_busy("Updating Shotgun...", "Generating thumbnails...")
             try:
                 for shot in self._sequence.shots:
+
+                    # first see if we have a batch file being exported for this shot
+                    if shot.has_batch_export:
+                        self.engine.show_busy("Updating Shotgun...", "Updating Shot %s / Batch Setup" % (shot.name))
+                        sg_batch_data = self._sg_submit_helper.register_batch_publish(
+                            shot.context,
+                            shot.batch_path,
+                            self._user_comments,
+                            shot.batch_version_number
+                        )
+                    else:
+                        sg_batch_data = None
+
                     for segment in shot.segments:
-                        if segment.has_shotgun_version:
+                        if segment.has_render_export:
+                            self.engine.show_busy("Updating Shotgun...", "Updating Shot %s / Segment %s" % (shot.name, segment.name))
+                            sg_data = self._sg_submit_helper.register_video_publish(
+                                self._export_preset.get_name(),
+                                shot.context,
+                                segment.render_width,
+                                segment.render_height,
+                                segment.render_path,
+                                self._user_comments,
+                                segment.render_version_number,
+                                is_batch_render=False
+                            )
 
                             # if the video media is generated in a backburner job, make sure that
                             # our quicktime job is executed *after* this job has finished
                             dependencies = segment.backburner_job_id
+
                             target_entities = [
                                 {
-                                    "type": "Version",
-                                    "id": segment.shotgun_version_id
+                                    "type": sg_data["type"],
+                                    "id": sg_data["id"]
                                 }
                             ]
+                            if segment.has_shotgun_version:
+                                target_entities.append(
+                                    {
+                                        "type": "Version",
+                                        "id": segment.shotgun_version_id
+                                    }
+                                )
+                            if sg_batch_data is not None:
+                                target_entities.append(
+                                    {
+                                        "type": sg_batch_data["type"],
+                                        "id": sg_batch_data["id"]
+                                    }
+                                )
+                                sg_batch_data = None
 
                             self.engine.thumbnail_generator.generate(
                                 display_name=segment.name,
@@ -609,6 +613,7 @@ class FlameExport(Application):
                 # avoid rendering multiple time the same asset. We must call
                 # finalize to actually send the job requests
                 #
+                self.engine.show_busy("Updating Shotgun...", "Updating thumbnails...")
                 self.engine.thumbnail_generator.finalize()
         finally:
             self.engine.clear_busy()
@@ -849,67 +854,6 @@ class FlameExport(Application):
     # backburner callbacks. These methods are executed as backburner jobs and not inside
     # the main Flame UI. at this point, there is no access to any UI.
 
-    def backburner_register_publishes(self, publish_requests, export_preset):
-        """
-        Generate publishes in Shotgun for a list of publish requests.
-        
-        There are two types of data in the publish_requests list:
-        
-        { "type": "batch",
-          "path": "/foo/bar",
-          "comments": "Some user comments",
-          "serialized_context": "xxxxx",
-          "version": 123}
-
-        { "type": "video",
-          "width": 1234,
-          "height": 1234,
-          "path": "/foo/bar",
-          "comments": "Some user comments",
-          "create_shot_thumbnail": True
-          "version_id": 121323,               # associate publish with review version
-          "serialized_context": "xxxxx", 
-          "version": 13})
-
-        :param publish_requests: List of things to publish, see above
-        :param export_preset: The export preset associated with the session
-        """
-        self.log_debug("Creating publishes for all export items.")
-
-        for request in publish_requests:
-
-            self.log_debug("Registering %s for %s" % (request["type"], request["path"]))
-            context = sgtk.context.deserialize(request["serialized_context"])
-            
-            if request["type"] == "batch":    
-                self._sg_submit_helper.register_batch_publish(
-                    context,
-                    request["path"],
-                    request["comments"],
-                    request["version"]
-                )
-
-            elif request["type"] == "video":
-                sg_data = self._sg_submit_helper.register_video_publish(
-                    export_preset,
-                    context,
-                    request["width"],
-                    request["height"],
-                    request["path"],
-                    request["comments"],
-                    request["version"],
-                    request["create_shot_thumbnail"],
-                    is_batch_render=False
-                )
-
-                if request["version_id"]:
-                    self._sg_submit_helper.update_version_dependencies(
-                        request["version_id"],
-                        sg_data
-                    )
-            
-        self.log_debug("Publish complete!")
-
     def backburner_process_rendered_batch(self, info, export_preset, serialized_context, comments, send_to_review):
         """
         Backburner job. Takes a newly generated render and processes it for Shotgun:
@@ -964,6 +908,8 @@ class FlameExport(Application):
         batch_path = info.get("setupResolvedPath")
         self._sg_submit_helper.register_batch_publish(context, batch_path, description, version_number)
 
+        self.engine.show_busy("Updating Shotgun...", "Publishing...")
+
         # Now register the rendered images as a published plate in Shotgun
         full_flame_batch_render_path = os.path.join(info.get("exportPath"), info.get("resolvedPath"))
         
@@ -1000,6 +946,7 @@ class FlameExport(Application):
             ]
 
             # step 2 - Generate a thumbnail
+            self.engine.show_busy("Updating Shotgun...", "Updating thumbnails...")
             self.engine.thumbnail_generator.generate(
                 display_name=export_preset_obj.get_name(),
                 path=full_flame_batch_render_path,
@@ -1007,13 +954,16 @@ class FlameExport(Application):
                 asset_info=info,
                 favor_preview=export_preset_obj.upload_quicktime()
             )
+            self.engine.thumbnail_generator.finalize()
 
             # Step 3 - Generate high res local quicktime
             if export_preset_obj.batch_highres_quicktime_enabled():
+                self.engine.show_busy("Updating Shotgun...", "Updating local quicktime...")
                 self.engine.trancoder.trancoder(
                     display_name=export_preset_obj.get_name(),
                     path=full_flame_batch_render_path,
                     target_entities=target_entities,
                     asset_info=info
                 )
+        self.engine.clear_busy()
 
