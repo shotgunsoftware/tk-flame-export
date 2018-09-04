@@ -844,138 +844,74 @@ class FlameExport(Application):
                              "Aborting post batch render hook.")
             return
 
-        # now start preparing a remote job
-        args = {
-            "info": info,
-            "export_preset": self._batch_export_preset.get_name(),
-            "serialized_context": sgtk.context.serialize(self._batch_context),
-            "comments": self._user_comments,
-            "send_to_review": self._send_batch_render_to_review
-        }
-
-        self.engine.create_local_backburner_job(
-            "Render %s - Shotgun Upload" % info.get("nodeName"),
-            "Generating quicktime and uploading to Shotgun.",
-            None, # dependencies
-            self,
-            "backburner_process_rendered_batch",
-            args
-        )
-
-    ###############################################################################################
-    # backburner callbacks. These methods are executed as backburner jobs and not inside
-    # the main Flame UI. at this point, there is no access to any UI.
-
-    def backburner_process_rendered_batch(self, info, export_preset, serialized_context, comments, send_to_review):
-        """
-        Backburner job. Takes a newly generated render and processes it for Shotgun:
-
-        - registers a publish for the newly created batch file
-        - registers a publish for the generated render source data
-        - optionally, creates a version and uploads a quicktime.
-
-        :param info: Dictionary with a number of parameters:
-
-            nodeName:             Name of the export node.   
-            exportPath:           Export path as entered in the application UI.
-                                  Can be modified by the hook to change where the file are written.
-            namePattern:          List of optional naming tokens as entered in the application UI.
-            resolvedPath:         Full file pattern that will be exported with all the tokens resolved.
-            firstFrame:           Frame number of the first frame that will be exported.
-            lastFrame:            Frame number of the last frame that will be exported.
-            versionName:          Current version name of export (Empty if unversioned).
-            versionNumber:        Current version number of export (0 if unversioned).
-            openClipNamePattern:  List of optional naming tokens pointing to the open clip created if any
-                                  as entered in the application UI. This is only available if versioning
-                                  is enabled.
-            openClipResolvedPath: Full path to the open clip created if any with all the tokens resolved.
-                                  This is only available if versioning is enabled.
-            setupNamePattern:     List of optional naming tokens pointing to the setup created if any
-                                  as entered in the application UI. This is only available if versioning
-                                  is enabled.
-            setupResolvedPath:    Full path to the setup created if any with all the tokens resolved.
-                                  This is only available if versioning is enabled.
-            aborted:              Indicate if the export has been aborted by the user.
-            lastFrame:            Last frame rendered
-            firstFrame:           First frame rendered
-            fps:                  Frame rate of render
-            aspectRatio:          Frame aspect ratio
-            width:                Frame width
-            height:               Frame height
-            depth:                Frame depth ( '8-bits', '10-bits', '12-bits', '16 fp' )
-            scanFormat:           Scan format ( 'FIELD_1', 'FIELD_2', 'PROGRESSIVE' ) 
-
-        :param export_preset: Export preset associated with this session
-        :param serialized_context: The context for the shot that the submission
-                                   is associated with, in serialized form.
-        :param comments: User comments, as a string
-        :param send_to_review: Boolean to indicate that we should send to sg review.
-        """
-        context = sgtk.context.deserialize(serialized_context)
         version_number = int(info["versionNumber"])
-        description = comments or "Automatic Flame batch render"
-        export_preset_obj = self.export_preset_handler.get_preset_by_name(export_preset)
+        description = self._user_comments or "Automatic Flame batch render"
+        export_preset_obj = self.export_preset_handler.get_preset_by_name(self._batch_export_preset.get_name())
 
         # first register the batch file as a publish in Shotgun
         batch_path = info.get("setupResolvedPath")
-        self._sg_submit_helper.register_batch_publish(context, batch_path, description, version_number)
+        self._sg_submit_helper.register_batch_publish(self._batch_context, batch_path, description, version_number)
 
-        self.engine.show_busy("Updating Shotgun...", "Publishing...")
+        try:
+            self.engine.show_busy("Updating Shotgun...", "Publishing...")
 
-        # Now register the rendered images as a published plate in Shotgun
-        full_flame_batch_render_path = os.path.join(info.get("exportPath"), info.get("resolvedPath"))
-        
-        sg_data = self._sg_submit_helper.register_video_publish(
-            export_preset_obj.get_name(),
-            context,
-            info["width"],
-            info["height"],
-            full_flame_batch_render_path,
-            description,
-            version_number,
-            make_shot_thumb=False,
-            is_batch_render=True
-        )
-
-        # Finally, create a version record in Shotgun, generate a quicktime and upload it
-        # only do this if the user clicked "send to review" in the UI.
-        if send_to_review:
-                        
-            # Step 1 - Create Shotgun Version
-            sg_version_data = self._sg_submit_helper.create_version(
-                context,
+            # Now register the rendered images as a published plate in Shotgun
+            full_flame_batch_render_path = os.path.join(info.get("exportPath"), info.get("resolvedPath"))
+            
+            sg_data = self._sg_submit_helper.register_video_publish(
+                export_preset_obj.get_name(),
+                self._batch_context,
+                info["width"],
+                info["height"],
                 full_flame_batch_render_path,
                 description,
-                sg_data,
-                info["aspectRatio"]
+                version_number,
+                is_batch_render=True
             )
 
             target_entities = [
                 {
-                    "type": "Version",
-                    "id" : sg_version_data["id"]
+                    "type": sg_data["type"],
+                    "id" : sg_data["id"]
                 }
             ]
 
-            # step 2 - Generate a thumbnail
+            # Finally, create a version record in Shotgun, generate a quicktime and upload it
+            # only do this if the user clicked "send to review" in the UI.
+            if self._send_batch_render_to_review:
+                sg_version_data = self._sg_submit_helper.create_version(
+                    self._batch_context,
+                    full_flame_batch_render_path,
+                    description,
+                    sg_data,
+                    info["aspectRatio"]
+                )
+
+                target_entities.append(
+                    {
+                        "type": "Version",
+                        "id" : sg_version_data["id"]
+                    }
+                )
+
+                if export_preset_obj.batch_highres_quicktime_enabled():
+                    self.engine.show_busy("Updating Shotgun...", "Updating local quicktime...")
+                    self.engine.trancoder.trancoder(
+                        display_name=export_preset_obj.get_name(),
+                        path=full_flame_batch_render_path,
+                        target_entities=target_entities,
+                        asset_info=info
+                    )
+
             self.engine.show_busy("Updating Shotgun...", "Updating thumbnails...")
             self.engine.thumbnail_generator.generate(
                 display_name=export_preset_obj.get_name(),
                 path=full_flame_batch_render_path,
+                dependencies=None,
                 target_entities=target_entities,
                 asset_info=info,
                 favor_preview=export_preset_obj.upload_quicktime()
             )
             self.engine.thumbnail_generator.finalize()
-
-            # Step 3 - Generate high res local quicktime
-            if export_preset_obj.batch_highres_quicktime_enabled():
-                self.engine.show_busy("Updating Shotgun...", "Updating local quicktime...")
-                self.engine.trancoder.trancoder(
-                    display_name=export_preset_obj.get_name(),
-                    path=full_flame_batch_render_path,
-                    target_entities=target_entities,
-                    asset_info=info
-                )
-        self.engine.clear_busy()
-
+        finally:
+            self.engine.clear_busy()
