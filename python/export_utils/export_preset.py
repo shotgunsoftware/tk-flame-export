@@ -466,6 +466,7 @@ class ExportPreset(object):
         # {segment_name} ==> <segment name>
         # {version}      ==> <version>
         # {SEQ}          ==> <frame>
+        # {flame.frame}  ==> <frame>
         # 
         # and the special one <ext> which corresponds to the last part of the template. In the examples above:
         # {segment_name}_{Shot}.v{version}.{SEQ}.dpx : <ext> is '.dpx' 
@@ -504,6 +505,7 @@ class ExportPreset(object):
             template_defs[t] = template_defs[t].replace("{version}", "<version>")
             
             template_defs[t] = template_defs[t].replace("{SEQ}", "<frame>")
+            template_defs[t] = template_defs[t].replace("{flame.frame}", "<frame>")
             
             template_defs[t] = template_defs[t].replace("{YYYY}", "<YYYY>")
             template_defs[t] = template_defs[t].replace("{MM}", "<MM>")
