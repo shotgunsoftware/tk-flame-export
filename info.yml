@@ -184,7 +184,7 @@ description: "Export Flame sequences to Shotgun and the file system."
 # Required minimum versions for this item to run
 requires_shotgun_version:
 requires_core_version: "v0.18.45"
-requires_engine_version: "v1.14.3"
+requires_engine_version: "v1.14.4"
 
 # the frameworks required to run this app
 frameworks:
