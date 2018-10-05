@@ -846,11 +846,18 @@ class FlameExport(Application):
 
         version_number = int(info["versionNumber"])
         description = self._user_comments or "Automatic Flame batch render"
-        export_preset_obj = self.export_preset_handler.get_preset_by_name(self._batch_export_preset.get_name())
+        export_preset_obj = self.export_preset_handler.get_preset_by_name(
+            self._batch_export_preset.get_name()
+        )
 
         # first register the batch file as a publish in Shotgun
         batch_path = info.get("setupResolvedPath")
-        self._sg_submit_helper.register_batch_publish(self._batch_context, batch_path, description, version_number)
+        sg_batch_data = self._sg_submit_helper.register_batch_publish(
+            self._batch_context,
+            batch_path,
+            description,
+            version_number
+        )
 
         try:
             self.engine.show_busy("Updating Shotgun...", "Publishing...")
@@ -873,6 +880,10 @@ class FlameExport(Application):
                 {
                     "type": sg_data["type"],
                     "id" : sg_data["id"]
+                },
+                {
+                    "type": sg_batch_data["type"],
+                    "id": sg_batch_data["id"]
                 }
             ]
 
