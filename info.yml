@@ -168,6 +168,10 @@ configuration:
         description: The publish type for Flame batch scripts
         default_value: "Flame Batch File"
 
+    upload_chunk_size:
+        type: int
+        description: Large requests will be broken until smaller requests of given chunk size to avoid timeout.
+        default_value: 20
 
 
 # this app works in all engines - it does not contain
