@@ -180,9 +180,9 @@ class Sequence(object):
             # we get the edit points in flame from the base layer
             base_seg = shot.get_base_segment()
 
-            if (base_seg.cut_in_frame != sg_in
-                    or base_seg.cut_out_frame != sg_out
-                    or cut_order != sg_cut_order):
+            if base_seg.cut_in_frame != sg_in or \
+               base_seg.cut_out_frame != sg_out or \
+               cut_order != sg_cut_order:
 
                 # note that at this point all shots are guaranteed to exist in Shotgun
                 # since they were created in the initial export step.
