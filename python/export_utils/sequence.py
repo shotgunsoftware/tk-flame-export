@@ -74,7 +74,6 @@ class Sequence(object):
         """
         return [shot for shot in self.shots if len(shot.segments) > 0]
 
-
     def add_shot(self, shot_name):
         """
         Adds a shot to this sequence.
@@ -127,7 +126,7 @@ class Sequence(object):
             for (idx, shot) in enumerate(new_shots):
                 # this is a new shot
                 msg = "Step %s/%s: Creating folders for Shot %s..." % (
-                    idx+1,
+                    idx + 1,
                     len(new_shots),
                     shot.name
                 )
@@ -181,9 +180,9 @@ class Sequence(object):
             # we get the edit points in flame from the base layer
             base_seg = shot.get_base_segment()
 
-            if (base_seg.cut_in_frame != sg_in or
-                    base_seg.cut_out_frame != sg_out or
-                    cut_order != sg_cut_order):
+            if (base_seg.cut_in_frame != sg_in
+                    or base_seg.cut_out_frame != sg_out
+                    or cut_order != sg_cut_order):
 
                 # note that at this point all shots are guaranteed to exist in Shotgun
                 # since they were created in the initial export step.
@@ -393,7 +392,6 @@ class Sequence(object):
             )
             self._shotgun_id = sg_parent["id"]
             self._app.log_debug("Created parent %s" % sg_parent)
-
 
         # Locate a task template for shots
         if shot_task_template:
