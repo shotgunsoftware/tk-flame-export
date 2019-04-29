@@ -1,17 +1,17 @@
 # Copyright (c) 2016 Shotgun Software Inc.
-# 
+#
 # CONFIDENTIAL AND PROPRIETARY
-# 
-# This work is provided "AS IS" and subject to the Shotgun Pipeline Toolkit 
+#
+# This work is provided "AS IS" and subject to the Shotgun Pipeline Toolkit
 # Source Code License included in this distribution package. See LICENSE.
-# By accessing, using, copying or modifying this work you indicate your 
-# agreement to the Shotgun Pipeline Toolkit Source Code License. All rights 
+# By accessing, using, copying or modifying this work you indicate your
+# agreement to the Shotgun Pipeline Toolkit Source Code License. All rights
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
 import pprint
-from .shot import Shot
-from sgtk import TankError
 import sgtk
+from sgtk import TankError
+from .shot import Shot
 
 
 class Sequence(object):
@@ -74,7 +74,6 @@ class Sequence(object):
         """
         return [shot for shot in self.shots if len(shot.segments) > 0]
 
-
     def add_shot(self, shot_name):
         """
         Adds a shot to this sequence.
@@ -110,8 +109,8 @@ class Sequence(object):
         self._app.log_debug("Preparing export structure for %s %s and shots %s" % (
             self._shot_parent_entity_type,
             self._name,
-            self._shots.keys())
-        )
+            self._shots.keys()
+        ))
 
         self._app.engine.show_busy("Preparing Shotgun...", "Preparing Shots for export...")
 
@@ -126,7 +125,11 @@ class Sequence(object):
             self._app.log_debug("Creating folders on for all new shots...")
             for (idx, shot) in enumerate(new_shots):
                 # this is a new shot
-                msg = "Step %s/%s: Creating folders for Shot %s..." % (idx+1, len(new_shots), shot.name)
+                msg = "Step %s/%s: Creating folders for Shot %s..." % (
+                    idx + 1,
+                    len(new_shots),
+                    shot.name
+                )
                 self._app.engine.show_busy("Preparing Shotgun...", msg)
                 self._app.log_debug("Creating folders on disk for Shot id %s..." % shot)
                 self._app.sgtk.create_filesystem_structure(
@@ -177,7 +180,9 @@ class Sequence(object):
             # we get the edit points in flame from the base layer
             base_seg = shot.get_base_segment()
 
-            if base_seg.cut_in_frame != sg_in or base_seg.cut_out_frame != sg_out or cut_order != sg_cut_order:
+            if base_seg.cut_in_frame != sg_in or \
+               base_seg.cut_out_frame != sg_out or \
+               cut_order != sg_cut_order:
 
                 # note that at this point all shots are guaranteed to exist in Shotgun
                 # since they were created in the initial export step.
@@ -388,7 +393,6 @@ class Sequence(object):
             self._shotgun_id = sg_parent["id"]
             self._app.log_debug("Created parent %s" % sg_parent)
 
-
         # Locate a task template for shots
         if shot_task_template:
             # resolve task template
@@ -447,16 +451,24 @@ class Sequence(object):
                 self._app.log_debug("Adding to Shotgun batch queue: %s" % batch)
                 sg_batch_data.append(batch)
 
-        if len(sg_batch_data) > 0:
+        if sg_batch_data:
             self._app.engine.show_busy("Preparing Shotgun...", "Creating new shots...")
 
             self._app.log_debug("Executing sg batch command....")
-            sg_batch_response = self._app.shotgun.batch(sg_batch_data)
+            # We probably have to cut this into chunks
+            chunk_size = self._app.get_setting("upload_chunk_size")
+            sg_batch_response = []
+
+            def __chunks(sg_batch_data, chunk_size):
+                for i in range(0, len(sg_batch_data), chunk_size):
+                    yield sg_batch_data[i:i + chunk_size]
+
+            for sg_data_chunk in __chunks(sg_batch_data, chunk_size):
+                self._app.log_debug(pprint.pformat(sg_data_chunk))
+                sg_batch_response.extend(self._app.shotgun.batch(sg_data_chunk))
             self._app.log_debug("...done!")
 
             # register its data with Shot objects
             for sg_data in sg_batch_response:
                 shot_name = sg_data["code"]
                 self._shots[shot_name].set_sg_data(sg_data, True)
-
-
