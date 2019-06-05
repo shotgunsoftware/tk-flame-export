@@ -173,6 +173,12 @@ configuration:
         description: Large requests will be broken until smaller requests of given chunk size to avoid timeout.
         default_value: 20
 
+    allow_empty_shot_names:
+        description: If a sequence has at least one segment with a Shot name, ignore any other segments without a shot
+                     name more gracefully.
+        type: bool
+        default_value: false
+
 
 # this app works in all engines - it does not contain
 # any host application specific commands
