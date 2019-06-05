@@ -168,6 +168,11 @@ configuration:
         description: The publish type for Flame batch scripts
         default_value: "Flame Batch File"
 
+    allow_empty_shot_names:
+        description: If a sequence has at least one segment with a Shot name, ignore any other segments without a shot
+                     name more gracefully.
+        type: bool
+        default_value: false
 
 
 # this app works in all engines - it does not contain
