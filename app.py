@@ -287,13 +287,14 @@ class FlameExport(Application):
         # check that the clip has a shot name - otherwise things won't work!
         if shot_name == "":       
             from sgtk.platform.qt import QtGui
-            QtGui.QMessageBox.warning(
-                None,
-                "Missing shot name!",
-                ("The clip '%s' does not have a shot name and therefore cannot be exported. "
-                 "Please ensure that all shots you wish to exports "
-                 "have been named. " % asset_name)
-            )
+            if not self.get_setting("allow_empty_shot_names"):
+                QtGui.QMessageBox.warning(
+                    None,
+                    "Missing shot name!",
+                    ("The clip '%s' does not have a shot name and therefore cannot be exported. "
+                     "Please ensure that all shots you wish to export "
+                     "have been named. " % asset_name)
+                )
             
             # TODO: send the clip to the trash for now. no way to abort at this point
             # but we don't have enough information to be able to proceed at this point either
@@ -423,7 +424,11 @@ class FlameExport(Application):
         if asset_type not in ["video", 'movie', "batch"]:
             # ignore anything that isn't video or batch
             return
-        
+
+        if shot_name == "" and self.get_setting("allow_empty_shot_names"):
+            # continue more gracefully
+            return
+
         # resolve shot object
         shot = self._sequences[-1].get_shot(shot_name)
 
