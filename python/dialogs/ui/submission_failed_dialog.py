@@ -8,6 +8,7 @@
 
 from tank.platform.qt import QtCore, QtGui
 
+
 class Ui_SubmissionFailedDialog(object):
     def setupUi(self, SubmissionFailedDialog):
         SubmissionFailedDialog.setObjectName("SubmissionFailedDialog")
@@ -18,7 +19,9 @@ class Ui_SubmissionFailedDialog(object):
         self.horizontalLayout_3 = QtGui.QHBoxLayout()
         self.horizontalLayout_3.setObjectName("horizontalLayout_3")
         self.label_2 = QtGui.QLabel(SubmissionFailedDialog)
-        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Fixed, QtGui.QSizePolicy.Preferred)
+        sizePolicy = QtGui.QSizePolicy(
+            QtGui.QSizePolicy.Fixed, QtGui.QSizePolicy.Preferred
+        )
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.label_2.sizePolicy().hasHeightForWidth())
@@ -31,17 +34,23 @@ class Ui_SubmissionFailedDialog(object):
         self.verticalLayout_3.setObjectName("verticalLayout_3")
         self.label_3 = QtGui.QLabel(SubmissionFailedDialog)
         self.label_3.setStyleSheet("QLabel { font-size: 18px; }")
-        self.label_3.setAlignment(QtCore.Qt.AlignLeading|QtCore.Qt.AlignLeft|QtCore.Qt.AlignTop)
+        self.label_3.setAlignment(
+            QtCore.Qt.AlignLeading | QtCore.Qt.AlignLeft | QtCore.Qt.AlignTop
+        )
         self.label_3.setObjectName("label_3")
         self.verticalLayout_3.addWidget(self.label_3)
         self.status = QtGui.QLabel(SubmissionFailedDialog)
-        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.MinimumExpanding)
+        sizePolicy = QtGui.QSizePolicy(
+            QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.MinimumExpanding
+        )
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.status.sizePolicy().hasHeightForWidth())
         self.status.setSizePolicy(sizePolicy)
         self.status.setTextFormat(QtCore.Qt.RichText)
-        self.status.setAlignment(QtCore.Qt.AlignLeading|QtCore.Qt.AlignLeft|QtCore.Qt.AlignTop)
+        self.status.setAlignment(
+            QtCore.Qt.AlignLeading | QtCore.Qt.AlignLeft | QtCore.Qt.AlignTop
+        )
         self.status.setWordWrap(True)
         self.status.setObjectName("status")
         self.verticalLayout_3.addWidget(self.status)
@@ -49,7 +58,9 @@ class Ui_SubmissionFailedDialog(object):
         self.verticalLayout.addLayout(self.horizontalLayout_3)
         self.horizontalLayout = QtGui.QHBoxLayout()
         self.horizontalLayout.setObjectName("horizontalLayout")
-        spacerItem = QtGui.QSpacerItem(368, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum)
+        spacerItem = QtGui.QSpacerItem(
+            368, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum
+        )
         self.horizontalLayout.addItem(spacerItem)
         self.submit = QtGui.QPushButton(SubmissionFailedDialog)
         self.submit.setObjectName("submit")
@@ -60,9 +71,35 @@ class Ui_SubmissionFailedDialog(object):
         QtCore.QMetaObject.connectSlotsByName(SubmissionFailedDialog)
 
     def retranslateUi(self, SubmissionFailedDialog):
-        SubmissionFailedDialog.setWindowTitle(QtGui.QApplication.translate("SubmissionFailedDialog", "Shotgun Submission Failed", None, QtGui.QApplication.UnicodeUTF8))
-        self.label_3.setText(QtGui.QApplication.translate("SubmissionFailedDialog", "Something went wrong!", None, QtGui.QApplication.UnicodeUTF8))
-        self.status.setText(QtGui.QApplication.translate("SubmissionFailedDialog", "<html><head/><body><p>Either the export was cancelled along the way or an error occurred. No content will be pushed to Shotgun this time. <br/><br/>For more details, please see the log file <span style=\" font-family:\'Courier New,courier\';\">/usr/discreet/log/tk-flame.log</span></p></body></html>", None, QtGui.QApplication.UnicodeUTF8))
-        self.submit.setText(QtGui.QApplication.translate("SubmissionFailedDialog", "Ok", None, QtGui.QApplication.UnicodeUTF8))
+        SubmissionFailedDialog.setWindowTitle(
+            QtGui.QApplication.translate(
+                "SubmissionFailedDialog",
+                "Shotgun Submission Failed",
+                None,
+                QtGui.QApplication.UnicodeUTF8,
+            )
+        )
+        self.label_3.setText(
+            QtGui.QApplication.translate(
+                "SubmissionFailedDialog",
+                "Something went wrong!",
+                None,
+                QtGui.QApplication.UnicodeUTF8,
+            )
+        )
+        self.status.setText(
+            QtGui.QApplication.translate(
+                "SubmissionFailedDialog",
+                "<html><head/><body><p>Either the export was cancelled along the way or an error occurred. No content will be pushed to Shotgun this time. <br/><br/>For more details, please see the log file <span style=\" font-family:'Courier New,courier';\">/usr/discreet/log/tk-flame.log</span></p></body></html>",
+                None,
+                QtGui.QApplication.UnicodeUTF8,
+            )
+        )
+        self.submit.setText(
+            QtGui.QApplication.translate(
+                "SubmissionFailedDialog", "Ok", None, QtGui.QApplication.UnicodeUTF8
+            )
+        )
+
 
 from . import resources_rc

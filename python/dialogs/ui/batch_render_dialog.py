@@ -8,6 +8,7 @@
 
 from tank.platform.qt import QtCore, QtGui
 
+
 class Ui_BatchRenderDialog(object):
     def setupUi(self, BatchRenderDialog):
         BatchRenderDialog.setObjectName("BatchRenderDialog")
@@ -17,7 +18,9 @@ class Ui_BatchRenderDialog(object):
         self.verticalLayout.setObjectName("verticalLayout")
         self.label_2 = QtGui.QLabel(BatchRenderDialog)
         self.label_2.setText("")
-        self.label_2.setPixmap(QtGui.QPixmap(":/tk-flame-export/batch_render_splash.png"))
+        self.label_2.setPixmap(
+            QtGui.QPixmap(":/tk-flame-export/batch_render_splash.png")
+        )
         self.label_2.setObjectName("label_2")
         self.verticalLayout.addWidget(self.label_2)
         self.comments = QtGui.QPlainTextEdit(BatchRenderDialog)
@@ -27,7 +30,9 @@ class Ui_BatchRenderDialog(object):
         self.horizontalLayout = QtGui.QHBoxLayout()
         self.horizontalLayout.setSpacing(4)
         self.horizontalLayout.setObjectName("horizontalLayout")
-        spacerItem = QtGui.QSpacerItem(368, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum)
+        spacerItem = QtGui.QSpacerItem(
+            368, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum
+        )
         self.horizontalLayout.addItem(spacerItem)
         self.cancel = QtGui.QPushButton(BatchRenderDialog)
         self.cancel.setObjectName("cancel")
@@ -41,8 +46,27 @@ class Ui_BatchRenderDialog(object):
         QtCore.QMetaObject.connectSlotsByName(BatchRenderDialog)
 
     def retranslateUi(self, BatchRenderDialog):
-        BatchRenderDialog.setWindowTitle(QtGui.QApplication.translate("BatchRenderDialog", "Submit to Shotgun", None, QtGui.QApplication.UnicodeUTF8))
-        self.cancel.setText(QtGui.QApplication.translate("BatchRenderDialog", "Skip", None, QtGui.QApplication.UnicodeUTF8))
-        self.submit.setText(QtGui.QApplication.translate("BatchRenderDialog", "Send to Shotgun Review", None, QtGui.QApplication.UnicodeUTF8))
+        BatchRenderDialog.setWindowTitle(
+            QtGui.QApplication.translate(
+                "BatchRenderDialog",
+                "Submit to Shotgun",
+                None,
+                QtGui.QApplication.UnicodeUTF8,
+            )
+        )
+        self.cancel.setText(
+            QtGui.QApplication.translate(
+                "BatchRenderDialog", "Skip", None, QtGui.QApplication.UnicodeUTF8
+            )
+        )
+        self.submit.setText(
+            QtGui.QApplication.translate(
+                "BatchRenderDialog",
+                "Send to Shotgun Review",
+                None,
+                QtGui.QApplication.UnicodeUTF8,
+            )
+        )
+
 
 from . import resources_rc

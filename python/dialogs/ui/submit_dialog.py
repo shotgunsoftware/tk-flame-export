@@ -8,6 +8,7 @@
 
 from tank.platform.qt import QtCore, QtGui
 
+
 class Ui_SubmitDialog(object):
     def setupUi(self, SubmitDialog):
         SubmitDialog.setObjectName("SubmitDialog")
@@ -29,17 +30,23 @@ class Ui_SubmitDialog(object):
         self.label.setObjectName("label")
         self.horizontalLayout_2.addWidget(self.label)
         self.export_presets = QtGui.QComboBox(SubmitDialog)
-        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Fixed)
+        sizePolicy = QtGui.QSizePolicy(
+            QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Fixed
+        )
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
-        sizePolicy.setHeightForWidth(self.export_presets.sizePolicy().hasHeightForWidth())
+        sizePolicy.setHeightForWidth(
+            self.export_presets.sizePolicy().hasHeightForWidth()
+        )
         self.export_presets.setSizePolicy(sizePolicy)
         self.export_presets.setObjectName("export_presets")
         self.horizontalLayout_2.addWidget(self.export_presets)
         self.verticalLayout.addLayout(self.horizontalLayout_2)
         self.horizontalLayout = QtGui.QHBoxLayout()
         self.horizontalLayout.setObjectName("horizontalLayout")
-        spacerItem = QtGui.QSpacerItem(368, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum)
+        spacerItem = QtGui.QSpacerItem(
+            368, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum
+        )
         self.horizontalLayout.addItem(spacerItem)
         self.cancel = QtGui.QPushButton(SubmitDialog)
         self.cancel.setObjectName("cancel")
@@ -53,9 +60,35 @@ class Ui_SubmitDialog(object):
         QtCore.QMetaObject.connectSlotsByName(SubmitDialog)
 
     def retranslateUi(self, SubmitDialog):
-        SubmitDialog.setWindowTitle(QtGui.QApplication.translate("SubmitDialog", "Submit to Shotgun", None, QtGui.QApplication.UnicodeUTF8))
-        self.label.setText(QtGui.QApplication.translate("SubmitDialog", "Use Export Preset", None, QtGui.QApplication.UnicodeUTF8))
-        self.cancel.setText(QtGui.QApplication.translate("SubmitDialog", "Cancel", None, QtGui.QApplication.UnicodeUTF8))
-        self.submit.setText(QtGui.QApplication.translate("SubmitDialog", "Submit to Shotgun", None, QtGui.QApplication.UnicodeUTF8))
+        SubmitDialog.setWindowTitle(
+            QtGui.QApplication.translate(
+                "SubmitDialog",
+                "Submit to Shotgun",
+                None,
+                QtGui.QApplication.UnicodeUTF8,
+            )
+        )
+        self.label.setText(
+            QtGui.QApplication.translate(
+                "SubmitDialog",
+                "Use Export Preset",
+                None,
+                QtGui.QApplication.UnicodeUTF8,
+            )
+        )
+        self.cancel.setText(
+            QtGui.QApplication.translate(
+                "SubmitDialog", "Cancel", None, QtGui.QApplication.UnicodeUTF8
+            )
+        )
+        self.submit.setText(
+            QtGui.QApplication.translate(
+                "SubmitDialog",
+                "Submit to Shotgun",
+                None,
+                QtGui.QApplication.UnicodeUTF8,
+            )
+        )
+
 
 from . import resources_rc
