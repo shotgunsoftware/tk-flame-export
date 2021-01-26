@@ -1,13 +1,14 @@
 # Copyright (c) 2014 Shotgun Software Inc.
-# 
+#
 # CONFIDENTIAL AND PROPRIETARY
-# 
-# This work is provided "AS IS" and subject to the Shotgun Pipeline Toolkit 
+#
+# This work is provided "AS IS" and subject to the Shotgun Pipeline Toolkit
 # Source Code License included in this distribution package. See LICENSE.
-# By accessing, using, copying or modifying this work you indicate your 
-# agreement to the Shotgun Pipeline Toolkit Source Code License. All rights 
+# By accessing, using, copying or modifying this work you indicate your
+# agreement to the Shotgun Pipeline Toolkit Source Code License. All rights
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
+from __future__ import absolute_import
 import os
 import sgtk
 from sgtk import TankError
@@ -22,6 +23,7 @@ class Segment(object):
     Details on Flame's data sent thru the exported hooks can be found at
     https://knowledge.autodesk.com/search-result/caas/CloudHelp/cloudhelp/2017/ENU/Flame-API/files/GUID-8EE47B4F-16F0-41D6-97BB-1226C0BDCC45-htm.html
     """
+
     def __init__(self, parent, name):
         """
         Constructor
@@ -66,7 +68,9 @@ class Segment(object):
         Returns the Shotgun id for the version associated with this segment, if there is one.
         """
         if not self.has_shotgun_version:
-            raise TankError("Cannot get Shotgun version id for segment - no version associated!")
+            raise TankError(
+                "Cannot get Shotgun version id for segment - no version associated!"
+            )
         return self._shotgun_version_id
 
     @property
@@ -94,7 +98,7 @@ class Segment(object):
         """
         return os.path.join(
             self._get_flame_property("destinationPath"),
-            self._get_flame_property("resolvedPath")
+            self._get_flame_property("resolvedPath"),
         )
 
     @property
@@ -202,7 +206,9 @@ class Segment(object):
         this value does not correspond to the value found in the original
         sequence data in flame.
         """
-        return self._get_flame_property("sourceIn") + self._get_flame_property("handleIn")
+        return self._get_flame_property("sourceIn") + self._get_flame_property(
+            "handleIn"
+        )
 
     @property
     def cut_out_frame(self):
@@ -215,7 +221,11 @@ class Segment(object):
         this value does not correspond to the value found in the original
         sequence data in flame.
         """
-        return self._get_flame_property("sourceOut") - self._get_flame_property("handleOut") - 1
+        return (
+            self._get_flame_property("sourceOut")
+            - self._get_flame_property("handleOut")
+            - 1
+        )
 
     @property
     def head_in_frame(self):
@@ -238,9 +248,7 @@ class Segment(object):
         This denotes where this segment sits in the sequence based timeline.
         """
         return self._frames_to_timecode(
-            self.edit_in_frame,
-            self.sequence_fps,
-            self.sequence_use_drop_frames
+            self.edit_in_frame, self.sequence_fps, self.sequence_use_drop_frames
         )
 
     @property
@@ -250,9 +258,7 @@ class Segment(object):
         This denotes where this segment sits in the sequence based timeline.
         """
         return self._frames_to_timecode(
-            self.edit_out_frame,
-            self.sequence_fps,
-            self.sequence_use_drop_frames
+            self.edit_out_frame, self.sequence_fps, self.sequence_use_drop_frames
         )
 
     @property
@@ -267,9 +273,7 @@ class Segment(object):
         sequence data in flame.
         """
         return self._frames_to_timecode(
-            self.cut_in_frame,
-            self.fps,
-            self.use_drop_frames
+            self.cut_in_frame, self.fps, self.use_drop_frames
         )
 
     @property
@@ -284,9 +288,7 @@ class Segment(object):
         sequence data in flame.
         """
         return self._frames_to_timecode(
-            self.cut_out_frame,
-            self.fps,
-            self.use_drop_frames
+            self.cut_out_frame, self.fps, self.use_drop_frames
         )
 
     @property
@@ -331,7 +333,8 @@ class Segment(object):
 
         if property_name not in self.flame_data:
             raise ValueError(
-                "Property '%s' not found in Flame metadata for %s" % (property_name, self)
+                "Property '%s' not found in Flame metadata for %s"
+                % (property_name, self)
             )
 
         return self.flame_data[property_name]
@@ -346,8 +349,10 @@ class Segment(object):
         :returns: SMPTE timecode as string, e.g. '01:02:12:32' or '01:02:12;32'
         """
         if drop and frame_rate not in [29.97, 59.94]:
-            raise NotImplementedError("Time code calculation logic only supports drop frame "
-                                      "calculations for 29.97 and 59.94 fps.")
+            raise NotImplementedError(
+                "Time code calculation logic only supports drop frame "
+                "calculations for 29.97 and 59.94 fps."
+            )
 
         # for a good discussion around time codes and sample code, see
         # http://andrewduncan.net/timecodes/
@@ -432,4 +437,3 @@ class Segment(object):
         seconds = int(total_frames / fps_int % 60)
         frames = int(total_frames % fps_int)
         return "%02d:%02d:%02d%s%02d" % (hours, minutes, seconds, smpte_token, frames)
-

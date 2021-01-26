@@ -192,5 +192,3 @@ requires_engine_version: "v1.14.4"
 
 # the frameworks required to run this app
 frameworks:
-
-
