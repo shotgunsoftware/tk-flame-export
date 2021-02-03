@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 
-# Copyright (c) 2014 Shotgun Software Inc.
+# Copyright (c) 2021 Shotgun Software Inc.
 # 
 # CONFIDENTIAL AND PROPRIETARY
 # 

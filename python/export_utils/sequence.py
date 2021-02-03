@@ -13,7 +13,7 @@ import pprint
 import sgtk
 from sgtk import TankError
 from .shot import Shot
-from six.moves import range
+from tank_vendor.six.moves import range
 
 
 class Sequence(object):

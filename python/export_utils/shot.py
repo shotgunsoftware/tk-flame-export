@@ -140,7 +140,9 @@ class Shot(object):
         if len(self._segments) == 0:
             return None
 
-        return min(list(self._segments.values()), key=lambda segment: segment.flame_track_id)
+        return min(
+            list(self._segments.values()), key=lambda segment: segment.flame_track_id
+        )
 
     def get_sg_shot_in_out(self):
         """
