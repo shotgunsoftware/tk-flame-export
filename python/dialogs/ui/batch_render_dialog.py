@@ -8,9 +8,18 @@
 ## WARNING! All changes made in this file will be lost when recompiling UI file!
 ################################################################################
 
-from tank.platform.qt.QtCore import *
-from tank.platform.qt.QtGui import *
-from tank.platform.qt.QtWidgets import *
+try:
+    from tank.platform.qt.QtCore import *
+except ImportError:
+    from PySide2.QtCore import *
+try:
+    from tank.platform.qt.QtGui import *
+except ImportError:
+    from PySide2.QtGui import *
+try:
+    from tank.platform.qt.QtWidgets import *
+except ImportError:
+    from PySide2.QtWidgets import *
 
 from  . import resources_rc
 
