@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 
-# Copyright (c) 2014 Shotgun Software Inc.
+# Copyright (c) 2021 Shotgun Software Inc.
 # 
 # CONFIDENTIAL AND PROPRIETARY
 # 
@@ -19,29 +19,64 @@ function build_qt {
     echo " > Building " $2
     
     # compile ui to python
+    echo "$1 $2 > $UI_PYTHON_PATH/$3.py"
     $1 $2 > $UI_PYTHON_PATH/$3.py
     
-    # replace PySide imports with tank.platform.qt and remove line containing Created by date
-    sed -i "" -e "s/from PySide import/from tank.platform.qt import/g" -e "/# Created:/d" $UI_PYTHON_PATH/$3.py
+    # replace PySide2 imports with tank.platform.qt and remove line containing Created by date
+    sed -i"" -E "s/^(from PySide2)(.*)$/try:\n    from tank.platform.qt\2\nexcept ImportError:\n    \1\2/g" $UI_PYTHON_PATH/$3.py
 }
 
 function build_ui {
-    build_qt "pyside-uic --from-imports" "$1.ui" "$1"
-}  
+    build_qt "$1 -g python --from-imports" "$2.ui" "$2"
+}
 
 function build_res {
-    build_qt "pyside-rcc" "$1.qrc" "$1_rc"
+    build_qt "$1 -g python" "$2.qrc" "$2_rc"
 }
 
 
+while getopts u:r: flag
+do
+    case "${flag}" in
+        u) uic=${OPTARG};;
+        r) rcc=${OPTARG};;
+    esac
+done
+
+if [ -z "$uic" ]; then
+    echo "the PySide uic compiler must be specified with the -u parameter"
+    exit 1
+fi
+
+if [ -z "$rcc" ]; then
+    echo "the PySide rcc compiler must be specified with the -r parameter"
+    exit 1
+fi
+
+uicversion=$(${uic} --version)
+rccversion=$(${rcc} --version)
+
+
+if [ -z "$uicversion" ]; then
+    echo "the PySide uic compiler version cannot be determined"
+    exit 1
+fi
+
+if [ -z "$rccversion" ]; then
+    echo "the PySide rcc compiler version cannot be determined"
+    exit 1
+fi
+
+echo "Using PySide uic compiler version: ${uicversion}"
+echo "Using PySide rcc compiler version: ${rccversion}"
+
 # build UI's:
 echo "building user interfaces..."
-build_ui submit_dialog
-build_ui batch_render_dialog
-build_ui submission_complete_dialog
-build_ui submission_failed_dialog
-# add any additional .ui files you want converted here!
+build_ui $uic submit_dialog
+build_ui $uic batch_render_dialog
+build_ui $uic submission_complete_dialog
+build_ui $uic submission_failed_dialog
 
 # build resources
 echo "building resources..."
-build_res resources
+build_res $rcc resources

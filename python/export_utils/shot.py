@@ -1,18 +1,20 @@
 # Copyright (c) 2014 Shotgun Software Inc.
-# 
+#
 # CONFIDENTIAL AND PROPRIETARY
-# 
-# This work is provided "AS IS" and subject to the Shotgun Pipeline Toolkit 
+#
+# This work is provided "AS IS" and subject to the Shotgun Pipeline Toolkit
 # Source Code License included in this distribution package. See LICENSE.
-# By accessing, using, copying or modifying this work you indicate your 
-# agreement to the Shotgun Pipeline Toolkit Source Code License. All rights 
+# By accessing, using, copying or modifying this work you indicate your
+# agreement to the Shotgun Pipeline Toolkit Source Code License. All rights
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
+from __future__ import absolute_import
 import os
 import sgtk
 from sgtk import TankError
 
 from .segment import Segment
+
 
 class Shot(object):
     """
@@ -75,7 +77,7 @@ class Shot(object):
         """
         List of segment objects for this shot
         """
-        return self._segments.values()
+        return list(self._segments.values())
 
     @property
     def exists_in_shotgun(self):
@@ -105,7 +107,7 @@ class Shot(object):
 
         return os.path.join(
             self._flame_batch_data.get("destinationPath"),
-            self._flame_batch_data.get("resolvedPath")
+            self._flame_batch_data.get("resolvedPath"),
         )
 
     @property
@@ -139,8 +141,7 @@ class Shot(object):
             return None
 
         return min(
-            self._segments.values(),
-            key=lambda segment: segment.flame_track_id
+            list(self._segments.values()), key=lambda segment: segment.flame_track_id
         )
 
     def get_sg_shot_in_out(self):
@@ -160,11 +161,7 @@ class Shot(object):
 
         :return: see above
         """
-        cut_data = (
-            self._sg_cut_in,
-            self._sg_cut_out,
-            self._sg_cut_order
-        )
+        cut_data = (self._sg_cut_in, self._sg_cut_out, self._sg_cut_order)
         return cut_data
 
     def set_sg_data(self, sg_data, new_in_shotgun):
@@ -209,4 +206,3 @@ class Shot(object):
         :param data: dictionary with data from flame
         """
         self._flame_batch_data = data
-

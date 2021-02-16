@@ -8,10 +8,12 @@
 # agreement to the Shotgun Pipeline Toolkit Source Code License. All rights
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
+from __future__ import absolute_import
 import pprint
 import sgtk
 from sgtk import TankError
 from .shot import Shot
+from tank_vendor.six.moves import range
 
 
 class Sequence(object):
@@ -57,7 +59,7 @@ class Sequence(object):
         """
         Shots associated with this sequence
         """
-        return self._shots.values()
+        return list(self._shots.values())
 
     @property
     def shots_with_segments(self):
@@ -106,13 +108,14 @@ class Sequence(object):
         - Creates folders on disk for any new objects
         - Computes the context for all shot objects
         """
-        self._app.log_debug("Preparing export structure for %s %s and shots %s" % (
-            self._shot_parent_entity_type,
-            self._name,
-            self._shots.keys()
-        ))
+        self._app.log_debug(
+            "Preparing export structure for %s %s and shots %s"
+            % (self._shot_parent_entity_type, self._name, list(self._shots.keys()))
+        )
 
-        self._app.engine.show_busy("Preparing Shotgun...", "Preparing Shots for export...")
+        self._app.engine.show_busy(
+            "Preparing Shotgun...", "Preparing Shots for export..."
+        )
 
         try:
             # find and create shots and sequence in Shotgun
@@ -128,19 +131,19 @@ class Sequence(object):
                 msg = "Step %s/%s: Creating folders for Shot %s..." % (
                     idx + 1,
                     len(new_shots),
-                    shot.name
+                    shot.name,
                 )
                 self._app.engine.show_busy("Preparing Shotgun...", msg)
                 self._app.log_debug("Creating folders on disk for Shot id %s..." % shot)
                 self._app.sgtk.create_filesystem_structure(
-                    "Shot",
-                    shot.shotgun_id,
-                    engine="tk-flame"
+                    "Shot", shot.shotgun_id, engine="tk-flame"
                 )
                 self._app.log_debug("...folder creation complete")
 
             # establish a context for all objects
-            self._app.engine.show_busy("Preparing Shotgun...", "Resolving Shot contexts...")
+            self._app.engine.show_busy(
+                "Preparing Shotgun...", "Resolving Shot contexts..."
+            )
             self._app.log_debug("Caching contexts...")
             for shot in self._shots.values():
                 shot.cache_context()
@@ -167,8 +170,7 @@ class Sequence(object):
 
         # now sort in order
         shots_in_cut_order = sorted(
-            self.shots_with_segments,
-            key=lambda x: x.get_base_segment().edit_in_frame
+            self.shots_with_segments, key=lambda x: x.get_base_segment().edit_in_frame
         )
 
         for index, shot in enumerate(shots_in_cut_order):
@@ -180,9 +182,11 @@ class Sequence(object):
             # we get the edit points in flame from the base layer
             base_seg = shot.get_base_segment()
 
-            if base_seg.cut_in_frame != sg_in or \
-               base_seg.cut_out_frame != sg_out or \
-               cut_order != sg_cut_order:
+            if (
+                base_seg.cut_in_frame != sg_in
+                or base_seg.cut_out_frame != sg_out
+                or cut_order != sg_cut_order
+            ):
 
                 # note that at this point all shots are guaranteed to exist in Shotgun
                 # since they were created in the initial export step.
@@ -196,11 +200,13 @@ class Sequence(object):
                         "sg_head_in": base_seg.head_in_frame,
                         "sg_tail_out": base_seg.tail_out_frame,
                         "sg_cut_duration": base_seg.duration,
-                        "sg_cut_order": cut_order
-                    }
+                        "sg_cut_order": cut_order,
+                    },
                 }
 
-                self._app.log_debug("Registering cut change: %s" % pprint.pformat(sg_cut_batch))
+                self._app.log_debug(
+                    "Registering cut change: %s" % pprint.pformat(sg_cut_batch)
+                )
                 shotgun_batch_items.append(sg_cut_batch)
 
         return shotgun_batch_items
@@ -236,28 +242,29 @@ class Sequence(object):
 
             parent_entity_link = {
                 "id": self.shotgun_id,
-                "type": self._shot_parent_entity_type
+                "type": self._shot_parent_entity_type,
             }
 
             # first determine which revision number of the cut to create
             prev_cut = sg.find_one(
                 "Cut",
-                [["code", "is", self.name],
-                 ["entity", "is", parent_entity_link]],
+                [["code", "is", self.name], ["entity", "is", parent_entity_link]],
                 ["revision_number"],
-                [{"field_name": "revision_number", "direction": "desc"}]
+                [{"field_name": "revision_number", "direction": "desc"}],
             )
             if prev_cut is None:
                 next_revision_number = 1
             else:
                 next_revision_number = prev_cut["revision_number"] + 1
 
-            self._app.log_debug("The cut revision number will be %s." % next_revision_number)
+            self._app.log_debug(
+                "The cut revision number will be %s." % next_revision_number
+            )
 
             # get the shots in cut order
             shots_in_cut_order = sorted(
                 self.shots_with_segments,
-                key=lambda x: x.get_base_segment().edit_in_frame
+                key=lambda x: x.get_base_segment().edit_in_frame,
             )
 
             # first create a new cut
@@ -273,10 +280,20 @@ class Sequence(object):
                     # get the fps for the entire sequence by pulling it from
                     # the first segment
                     "fps": shots_in_cut_order[0].get_base_segment().sequence_fps,
-                    "duration": sum([shot.get_base_segment().duration for shot in self.shots if shot.get_base_segment() is not None]),
-                    "timecode_start_text": shots_in_cut_order[0].get_base_segment().edit_in_timecode,
-                    "timecode_end_text": shots_in_cut_order[-1].get_base_segment().edit_out_timecode,
-                }
+                    "duration": sum(
+                        [
+                            shot.get_base_segment().duration
+                            for shot in self.shots
+                            if shot.get_base_segment() is not None
+                        ]
+                    ),
+                    "timecode_start_text": shots_in_cut_order[0]
+                    .get_base_segment()
+                    .edit_in_timecode,
+                    "timecode_end_text": shots_in_cut_order[-1]
+                    .get_base_segment()
+                    .edit_out_timecode,
+                },
             )
 
             # now create the cut items in a single batch call
@@ -308,8 +325,8 @@ class Sequence(object):
                         "timecode_cut_item_in_text": segment.cut_in_timecode,
                         "timecode_cut_item_out_text": segment.cut_out_timecode,
                         "timecode_edit_in_text": segment.edit_in_timecode,
-                        "timecode_edit_out_text": segment.edit_out_timecode
-                    }
+                        "timecode_edit_out_text": segment.edit_out_timecode,
+                    },
                 }
 
                 sg_batch_data.append(batch)
@@ -347,13 +364,13 @@ class Sequence(object):
         # Ensure that a parent exists in Shotgun with the parent name
         self._app.engine.show_busy(
             "Preparing Shotgun...",
-            "Locating %s %s..." % (self._shot_parent_entity_type, self.name)
+            "Locating %s %s..." % (self._shot_parent_entity_type, self.name),
         )
 
         self._app.log_debug("Locating Shot parent object in Shotgun...")
         sg_parent = self._app.shotgun.find_one(
             self._shot_parent_entity_type,
-            [["code", "is", self.name], ["project", "is", project]]
+            [["code", "is", self.name], ["project", "is", project]],
         )
 
         if sg_parent:
@@ -366,29 +383,33 @@ class Sequence(object):
             # First see if we should assign a task template
             if parent_task_template:
                 # resolve task template
-                self._app.engine.show_busy("Preparing Shotgun...", "Loading task template...")
+                self._app.engine.show_busy(
+                    "Preparing Shotgun...", "Loading task template..."
+                )
                 sg_task_template = self._app.shotgun.find_one(
-                    "TaskTemplate",
-                    [["code", "is", parent_task_template]]
+                    "TaskTemplate", [["code", "is", parent_task_template]]
                 )
                 if not sg_task_template:
                     raise TankError(
-                        "The task template '%s' does not exist in Shotgun!" % parent_task_template
+                        "The task template '%s' does not exist in Shotgun!"
+                        % parent_task_template
                     )
             else:
                 sg_task_template = None
 
             self._app.engine.show_busy(
                 "Preparing Shotgun...",
-                "Creating %s %s..." % (self._shot_parent_entity_type, self.name)
+                "Creating %s %s..." % (self._shot_parent_entity_type, self.name),
             )
 
             sg_parent = self._app.shotgun.create(
                 self._shot_parent_entity_type,
-                {"code": self.name,
-                 "task_template": sg_task_template,
-                 "description": "Created by the Shotgun Flame exporter.",
-                 "project": project}
+                {
+                    "code": self.name,
+                    "task_template": sg_task_template,
+                    "description": "Created by the Shotgun Flame exporter.",
+                    "project": project,
+                },
             )
             self._shotgun_id = sg_parent["id"]
             self._app.log_debug("Created parent %s" % sg_parent)
@@ -396,14 +417,16 @@ class Sequence(object):
         # Locate a task template for shots
         if shot_task_template:
             # resolve task template
-            self._app.engine.show_busy("Preparing Shotgun...", "Loading task template...")
+            self._app.engine.show_busy(
+                "Preparing Shotgun...", "Loading task template..."
+            )
             sg_task_template = self._app.shotgun.find_one(
-                "TaskTemplate",
-                [["code", "is", shot_task_template]]
+                "TaskTemplate", [["code", "is", shot_task_template]]
             )
             if not sg_task_template:
                 raise TankError(
-                    "The task template '%s' does not exist in Shotgun!" % shot_task_template
+                    "The task template '%s' does not exist in Shotgun!"
+                    % shot_task_template
                 )
         else:
             sg_task_template = None
@@ -413,17 +436,22 @@ class Sequence(object):
 
         self._app.log_debug("Loading shots from Shotgun...")
 
-        shot_parent_link = {"id": self._shotgun_id, "type": self._shot_parent_entity_type}
+        shot_parent_link = {
+            "id": self._shotgun_id,
+            "type": self._shot_parent_entity_type,
+        }
 
         # get list of shots as strings
-        shot_names = self._shots.keys()
+        shot_names = list(self._shots.keys())
 
         # find them in shotgun
         sg_shots = self._app.shotgun.find(
             "Shot",
-            [["code", "in", shot_names],
-             [self._shot_parent_link_field, "is", shot_parent_link]],
-            ["code", "sg_cut_in", "sg_cut_out", "sg_cut_order"]
+            [
+                ["code", "in", shot_names],
+                [self._shot_parent_link_field, "is", shot_parent_link],
+            ],
+            ["code", "sg_cut_in", "sg_cut_out", "sg_cut_order"],
         )
         self._app.log_debug("...got %s shots." % len(sg_shots))
 
@@ -445,8 +473,8 @@ class Sequence(object):
                         "description": "Created by the Shotgun Flame exporter.",
                         self._shot_parent_link_field: shot_parent_link,
                         "task_template": sg_task_template,
-                        "project": project
-                    }
+                        "project": project,
+                    },
                 }
                 self._app.log_debug("Adding to Shotgun batch queue: %s" % batch)
                 sg_batch_data.append(batch)
@@ -461,7 +489,7 @@ class Sequence(object):
 
             def __chunks(sg_batch_data, chunk_size):
                 for i in range(0, len(sg_batch_data), chunk_size):
-                    yield sg_batch_data[i:i + chunk_size]
+                    yield sg_batch_data[i : i + chunk_size]
 
             for sg_data_chunk in __chunks(sg_batch_data, chunk_size):
                 self._app.log_debug(pprint.pformat(sg_data_chunk))
