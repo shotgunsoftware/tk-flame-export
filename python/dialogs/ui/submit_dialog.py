@@ -26,31 +26,31 @@ from  . import resources_rc
 class Ui_SubmitDialog(object):
     def setupUi(self, SubmitDialog):
         if not SubmitDialog.objectName():
-            SubmitDialog.setObjectName(u"SubmitDialog")
+            SubmitDialog.setObjectName("SubmitDialog")
         SubmitDialog.resize(487, 577)
         self.verticalLayout = QVBoxLayout(SubmitDialog)
-        self.verticalLayout.setObjectName(u"verticalLayout")
+        self.verticalLayout.setObjectName("verticalLayout")
         self.label_2 = QLabel(SubmitDialog)
-        self.label_2.setObjectName(u"label_2")
-        self.label_2.setPixmap(QPixmap(u":/tk-flame-export/ui_splash.png"))
+        self.label_2.setObjectName("label_2")
+        self.label_2.setPixmap(QPixmap(":/tk-flame-export/ui_splash.png"))
 
         self.verticalLayout.addWidget(self.label_2)
 
         self.comments = QPlainTextEdit(SubmitDialog)
-        self.comments.setObjectName(u"comments")
+        self.comments.setObjectName("comments")
         self.comments.setMinimumSize(QSize(300, 100))
 
         self.verticalLayout.addWidget(self.comments)
 
         self.horizontalLayout_2 = QHBoxLayout()
-        self.horizontalLayout_2.setObjectName(u"horizontalLayout_2")
+        self.horizontalLayout_2.setObjectName("horizontalLayout_2")
         self.label = QLabel(SubmitDialog)
-        self.label.setObjectName(u"label")
+        self.label.setObjectName("label")
 
         self.horizontalLayout_2.addWidget(self.label)
 
         self.export_presets = QComboBox(SubmitDialog)
-        self.export_presets.setObjectName(u"export_presets")
+        self.export_presets.setObjectName("export_presets")
         sizePolicy = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
@@ -63,18 +63,18 @@ class Ui_SubmitDialog(object):
         self.verticalLayout.addLayout(self.horizontalLayout_2)
 
         self.horizontalLayout = QHBoxLayout()
-        self.horizontalLayout.setObjectName(u"horizontalLayout")
+        self.horizontalLayout.setObjectName("horizontalLayout")
         self.horizontalSpacer = QSpacerItem(368, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
 
         self.horizontalLayout.addItem(self.horizontalSpacer)
 
         self.cancel = QPushButton(SubmitDialog)
-        self.cancel.setObjectName(u"cancel")
+        self.cancel.setObjectName("cancel")
 
         self.horizontalLayout.addWidget(self.cancel)
 
         self.submit = QPushButton(SubmitDialog)
-        self.submit.setObjectName(u"submit")
+        self.submit.setObjectName("submit")
 
         self.horizontalLayout.addWidget(self.submit)
 
@@ -88,10 +88,10 @@ class Ui_SubmitDialog(object):
     # setupUi
 
     def retranslateUi(self, SubmitDialog):
-        SubmitDialog.setWindowTitle(QCoreApplication.translate("SubmitDialog", u"Submit to Shotgun", None))
+        SubmitDialog.setWindowTitle(QCoreApplication.translate("SubmitDialog", "Submit to Shotgun", None))
         self.label_2.setText("")
-        self.label.setText(QCoreApplication.translate("SubmitDialog", u"Use Export Preset", None))
-        self.cancel.setText(QCoreApplication.translate("SubmitDialog", u"Cancel", None))
-        self.submit.setText(QCoreApplication.translate("SubmitDialog", u"Submit to Shotgun", None))
+        self.label.setText(QCoreApplication.translate("SubmitDialog", "Use Export Preset", None))
+        self.cancel.setText(QCoreApplication.translate("SubmitDialog", "Cancel", None))
+        self.submit.setText(QCoreApplication.translate("SubmitDialog", "Submit to Shotgun", None))
     # retranslateUi
 
