@@ -164,7 +164,7 @@ class Sequence(object):
                   in order for Shotgun to be up to date with
                   Flame.
         """
-        self._app.log_debug("Computing cut changes between Shotgun and Flame....")
+        self._app.log_debug("Computing cut changes between SG and Flame....")
 
         shotgun_batch_items = []
 
@@ -232,7 +232,7 @@ class Sequence(object):
 
         if sg.server_caps.version < MIN_CUT_SG_VERSION:
             self._app.log_debug(
-                "Shotgun site does not support cuts. Will not update cut information."
+                "SG site does not support cuts. Will not update cut information."
             )
             return
 
@@ -407,7 +407,7 @@ class Sequence(object):
                 {
                     "code": self.name,
                     "task_template": sg_task_template,
-                    "description": "Created by the Shotgun Flame exporter.",
+                    "description": "Created by the SG Flame exporter.",
                     "project": project,
                 },
             )
@@ -470,13 +470,13 @@ class Sequence(object):
                     "entity_type": "Shot",
                     "data": {
                         "code": shot.name,
-                        "description": "Created by the Shotgun Flame exporter.",
+                        "description": "Created by the SG Flame exporter.",
                         self._shot_parent_link_field: shot_parent_link,
                         "task_template": sg_task_template,
                         "project": project,
                     },
                 }
-                self._app.log_debug("Adding to Shotgun batch queue: %s" % batch)
+                self._app.log_debug("Adding to SG batch queue: %s" % batch)
                 sg_batch_data.append(batch)
 
         if sg_batch_data:

@@ -69,7 +69,7 @@ class Segment(object):
         """
         if not self.has_shotgun_version:
             raise TankError(
-                "Cannot get Shotgun version id for segment - no version associated!"
+                "Cannot get SG version id for segment - no version associated!"
             )
         return self._shotgun_version_id
 

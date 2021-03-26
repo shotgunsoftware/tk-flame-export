@@ -202,7 +202,7 @@ class FlameExport(Application):
             QtGui.QMessageBox.warning(
                 None,
                 "Please name your shots!",
-                "The Shotgun integration requires you to name your shots. Please go back to "
+                "The SG integration requires you to name your shots. Please go back to "
                 "the time line and ensure that all clips have been given shot names before "
                 "proceeding!",
             )
@@ -547,7 +547,7 @@ class FlameExport(Application):
                 )
                 try:
                     self.log_debug(
-                        "Pushing %s Shotgun batch items..." % len(shotgun_batch_items)
+                        "Pushing %s SG batch items..." % len(shotgun_batch_items)
                     )
                     sg_data = self.shotgun.batch(shotgun_batch_items)
                     self.log_debug("...done")

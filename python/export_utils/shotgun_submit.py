@@ -107,7 +107,7 @@ class ShotgunSubmitter(object):
         :param is_batch_render: If set to True, the publish is generated from a Batch render
         :returns: Shotgun data for the created item
         """
-        self._app.log_debug("Creating video publish in Shotgun for %s..." % path)
+        self._app.log_debug("Creating video publish in SG for %s..." % path)
 
         # resolve export preset object
         preset_obj = self._app.export_preset_handler.get_preset_by_name(export_preset)
