@@ -93,7 +93,7 @@ class Ui_SubmissionCompleteDialog(object):
     # setupUi
 
     def retranslateUi(self, SubmissionCompleteDialog):
-        SubmissionCompleteDialog.setWindowTitle(QCoreApplication.translate("SubmissionCompleteDialog", "Shotgun Submission Complete", None))
+        SubmissionCompleteDialog.setWindowTitle(QCoreApplication.translate("SubmissionCompleteDialog", "SG Submission Complete", None))
         self.label.setText("")
         self.label_3.setText(QCoreApplication.translate("SubmissionCompleteDialog", "Submission Complete!", None))
         self.status.setText(QCoreApplication.translate("SubmissionCompleteDialog", "TextLabel", None))

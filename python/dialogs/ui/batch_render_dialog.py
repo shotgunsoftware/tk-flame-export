@@ -73,6 +73,6 @@ class Ui_BatchRenderDialog(object):
         BatchRenderDialog.setWindowTitle(QCoreApplication.translate("BatchRenderDialog", "Submit to Shotgun", None))
         self.label_2.setText("")
         self.cancel.setText(QCoreApplication.translate("BatchRenderDialog", "Skip", None))
-        self.submit.setText(QCoreApplication.translate("BatchRenderDialog", "Send to Shotgun Review", None))
+        self.submit.setText(QCoreApplication.translate("BatchRenderDialog", "Send to SG Review", None))
     # retranslateUi
 
