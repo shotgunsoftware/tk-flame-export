@@ -488,7 +488,7 @@ class FlameExport(Application):
         # dialog.
         if not self._reached_post_asset_phase:
             self.engine.show_modal(
-                "Submission Failed", self, dialogs.SubmissionFailedDialog
+                "Submission Failed", self, dialogs.SubmissionFailedDialog, self.engine.log_file
             )
             return
 
