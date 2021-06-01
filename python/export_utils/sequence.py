@@ -18,7 +18,7 @@ from tank_vendor.six.moves import range
 
 class Sequence(object):
     """
-    Class representing a sequence in Shotgun/Flame
+    Class representing a sequence in ShotGrid/Flame
     """
 
     def __init__(self, name):
@@ -50,7 +50,7 @@ class Sequence(object):
     @property
     def shotgun_id(self):
         """
-        Returns shotgun id for this sequence
+        Returns ShotGrid id for this sequence
         """
         return self._shotgun_id
 
@@ -100,11 +100,11 @@ class Sequence(object):
 
     def process_shotgun_shot_structure(self):
         """
-        Processes and populates Shotgun and filesystem data.
+        Processes and populates ShotGrid and filesystem data.
 
-        - Ensures that the sequence exists in Shotgun
-        - Ensures that the shots exist in Shotgun
-        - Populates Shotgun data for Sequence and Shot objects
+        - Ensures that the sequence exists in ShotGrid
+        - Ensures that the shots exist in ShotGrid
+        - Populates ShotGrid data for Sequence and Shot objects
         - Creates folders on disk for any new objects
         - Computes the context for all shot objects
         """
@@ -114,11 +114,11 @@ class Sequence(object):
         )
 
         self._app.engine.show_busy(
-            "Preparing Shotgun...", "Preparing Shots for export..."
+            "Preparing ShotGrid...", "Preparing Shots for export..."
         )
 
         try:
-            # find and create shots and sequence in Shotgun
+            # find and create shots and sequence in ShotGrid
             self._ensure_sg_shot_structure()
 
             # now get a list of all new shots
@@ -133,7 +133,7 @@ class Sequence(object):
                     len(new_shots),
                     shot.name,
                 )
-                self._app.engine.show_busy("Preparing Shotgun...", msg)
+                self._app.engine.show_busy("Preparing ShotGrid...", msg)
                 self._app.log_debug("Creating folders on disk for Shot id %s..." % shot)
                 self._app.sgtk.create_filesystem_structure(
                     "Shot", shot.shotgun_id, engine="tk-flame"
@@ -142,7 +142,7 @@ class Sequence(object):
 
             # establish a context for all objects
             self._app.engine.show_busy(
-                "Preparing Shotgun...", "Resolving Shot contexts..."
+                "Preparing ShotGrid...", "Resolving Shot contexts..."
             )
             self._app.log_debug("Caching contexts...")
             for shot in self._shots.values():
@@ -155,16 +155,16 @@ class Sequence(object):
     def compute_shot_cut_changes(self):
         """
         Compute the difference between flame cut data
-        and the registered shot data in Shotgun.
+        and the registered shot data in ShotGrid.
 
         process_shotgun_shot_structure() needs to be executed before
         this method can be executed.
 
-        :returns: A list of shotgun batch updates required
-                  in order for Shotgun to be up to date with
+        :returns: A list of ShotGrid batch updates required
+                  in order for ShotGrid to be up to date with
                   Flame.
         """
-        self._app.log_debug("Computing cut changes between Shotgun and Flame....")
+        self._app.log_debug("Computing cut changes between ShotGrid and Flame....")
 
         shotgun_batch_items = []
 
@@ -188,7 +188,7 @@ class Sequence(object):
                 or cut_order != sg_cut_order
             ):
 
-                # note that at this point all shots are guaranteed to exist in Shotgun
+                # note that at this point all shots are guaranteed to exist in ShotGrid
                 # since they were created in the initial export step.
                 sg_cut_batch = {
                     "request_type": "update",
@@ -213,7 +213,7 @@ class Sequence(object):
 
     def create_cut(self, cut_type):
         """
-        Creates a cut with corresponding cut items in Shotgun.
+        Creates a cut with corresponding cut items in ShotGrid.
 
         Checks if any existing cut exists and in that case computes
         the highest revision number available and creates a cut with
@@ -225,18 +225,18 @@ class Sequence(object):
 
         :param cut_type: Type of the cut to create. None or "" for no cut type.
         """
-        # minimum shotgun version that supports new cut schema
+        # minimum ShotGrid version that supports new cut schema
         MIN_CUT_SG_VERSION = (7, 0, 0)
 
         sg = self._app.shotgun
 
         if sg.server_caps.version < MIN_CUT_SG_VERSION:
             self._app.log_debug(
-                "Shotgun site does not support cuts. Will not update cut information."
+                "ShotGrid site does not support cuts. Will not update cut information."
             )
             return
 
-        self._app.engine.show_busy("Updating Shotgun...", "Creating Cut...")
+        self._app.engine.show_busy("Updating ShotGrid...", "Creating Cut...")
 
         try:
 
@@ -341,14 +341,14 @@ class Sequence(object):
 
     def _ensure_sg_shot_structure(self):
         """
-        Ensures that Shots and sequences exist in Shotgun.
+        Ensures that Shots and sequences exist in ShotGrid.
 
         Will automatically create Shots and Sequences if necessary
         and assign task templates.
 
-        Shotgun Shot and Sequence data for objects will be populated.
+        ShotGrid Shot and Sequence data for objects will be populated.
         """
-        self._app.log_debug("Ensuring sequence and shots exists in Shotgun...")
+        self._app.log_debug("Ensuring sequence and shots exists in ShotGrid...")
         # get some configuration settings first
         shot_task_template = self._app.get_setting("task_template")
         if shot_task_template == "":
@@ -361,44 +361,44 @@ class Sequence(object):
         # handy shorthand
         project = self._app.context.project
 
-        # Ensure that a parent exists in Shotgun with the parent name
+        # Ensure that a parent exists in ShotGrid with the parent name
         self._app.engine.show_busy(
-            "Preparing Shotgun...",
+            "Preparing ShotGrid...",
             "Locating %s %s..." % (self._shot_parent_entity_type, self.name),
         )
 
-        self._app.log_debug("Locating Shot parent object in Shotgun...")
+        self._app.log_debug("Locating Shot parent object in ShotGrid...")
         sg_parent = self._app.shotgun.find_one(
             self._shot_parent_entity_type,
             [["code", "is", self.name], ["project", "is", project]],
         )
 
         if sg_parent:
-            self._app.log_debug("Parent %s already exists in Shotgun." % sg_parent)
+            self._app.log_debug("Parent %s already exists in ShotGrid." % sg_parent)
             self._shotgun_id = sg_parent["id"]
 
         else:
-            # Create a new parent object in Shotgun
+            # Create a new parent object in ShotGrid
 
             # First see if we should assign a task template
             if parent_task_template:
                 # resolve task template
                 self._app.engine.show_busy(
-                    "Preparing Shotgun...", "Loading task template..."
+                    "Preparing ShotGrid...", "Loading task template..."
                 )
                 sg_task_template = self._app.shotgun.find_one(
                     "TaskTemplate", [["code", "is", parent_task_template]]
                 )
                 if not sg_task_template:
                     raise TankError(
-                        "The task template '%s' does not exist in Shotgun!"
+                        "The task template '%s' does not exist in ShotGrid!"
                         % parent_task_template
                     )
             else:
                 sg_task_template = None
 
             self._app.engine.show_busy(
-                "Preparing Shotgun...",
+                "Preparing ShotGrid...",
                 "Creating %s %s..." % (self._shot_parent_entity_type, self.name),
             )
 
@@ -407,7 +407,7 @@ class Sequence(object):
                 {
                     "code": self.name,
                     "task_template": sg_task_template,
-                    "description": "Created by the Shotgun Flame exporter.",
+                    "description": "Created by the ShotGrid Flame exporter.",
                     "project": project,
                 },
             )
@@ -418,23 +418,23 @@ class Sequence(object):
         if shot_task_template:
             # resolve task template
             self._app.engine.show_busy(
-                "Preparing Shotgun...", "Loading task template..."
+                "Preparing ShotGrid...", "Loading task template..."
             )
             sg_task_template = self._app.shotgun.find_one(
                 "TaskTemplate", [["code", "is", shot_task_template]]
             )
             if not sg_task_template:
                 raise TankError(
-                    "The task template '%s' does not exist in Shotgun!"
+                    "The task template '%s' does not exist in ShotGrid!"
                     % shot_task_template
                 )
         else:
             sg_task_template = None
 
         # now attempt to retrieve metadata for all shots. Shots that are not found are created.
-        self._app.engine.show_busy("Preparing Shotgun...", "Loading Shot data...")
+        self._app.engine.show_busy("Preparing ShotGrid...", "Loading Shot data...")
 
-        self._app.log_debug("Loading shots from Shotgun...")
+        self._app.log_debug("Loading shots from ShotGrid...")
 
         shot_parent_link = {
             "id": self._shotgun_id,
@@ -444,7 +444,7 @@ class Sequence(object):
         # get list of shots as strings
         shot_names = list(self._shots.keys())
 
-        # find them in shotgun
+        # find them in ShotGrid
         sg_shots = self._app.shotgun.find(
             "Shot",
             [
@@ -464,23 +464,23 @@ class Sequence(object):
         sg_batch_data = []
         for shot in self._shots.values():
             if not shot.exists_in_shotgun:
-                # this shot does not yet exist in Shotgun
+                # this shot does not yet exist in ShotGrid
                 batch = {
                     "request_type": "create",
                     "entity_type": "Shot",
                     "data": {
                         "code": shot.name,
-                        "description": "Created by the Shotgun Flame exporter.",
+                        "description": "Created by the ShotGrid Flame exporter.",
                         self._shot_parent_link_field: shot_parent_link,
                         "task_template": sg_task_template,
                         "project": project,
                     },
                 }
-                self._app.log_debug("Adding to Shotgun batch queue: %s" % batch)
+                self._app.log_debug("Adding to ShotGrid batch queue: %s" % batch)
                 sg_batch_data.append(batch)
 
         if sg_batch_data:
-            self._app.engine.show_busy("Preparing Shotgun...", "Creating new shots...")
+            self._app.engine.show_busy("Preparing ShotGrid...", "Creating new shots...")
 
             self._app.log_debug("Executing sg batch command....")
             # We probably have to cut this into chunks

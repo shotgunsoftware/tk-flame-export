@@ -70,9 +70,9 @@ class Ui_BatchRenderDialog(object):
     # setupUi
 
     def retranslateUi(self, BatchRenderDialog):
-        BatchRenderDialog.setWindowTitle(QCoreApplication.translate("BatchRenderDialog", "Submit to Shotgun", None))
+        BatchRenderDialog.setWindowTitle(QCoreApplication.translate("BatchRenderDialog", "Submit to ShotGrid", None))
         self.label_2.setText("")
         self.cancel.setText(QCoreApplication.translate("BatchRenderDialog", "Skip", None))
-        self.submit.setText(QCoreApplication.translate("BatchRenderDialog", "Send to Shotgun Review", None))
+        self.submit.setText(QCoreApplication.translate("BatchRenderDialog", "Send to ShotGrid Review", None))
     # retranslateUi
 

@@ -93,10 +93,10 @@ class Ui_SubmissionFailedDialog(object):
     # setupUi
 
     def retranslateUi(self, SubmissionFailedDialog):
-        SubmissionFailedDialog.setWindowTitle(QCoreApplication.translate("SubmissionFailedDialog", "Shotgun Submission Failed", None))
+        SubmissionFailedDialog.setWindowTitle(QCoreApplication.translate("SubmissionFailedDialog", "ShotGrid Submission Failed", None))
         self.label_2.setText("")
         self.label_3.setText(QCoreApplication.translate("SubmissionFailedDialog", "Something went wrong!", None))
-        self.status.setText(QCoreApplication.translate("SubmissionFailedDialog", "<html><head/><body><p>Either the export was cancelled along the way or an error occurred. No content will be pushed to Shotgun this time. <br/><br/>For more details, please see the log file <span style=\" font-family:'Courier New,courier';\">/usr/discreet/log/tk-flame.log</span></p></body></html>", None))
+        self.status.setText(QCoreApplication.translate("SubmissionFailedDialog", "<html><head/><body><p>Either the export was cancelled along the way or an error occurred. No content will be pushed to ShotGrid this time. <br/><br/>For more details, please see the log file <span style=\" font-family:'Courier New,courier';\">/usr/discreet/log/tk-flame.log</span></p></body></html>", None))
         self.submit.setText(QCoreApplication.translate("SubmissionFailedDialog", "Ok", None))
     # retranslateUi
 

@@ -11,26 +11,26 @@
 """
 Flame Shot Exporter.
 
-This app takes a sequence in Flame and generates lots of Shotgun related content.
+This app takes a sequence in Flame and generates lots of ShotGrid related content.
 It is similar to the Hiero exporter. The following items are generated:
 
-- New Shots in Shotgun, with tasks
-- Cut information in Shotgun
+- New Shots in ShotGrid, with tasks
+- Cut information in ShotGrid
 - New versions (with uploaded quicktimes) for all segments
 - Plates on disk for each segment
 - Batch files for each shot
 - Clip xml files for shots and clips.
 
 The exporter is effectively a wrapper around the Flame custom export process
-with some bindings to Shotgun.
+with some bindings to ShotGrid.
 
 This app implements two different sets of callbacks - both utilizing the same
 configuration and essentially parts of the same workflow (this is why they are not
 split across two different apps).
 
 - The Flame Shot export runs via a context menu item on the sequence right-click menu
-- A Flare / batch mode render hook allows Shotgun to intercept the rendering process and
-  ask the user if they want to submit to Shotgun review whenever they render out in Flame.
+- A Flare / batch mode render hook allows ShotGrid to intercept the rendering process and
+  ask the user if they want to submit to ShotGrid review whenever they render out in Flame.
 
 """
 
@@ -175,7 +175,7 @@ class FlameExport(Application):
     def pre_export_sequence(self, session_id, info):
         """
         Called from the Flame hooks before export.
-        This is the time to set up the structure in Shotgun.
+        This is the time to set up the structure in ShotGrid.
 
         :param session_id: String which identifies which export session is being referred to
 
@@ -202,7 +202,7 @@ class FlameExport(Application):
             QtGui.QMessageBox.warning(
                 None,
                 "Please name your shots!",
-                "The Shotgun integration requires you to name your shots. Please go back to "
+                "The ShotGrid integration requires you to name your shots. Please go back to "
                 "the time line and ensure that all clips have been given shot names before "
                 "proceeding!",
             )
@@ -215,7 +215,7 @@ class FlameExport(Application):
                 None,
                 "Sequence name cannot contain spaces!",
                 "Your Sequence name contains spaces. This is currently not supported by "
-                "the Shotgun/Flame integration. Try renaming your sequence and use for "
+                "the ShotGrid/Flame integration. Try renaming your sequence and use for "
                 "example underscores instead of spaces, then try again!",
             )
             self._abort_export(info, "Cannot export due to spaces in sequence names.")
@@ -226,7 +226,7 @@ class FlameExport(Application):
         for shot_name in shot_names:
             sequence.add_shot(shot_name)
 
-        # create entities in Shotgun, create folders on disk and compute shot contexts.
+        # create entities in ShotGrid, create folders on disk and compute shot contexts.
         sequence.process_shotgun_shot_structure()
         self._sequences.append(sequence)
 
@@ -469,7 +469,7 @@ class FlameExport(Application):
 
     def do_submission_and_summary(self, session_id, info):
         """
-        Flame hook which will push info to Shotgun and display a summary UI.
+        Flame hook which will push info to ShotGrid and display a summary UI.
 
         :param session_id: String which identifies which export session is being referred to.
                            This parameter makes it possible to distinguish between different
@@ -499,7 +499,7 @@ class FlameExport(Application):
             created_shots = [shot for shot in sequence.shots if shot.new_in_shotgun]
             num_created_shots += len(created_shots)
 
-            # push shot cut changes and version records to shotgun
+            # push shot cut changes and version records to ShotGrid
             # as a single batch call
             shotgun_batch_items = []
             version_path_lookup = {}
@@ -519,7 +519,7 @@ class FlameExport(Application):
                     # existing file on disk.
                     if segment.has_render_export:
 
-                        # compute a version-create Shotgun batch dictionary
+                        # compute a version-create ShotGrid batch dictionary
                         sg_version_batch = self._sg_submit_helper.create_version_batch(
                             shot.context,
                             segment.render_path,
@@ -533,21 +533,21 @@ class FlameExport(Application):
                         )
                         shotgun_batch_items.append(sg_version_batch)
 
-                        # once the batch has been executed and the versions have been created in Shotgun
-                        # we need to update our segment metadata with the Shotgun version id.
+                        # once the batch has been executed and the versions have been created in ShotGrid
+                        # we need to update our segment metadata with the ShotGrid version id.
                         # in order to do that, maintain a lookup dictionary:
                         path_to_frames = sg_version_batch["data"]["sg_path_to_frames"]
                         version_path_lookup[path_to_frames] = segment
 
-            # push all new versions and cut changes to Shotgun in a single batch call.
+            # push all new versions and cut changes to ShotGrid in a single batch call.
             sg_data = []
             if len(shotgun_batch_items) > 0:
                 self.engine.show_busy(
-                    "Updating Shotgun...", "Registering review and cut data..."
+                    "Updating ShotGrid...", "Registering review and cut data..."
                 )
                 try:
                     self.log_debug(
-                        "Pushing %s Shotgun batch items..." % len(shotgun_batch_items)
+                        "Pushing %s ShotGrid batch items..." % len(shotgun_batch_items)
                     )
                     sg_data = self.shotgun.batch(shotgun_batch_items)
                     self.log_debug("...done")
@@ -555,7 +555,7 @@ class FlameExport(Application):
                     # kill progress indicator
                     self.engine.clear_busy()
 
-            # Update segment metadata with created Shotgun version ids so we can access it later
+            # Update segment metadata with created ShotGrid version ids so we can access it later
             for sg_entity in sg_data:
                 if sg_entity["type"] == "Version":
                     # using our lookup table, find the metadata object
@@ -563,7 +563,7 @@ class FlameExport(Application):
                     segment.set_shotgun_version_id(sg_entity["id"])
 
             # now that we have resolved all cut changes and created versions,
-            # request the creation of a new cut in Shotgun
+            # request the creation of a new cut in ShotGrid
             sequence.create_cut(self._export_preset.get_cut_type())
 
             # Now submit a series of backburner jobs to handle the rest of the processing.
@@ -580,7 +580,7 @@ class FlameExport(Application):
                         # first see if we have a batch file being exported for this shot
                         if shot.has_batch_export:
                             self.engine.show_busy(
-                                "Updating Shotgun...",
+                                "Updating ShotGrid...",
                                 "Updating Shot %s / Batch Setup" % (shot.name),
                             )
                             sg_batch_data = (
@@ -597,7 +597,7 @@ class FlameExport(Application):
                         for segment in shot.segments:
                             if segment.has_render_export:
                                 self.engine.show_busy(
-                                    "Updating Shotgun...",
+                                    "Updating ShotGrid...",
                                     "Updating Shot %s / Segment %s"
                                     % (shot.name, segment.name),
                                 )
@@ -649,7 +649,7 @@ class FlameExport(Application):
                     # finalize to actually send the job requests
                     #
                     self.engine.show_busy(
-                        "Updating Shotgun...", "Updating thumbnails..."
+                        "Updating ShotGrid...", "Updating thumbnails..."
                     )
                     self.engine.thumbnail_generator.finalize()
             finally:
@@ -662,7 +662,7 @@ class FlameExport(Application):
             if self._export_preset.highres_quicktime_enabled():
                 try:
                     self.engine.show_busy(
-                        "Updating Shotgun...", "Generating high-res quicktimes..."
+                        "Updating ShotGrid...", "Generating high-res quicktimes..."
                     )
                     self.log_debug(
                         "Looping over all shots and segments to generate high-res quicktimes..."
@@ -700,7 +700,7 @@ class FlameExport(Application):
                                 ]
 
                                 # Generate a movie file that will not be uploaded to
-                                # Shotgun server but instead will be linked using the
+                                # ShotGrid server but instead will be linked using the
                                 # Path to Movie field.
                                 #
                                 self.engine.local_movie_generator.generate(
@@ -719,10 +719,10 @@ class FlameExport(Application):
         comments = "Your export has been pushed to the Backburner queue for processing.<br><br>"
 
         if num_created_shots == 1:
-            comments += "- A new Shot was created in Shotgun. <br>"
+            comments += "- A new Shot was created in ShotGrid. <br>"
         elif num_created_shots > 1:
             comments += (
-                "- %d new Shots were created in Shotgun. <br>" % num_created_shots
+                "- %d new Shots were created in ShotGrid. <br>" % num_created_shots
             )
 
         num_cut_updates = num_cut_changes - num_created_shots
@@ -875,7 +875,7 @@ class FlameExport(Application):
         """
 
         if info.get("aborted"):
-            self.log_debug("Rendering was aborted. Will not push to Shotgun.")
+            self.log_debug("Rendering was aborted. Will not push to ShotGrid.")
             return
 
         if self._batch_export_preset is None:
@@ -891,16 +891,16 @@ class FlameExport(Application):
             self._batch_export_preset.get_name()
         )
 
-        # first register the batch file as a publish in Shotgun
+        # first register the batch file as a publish in ShotGrid
         batch_path = info.get("setupResolvedPath")
         sg_batch_data = self._sg_submit_helper.register_batch_publish(
             self._batch_context, batch_path, description, version_number
         )
 
         try:
-            self.engine.show_busy("Updating Shotgun...", "Publishing...")
+            self.engine.show_busy("Updating ShotGrid...", "Publishing...")
 
-            # Now register the rendered images as a published plate in Shotgun
+            # Now register the rendered images as a published plate in ShotGrid
             full_flame_batch_render_path = os.path.join(
                 info.get("exportPath"), info.get("resolvedPath")
             )
@@ -921,7 +921,7 @@ class FlameExport(Application):
                 {"type": sg_batch_data["type"], "id": sg_batch_data["id"]},
             ]
 
-            # Finally, create a version record in Shotgun, generate a quicktime and upload it
+            # Finally, create a version record in ShotGrid, generate a quicktime and upload it
             # only do this if the user clicked "send to review" in the UI.
             if self._send_batch_render_to_review:
                 sg_version_data = self._sg_submit_helper.create_version(
@@ -936,7 +936,7 @@ class FlameExport(Application):
 
                 if export_preset_obj.batch_highres_quicktime_enabled():
                     self.engine.show_busy(
-                        "Updating Shotgun...", "Updating local quicktime..."
+                        "Updating ShotGrid...", "Updating local quicktime..."
                     )
                     self.engine.trancoder.trancoder(
                         display_name=export_preset_obj.get_name(),
@@ -945,7 +945,7 @@ class FlameExport(Application):
                         asset_info=info,
                     )
 
-            self.engine.show_busy("Updating Shotgun...", "Updating thumbnails...")
+            self.engine.show_busy("Updating ShotGrid...", "Updating thumbnails...")
             self.engine.thumbnail_generator.generate(
                 display_name=export_preset_obj.get_name(),
                 path=full_flame_batch_render_path,

@@ -22,12 +22,12 @@ from .util import subprocess_check_output, SubprocessCalledProcessError
 
 class ShotgunSubmitter(object):
     """
-    Helper class with methods to submit publishes and versions to Shotgun
+    Helper class with methods to submit publishes and versions to ShotGrid
     """
 
     # constants
 
-    # default height for Shotgun uploads
+    # default height for ShotGrid uploads
     # see https://support.shotgunsoftware.com/entries/26303513-Transcoding
     SHOTGUN_QUICKTIME_TARGET_HEIGHT = 720
 
@@ -45,15 +45,15 @@ class ShotgunSubmitter(object):
 
     def register_batch_publish(self, context, path, comments, version_number):
         """
-        Creates a publish record in Shotgun for a Flame batch file.
+        Creates a publish record in ShotGrid for a Flame batch file.
 
         :param context: Context to associate the publish with
         :param path: Path to the batch file on disk
         :param comments: Details about the publish
         :param version_number: The version number to use
-        :returns: Shotgun data for the created item
+        :returns: ShotGrid data for the created item
         """
-        self._app.log_debug("Creating batch publish in Shotgun...")
+        self._app.log_debug("Creating batch publish in ShotGrid...")
         publish_type = self._app.get_setting("batch_publish_type")
 
         # put together a name for the publish. This should be on a form without a version
@@ -77,7 +77,7 @@ class ShotgunSubmitter(object):
             "published_file_type": publish_type,
         }
 
-        self._app.log_debug("Register publish in Shotgun: %s" % str(args))
+        self._app.log_debug("Register publish in ShotGrid: %s" % str(args))
         sg_publish_data = sgtk.util.register_publish(**args)
         self._app.log_debug("Register complete: %s" % sg_publish_data)
         return sg_publish_data
@@ -94,7 +94,7 @@ class ShotgunSubmitter(object):
         is_batch_render,
     ):
         """
-        Creates a publish record in Shotgun for a Flame video file.
+        Creates a publish record in ShotGrid for a Flame video file.
         Optionally also creates a second publish record for an equivalent local quicktime
 
         :param export_preset: The export preset associated with this publish
@@ -105,9 +105,9 @@ class ShotgunSubmitter(object):
         :param comments: Details about the publish
         :param version_number: The version number to use
         :param is_batch_render: If set to True, the publish is generated from a Batch render
-        :returns: Shotgun data for the created item
+        :returns: ShotGrid data for the created item
         """
-        self._app.log_debug("Creating video publish in Shotgun for %s..." % path)
+        self._app.log_debug("Creating video publish in ShotGrid for %s..." % path)
 
         # resolve export preset object
         preset_obj = self._app.export_preset_handler.get_preset_by_name(export_preset)
@@ -132,7 +132,7 @@ class ShotgunSubmitter(object):
             "published_file_type": preset_obj.get_render_publish_type(),
         }
 
-        self._app.log_debug("Register render publish in Shotgun: %s" % str(args))
+        self._app.log_debug("Register render publish in ShotGrid: %s" % str(args))
         sg_publish_data = sgtk.util.register_publish(**args)
         self._app.log_debug("Register complete: %s" % sg_publish_data)
 
@@ -141,9 +141,9 @@ class ShotgunSubmitter(object):
 
     def update_version_dependencies(self, version_id, sg_publish_data):
         """
-        Updates the dependencies for a version in Shotgun.
+        Updates the dependencies for a version in ShotGrid.
 
-        :param version_id: Shotgun id for version to update
+        :param version_id: ShotGrid id for version to update
         :param sg_publish_data: Dictionary with type/id keys to connect.
         """
         data = {}
@@ -166,7 +166,7 @@ class ShotgunSubmitter(object):
         self, context, path, user_comments, sg_publish_data, aspect_ratio
     ):
         """
-        Creates a single version record in Shotgun.
+        Creates a single version record in ShotGrid.
 
         Note: If you are creating more than one version at the same time, use
               create_version_batch for performance.
@@ -175,19 +175,19 @@ class ShotgunSubmitter(object):
                         in serialized form.
         :param path: Path to frames, Flame style path with [1234-1234] sequence marker.
         :param user_comments: Comments entered by the user at export start.
-        :param sg_publish_data: Std Shotgun dictionary (with type and id), representing the publish
-                                in Shotgun that has been carried out for this asset.
+        :param sg_publish_data: Std ShotGrid dictionary (with type and id), representing the publish
+                                in ShotGrid that has been carried out for this asset.
         :param aspect_ratio: Aspect ratio of the images
-        :returns: The created Shotgun record
+        :returns: The created ShotGrid record
         """
-        self._app.log_debug("Preparing data for version creation in Shotgun...")
+        self._app.log_debug("Preparing data for version creation in ShotGrid...")
         sg_batch_payload = []
         version_batch = self.create_version_batch(
             context, path, user_comments, sg_publish_data, aspect_ratio
         )
         sg_batch_payload.append(version_batch)
         self._app.log_debug(
-            "Create version in Shotgun: %s" % pprint.pformat(sg_batch_payload)
+            "Create version in ShotGrid: %s" % pprint.pformat(sg_batch_payload)
         )
         sg_data = self._app.shotgun.batch(sg_batch_payload)
         self._app.log_debug("...done!")
@@ -198,16 +198,16 @@ class ShotgunSubmitter(object):
     ):
         """
         Similar to create_version(), but instead generates a single batch dictionary to be used
-        within a Shotgun batch call. Takes the same parameters as create_version()
+        within a ShotGrid batch call. Takes the same parameters as create_version()
 
         :param context: The context for the shot that the submission is associated with,
                         in serialized form.
         :param path: Path to frames, Flame style path with [1234-1234] sequence marker.
         :param user_comments: Comments entered by the user at export start.
-        :param sg_publish_data: Std Shotgun dictionary (with type and id), representing the publish
-                                in Shotgun that has been carried out for this asset.
+        :param sg_publish_data: Std ShotGrid dictionary (with type and id), representing the publish
+                                in ShotGrid that has been carried out for this asset.
         :param aspect_ratio: Aspect ratio of the images
-        :returns: dictionary suitable to be used as part of a Shotgun batch call
+        :returns: dictionary suitable to be used as part of a ShotGrid batch call
         """
 
         batch_item = {"request_type": "create", "entity_type": "Version", "data": {}}
@@ -227,7 +227,7 @@ class ShotgunSubmitter(object):
         batch_item["data"]["user"] = context.user
         batch_item["data"]["sg_task"] = context.task
 
-        # now figure out the frame numbers. For an initial Shotgun export this is easy because we have
+        # now figure out the frame numbers. For an initial ShotGrid export this is easy because we have
         # access to the export profile which defines the frame offset which maps actual frames on disk with
         # frames in the cut space inside of Flame. However, for batch rendering, which is currently stateless,
         # this info is not available. It may be possible to extract it from the clip xml files, but for now,
@@ -300,7 +300,7 @@ class ShotgunSubmitter(object):
 
         if template is None:
             # the path does not match any template. This shouldn't happen since these
-            # paths were all generated by the shotgun integration, however is possible because
+            # paths were all generated by the ShotGrid integration, however is possible because
             # of some known bugs in flame, where updated paths returned by flame hooks are not being
             # used by the flame system. A typical example is when a sequence name contains a space or
             # other special character - the toolkit template system will adjust the path to replace
