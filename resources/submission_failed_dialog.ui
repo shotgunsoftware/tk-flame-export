@@ -62,7 +62,7 @@
           </sizepolicy>
          </property>
          <property name="text">
-          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Either the export was cancelled along the way or an error occurred. No content will be pushed to ShotGrid this time. &lt;br/&gt;&lt;br/&gt;For more details, please see the log file &lt;span style=&quot; font-family:'Courier New,courier';&quot;&gt;/usr/discreet/log/tk-flame.log&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+          <string></string>
          </property>
          <property name="textFormat">
           <enum>Qt::RichText</enum>

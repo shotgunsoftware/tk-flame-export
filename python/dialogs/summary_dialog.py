@@ -67,7 +67,7 @@ class SubmissionFailedDialog(QtGui.QWidget):
     Summary dialog popping up when a Shot export fails.
     """
 
-    def __init__(self):
+    def __init__(self, log_file):
         """
         Constructor
         """
@@ -75,7 +75,7 @@ class SubmissionFailedDialog(QtGui.QWidget):
         QtGui.QWidget.__init__(self)
 
         # now load in the UI that was created in the UI designer
-        self.ui = Ui_SubmissionFailedDialog()
+        self.ui = Ui_SubmissionFailedDialog(log_file)
         self.ui.setupUi(self)
 
         # with the tk dialogs, we need to hook up our modal

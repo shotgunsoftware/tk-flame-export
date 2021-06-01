@@ -21,7 +21,8 @@ try:
 except ImportError:
     from PySide2.QtWidgets import *
 
-from  . import resources_rc
+from . import resources_rc
+
 
 class Ui_SubmitDialog(object):
     def setupUi(self, SubmitDialog):
@@ -54,17 +55,20 @@ class Ui_SubmitDialog(object):
         sizePolicy = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
-        sizePolicy.setHeightForWidth(self.export_presets.sizePolicy().hasHeightForWidth())
+        sizePolicy.setHeightForWidth(
+            self.export_presets.sizePolicy().hasHeightForWidth()
+        )
         self.export_presets.setSizePolicy(sizePolicy)
 
         self.horizontalLayout_2.addWidget(self.export_presets)
-
 
         self.verticalLayout.addLayout(self.horizontalLayout_2)
 
         self.horizontalLayout = QHBoxLayout()
         self.horizontalLayout.setObjectName("horizontalLayout")
-        self.horizontalSpacer = QSpacerItem(368, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
+        self.horizontalSpacer = QSpacerItem(
+            368, 20, QSizePolicy.Expanding, QSizePolicy.Minimum
+        )
 
         self.horizontalLayout.addItem(self.horizontalSpacer)
 
@@ -78,20 +82,25 @@ class Ui_SubmitDialog(object):
 
         self.horizontalLayout.addWidget(self.submit)
 
-
         self.verticalLayout.addLayout(self.horizontalLayout)
-
 
         self.retranslateUi(SubmitDialog)
 
         QMetaObject.connectSlotsByName(SubmitDialog)
+
     # setupUi
 
     def retranslateUi(self, SubmitDialog):
-        SubmitDialog.setWindowTitle(QCoreApplication.translate("SubmitDialog", "Submit to ShotGrid", None))
+        SubmitDialog.setWindowTitle(
+            QCoreApplication.translate("SubmitDialog", "Submit to ShotGrid", None)
+        )
         self.label_2.setText("")
-        self.label.setText(QCoreApplication.translate("SubmitDialog", "Use Export Preset", None))
+        self.label.setText(
+            QCoreApplication.translate("SubmitDialog", "Use Export Preset", None)
+        )
         self.cancel.setText(QCoreApplication.translate("SubmitDialog", "Cancel", None))
-        self.submit.setText(QCoreApplication.translate("SubmitDialog", "Submit to ShotGrid", None))
-    # retranslateUi
+        self.submit.setText(
+            QCoreApplication.translate("SubmitDialog", "Submit to ShotGrid", None)
+        )
 
+    # retranslateUi
