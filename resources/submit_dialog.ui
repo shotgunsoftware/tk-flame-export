@@ -11,7 +11,7 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>Submit to Shotgun</string>
+   <string>Submit to ShotGrid</string>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
@@ -80,7 +80,7 @@
      <item>
       <widget class="QPushButton" name="submit">
        <property name="text">
-        <string>Submit to Shotgun</string>
+        <string>Submit to ShotGrid</string>
        </property>
       </widget>
      </item>

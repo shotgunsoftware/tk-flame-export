@@ -18,7 +18,7 @@ from .segment import Segment
 
 class Shot(object):
     """
-    Represents a Shot in Flame and Shotgun.
+    Represents a Shot in Flame and ShotGrid.
     """
 
     def __init__(self, parent, name):
@@ -47,7 +47,7 @@ class Shot(object):
     @property
     def new_in_shotgun(self):
         """
-        True if this object was created in Shotgun as part of this session.
+        True if this object was created in ShotGrid as part of this session.
         """
         return self._created_this_session
 
@@ -68,7 +68,7 @@ class Shot(object):
     @property
     def shotgun_id(self):
         """
-        Shotgun id for this Shot
+        ShotGrid id for this Shot
         """
         return self._shotgun_id
 
@@ -82,7 +82,7 @@ class Shot(object):
     @property
     def exists_in_shotgun(self):
         """
-        Returns true if the shot has an associated shotgun id
+        Returns true if the shot has an associated ShotGrid id
         """
         return self._shotgun_id is not None
 
@@ -146,7 +146,7 @@ class Shot(object):
 
     def get_sg_shot_in_out(self):
         """
-        Returns shotgun cut data.
+        Returns ShotGrid cut data.
 
         Returns values based on the base segment, e.g. the segment
         found lowest in the stack. Returns both existing sg values
@@ -166,12 +166,12 @@ class Shot(object):
 
     def set_sg_data(self, sg_data, new_in_shotgun):
         """
-        Set shotgun data associated with this shot.
+        Set ShotGrid data associated with this shot.
 
-        The input shotgun data dict needs to contain at least
+        The input ShotGrid data dict needs to contain at least
         the following keys: id, sg_cut_in, sg_cut_out, sg_cut_order
 
-        :param sg_data: Shotgun dictionary with
+        :param sg_data: ShotGrid dictionary with
         :param new_in_shotgun: Boolean to indicate if this shot was just created.
         """
         self._created_this_session = new_in_shotgun

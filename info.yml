@@ -16,11 +16,11 @@ configuration:
     menu_name:
         type: str
         description: One line description of this profile. This will appear on the menu in Flame.
-        default_value: "Shotgun Shot Export"
+        default_value: "ShotGrid Shot Export"
 
     task_template:
         type: str
-        description: The Shotgun task template to assign to new shots created
+        description: The ShotGrid task template to assign to new shots created
         default_value: "Basic shot template"
 
     settings_hook:
@@ -42,7 +42,7 @@ configuration:
 
     shot_parent_task_template:
         type: str
-        description: The Shotgun task template to assign to new shot parent entities
+        description: The ShotGrid task template to assign to new shot parent entities
         default_value: ""
 
     plate_presets:
@@ -57,7 +57,7 @@ configuration:
                      parameter is the identifier for the preset - this name will appear in the dropdown in the UI.
                      It is also used to identify the preset inside the settings hook. The `publish_type` parameter
                      defines the publish type that should be associated with any exported plates when they reach
-                     Shotgun. Lastly, the `template` parameter defines where on disk the image sequence should be
+                     ShotGrid. Lastly, the `template` parameter defines where on disk the image sequence should be
                      written out."
         allows_empty: False
         values:
@@ -86,7 +86,7 @@ configuration:
                 quicktime_template:
                     description: If not set to null, a higher res quicktime will be generated and stored on disk,
                                  suitable for playback in client based playback tools such as RV. It will be linked
-                                 up with the version in Shotgun. The optional time stamp fields will reflect the
+                                 up with the version in ShotGrid. The optional time stamp fields will reflect the
                                  time stamp fields of the main render template and you can only include fields that
                                  are present in the main render template.
                     type: template
@@ -108,7 +108,7 @@ configuration:
                 batch_quicktime_template:
                     description: High res quicktime output for batch renders. If not set to null, a higher res
                                  quicktime will be generated and stored on disk, suitable for playback in client
-                                 based playback tools such as RV. It will be linked up with the version in Shotgun.
+                                 based playback tools such as RV. It will be linked up with the version in ShotGrid.
                                  The optional time stamp fields will reflect the time stamp fields of the main render
                                  template and you can only include fields that are present in the main batch render template.
                     type: template
@@ -122,7 +122,7 @@ configuration:
                     default_value: "Flame Quicktime"
 
                 upload_quicktime:
-                    description: Upload a quicktime to Shotgun when publishing.
+                    description: Upload a quicktime to ShotGrid when publishing.
                     type: bool
                     default_value: true
 
@@ -146,7 +146,7 @@ configuration:
         fields: context, Shot, segment_name, [YYYY], [MM], [DD], [hh], [mm], [ss], *
 
     bypass_shotgun_transcoding:
-        description: Try to bypass the Shotgun server side transcoding if possible. This will only generate
+        description: Try to bypass the ShotGrid server side transcoding if possible. This will only generate
                      and upload a h264 quicktime and not a webm, meaning that playback will not be
                      supported on all browsers. For more information about this option, please see the documentation.
         type: bool
@@ -178,12 +178,12 @@ configuration:
 # any host application specific commands
 supported_engines:
 
-# the Shotgun fields that this engine needs in order to operate correctly
+# the ShotGrid fields that this engine needs in order to operate correctly
 requires_shotgun_fields:
 
 # More verbose description of this item
 display_name: "Flame Shot Export"
-description: "Export Flame sequences to Shotgun and the file system."
+description: "Export Flame sequences to ShotGrid and the file system."
 
 # Required minimum versions for this item to run
 requires_shotgun_version:
