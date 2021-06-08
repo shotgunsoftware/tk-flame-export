@@ -9,8 +9,7 @@
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
 from __future__ import absolute_import
-import sgtk
-from sgtk.platform.qt import QtCore, QtGui
+from sgtk.platform.qt import QtGui
 from .ui.submission_complete_dialog import Ui_SubmissionCompleteDialog
 from .ui.submission_failed_dialog import Ui_SubmissionFailedDialog
 
@@ -75,8 +74,15 @@ class SubmissionFailedDialog(QtGui.QWidget):
         QtGui.QWidget.__init__(self)
 
         # now load in the UI that was created in the UI designer
-        self.ui = Ui_SubmissionFailedDialog(log_file)
+        self.ui = Ui_SubmissionFailedDialog()
         self.ui.setupUi(self)
+        self.ui.status.setText(
+            "<html><head/><body><p>"
+            "Either the export was cancelled along the way or an error occurred. "
+            "No content will be pushed to Shotgun this time. <br/><br/>For more details, please see the log file "
+            "<span style=\" font-family:'Courier New,courier';\">%s</span></p></body></html>"
+            % log_file
+        )
 
         # with the tk dialogs, we need to hook up our modal
         # dialog signals in a special way
