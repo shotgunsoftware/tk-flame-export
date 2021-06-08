@@ -21,13 +21,9 @@ try:
 except ImportError:
     from PySide2.QtWidgets import *
 
-from . import resources_rc
-
+from  . import resources_rc
 
 class Ui_SubmissionFailedDialog(object):
-    def __init__(self, log_file):
-        self._log_file = log_file
-
     def setupUi(self, SubmissionFailedDialog):
         if not SubmissionFailedDialog.objectName():
             SubmissionFailedDialog.setObjectName("SubmissionFailedDialog")
@@ -53,7 +49,7 @@ class Ui_SubmissionFailedDialog(object):
         self.label_3 = QLabel(SubmissionFailedDialog)
         self.label_3.setObjectName("label_3")
         self.label_3.setStyleSheet("QLabel { font-size: 18px; }")
-        self.label_3.setAlignment(Qt.AlignLeading | Qt.AlignLeft | Qt.AlignTop)
+        self.label_3.setAlignment(Qt.AlignLeading|Qt.AlignLeft|Qt.AlignTop)
 
         self.verticalLayout_3.addWidget(self.label_3)
 
@@ -65,23 +61,20 @@ class Ui_SubmissionFailedDialog(object):
         sizePolicy1.setHeightForWidth(self.status.sizePolicy().hasHeightForWidth())
         self.status.setSizePolicy(sizePolicy1)
         self.status.setTextFormat(Qt.RichText)
-        self.status.setAlignment(Qt.AlignLeading | Qt.AlignLeft | Qt.AlignTop)
+        self.status.setAlignment(Qt.AlignLeading|Qt.AlignLeft|Qt.AlignTop)
         self.status.setWordWrap(True)
-        self.status.setText(
-              "<html><head/><body><p>Either the export was cancelled along the way or an error occurred. No content will be pushed to Shotgun this time. <br/><br/>For more details, please see the log file <span style=\" font-family:'Courier New,courier';\">%s</span></p></body></html>" % self._log_file
-        )
 
         self.verticalLayout_3.addWidget(self.status)
 
+
         self.horizontalLayout_3.addLayout(self.verticalLayout_3)
+
 
         self.verticalLayout.addLayout(self.horizontalLayout_3)
 
         self.horizontalLayout = QHBoxLayout()
         self.horizontalLayout.setObjectName("horizontalLayout")
-        self.horizontalSpacer = QSpacerItem(
-            368, 20, QSizePolicy.Expanding, QSizePolicy.Minimum
-        )
+        self.horizontalSpacer = QSpacerItem(368, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
 
         self.horizontalLayout.addItem(self.horizontalSpacer)
 
@@ -90,34 +83,20 @@ class Ui_SubmissionFailedDialog(object):
 
         self.horizontalLayout.addWidget(self.submit)
 
+
         self.verticalLayout.addLayout(self.horizontalLayout)
+
 
         self.retranslateUi(SubmissionFailedDialog)
 
         QMetaObject.connectSlotsByName(SubmissionFailedDialog)
-
     # setupUi
-    def retranslateUi(self, SubmissionFailedDialog):
-        SubmissionFailedDialog.setWindowTitle(
-            QCoreApplication.translate(
-                "SubmissionFailedDialog", "ShotGrid Submission Failed", None
-            )
-        )
-        self.label_2.setText("")
-        self.label_3.setText(
-            QCoreApplication.translate(
-                "SubmissionFailedDialog", "Something went wrong!", None
-            )
-        )
-        self.status.setText(
-            QCoreApplication.translate(
-                "SubmissionFailedDialog",
-                "<html><head/><body><p>Either the export was cancelled along the way or an error occurred. No content will be pushed to ShotGrid this time. <br/><br/>For more details, please see the log file <span style=\" font-family:'Courier New,courier';\">%s</span></p></body></html>" % self._log_file,
-                None,
-            )
-        )
-        self.submit.setText(
-            QCoreApplication.translate("SubmissionFailedDialog", "Ok", None)
-        )
 
+    def retranslateUi(self, SubmissionFailedDialog):
+        SubmissionFailedDialog.setWindowTitle(QCoreApplication.translate("SubmissionFailedDialog", "ShotGrid Submission Failed", None))
+        self.label_2.setText("")
+        self.label_3.setText(QCoreApplication.translate("SubmissionFailedDialog", "Something went wrong!", None))
+        self.status.setText("")
+        self.submit.setText(QCoreApplication.translate("SubmissionFailedDialog", "Ok", None))
     # retranslateUi
+
