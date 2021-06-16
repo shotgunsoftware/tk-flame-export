@@ -49,7 +49,7 @@ class Ui_BatchRenderDialog(object):
         BatchRenderDialog.setWindowTitle(
             QtGui.QApplication.translate(
                 "BatchRenderDialog",
-                "Submit to Shotgun",
+                "Submit to ShotGrid",
                 None,
                 QtGui.QApplication.UnicodeUTF8,
             )
@@ -62,7 +62,7 @@ class Ui_BatchRenderDialog(object):
         self.submit.setText(
             QtGui.QApplication.translate(
                 "BatchRenderDialog",
-                "Send to Shotgun Review",
+                "Send to ShotGrid Review",
                 None,
                 QtGui.QApplication.UnicodeUTF8,
             )

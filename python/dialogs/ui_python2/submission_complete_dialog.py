@@ -76,7 +76,7 @@ class Ui_SubmissionCompleteDialog(object):
         SubmissionCompleteDialog.setWindowTitle(
             QtGui.QApplication.translate(
                 "SubmissionCompleteDialog",
-                "Shotgun Submission Complete",
+                "ShotGrid Submission Complete",
                 None,
                 QtGui.QApplication.UnicodeUTF8,
             )

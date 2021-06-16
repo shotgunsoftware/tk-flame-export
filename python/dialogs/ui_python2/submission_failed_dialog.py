@@ -74,7 +74,7 @@ class Ui_SubmissionFailedDialog(object):
         SubmissionFailedDialog.setWindowTitle(
             QtGui.QApplication.translate(
                 "SubmissionFailedDialog",
-                "Shotgun Submission Failed",
+                "ShotGrid Submission Failed",
                 None,
                 QtGui.QApplication.UnicodeUTF8,
             )
@@ -90,7 +90,7 @@ class Ui_SubmissionFailedDialog(object):
         self.status.setText(
             QtGui.QApplication.translate(
                 "SubmissionFailedDialog",
-                "<html><head/><body><p>Either the export was cancelled along the way or an error occurred. No content will be pushed to Shotgun this time. <br/><br/>For more details, please see the log file <span style=\" font-family:'Courier New,courier';\">/usr/discreet/log/tk-flame.log</span></p></body></html>",
+                "<html><head/><body><p>Either the export was cancelled along the way or an error occurred. No content will be pushed to ShotGrid this time. <br/><br/>For more details, please see the log file <span style=\" font-family:'Courier New,courier';\">/usr/discreet/log/tk-flame.log</span></p></body></html>",
                 None,
                 QtGui.QApplication.UnicodeUTF8,
             )
