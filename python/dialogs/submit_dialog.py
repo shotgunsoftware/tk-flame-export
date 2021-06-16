@@ -9,9 +9,16 @@
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
 from __future__ import absolute_import
+
+import sys
+
 import sgtk
 from sgtk.platform.qt import QtCore, QtGui
-from .ui.submit_dialog import Ui_SubmitDialog
+
+if sys.version_info.major == 2:
+    from .ui_python2.submit_dialog import Ui_SubmitDialog
+else:
+    from .ui.submit_dialog import Ui_SubmitDialog
 
 
 class SubmitDialog(QtGui.QWidget):
