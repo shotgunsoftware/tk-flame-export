@@ -11,13 +11,10 @@
 from __future__ import absolute_import
 import sgtk
 import pprint
-import subprocess
 import uuid
 from sgtk import TankError
 import os
 import re
-
-from .util import subprocess_check_output, SubprocessCalledProcessError
 
 
 class ShotgunSubmitter(object):
@@ -235,13 +232,13 @@ class ShotgunSubmitter(object):
         #
         # Flame sequence tokens are on the form "[1001-1100]"
         try:
-            re_match = re.search(".*\[([0-9]+)-([0-9]+)\]\..*", path)
+            re_match = re.search(r".*\[([0-9]+)-([0-9]+)\]\..*", path)
             if re_match:
                 (first_str, last_str) = re_match.groups()
                 first_frame = int(first_str)
                 last_frame = int(last_str)
             else:
-                re_match = re.search(".*([0-9]+)\..*", path)
+                re_match = re.search(r".*([0-9]+)\..*", path)
                 if not re_match:
                     raise Exception("No frame number found")
 
