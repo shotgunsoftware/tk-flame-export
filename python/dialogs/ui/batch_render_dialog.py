@@ -11,17 +11,27 @@
 try:
     from tank.platform.qt.QtCore import *
 except ImportError:
-    from PySide2.QtCore import *
+    try:
+        from PySide2.QtCore import *
+    except:
+        from PySide.QtCore import *
 try:
     from tank.platform.qt.QtGui import *
 except ImportError:
-    from PySide2.QtGui import *
+    try:
+        from PySide2.QtGui import *
+    except:
+        from PySide.QtGui import *
 try:
     from tank.platform.qt.QtWidgets import *
 except ImportError:
-    from PySide2.QtWidgets import *
+    try:
+        from PySide2.QtWidgets import *
+    except ImportError:
+        pass
 
-from  . import resources_rc
+from . import resources_rc
+
 
 class Ui_BatchRenderDialog(object):
     def setupUi(self, BatchRenderDialog):
@@ -46,7 +56,9 @@ class Ui_BatchRenderDialog(object):
         self.horizontalLayout = QHBoxLayout()
         self.horizontalLayout.setSpacing(4)
         self.horizontalLayout.setObjectName("horizontalLayout")
-        self.horizontalSpacer = QSpacerItem(368, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
+        self.horizontalSpacer = QSpacerItem(
+            368, 20, QSizePolicy.Expanding, QSizePolicy.Minimum
+        )
 
         self.horizontalLayout.addItem(self.horizontalSpacer)
 
@@ -60,19 +72,26 @@ class Ui_BatchRenderDialog(object):
 
         self.horizontalLayout.addWidget(self.submit)
 
-
         self.verticalLayout.addLayout(self.horizontalLayout)
-
 
         self.retranslateUi(BatchRenderDialog)
 
         QMetaObject.connectSlotsByName(BatchRenderDialog)
+
     # setupUi
 
     def retranslateUi(self, BatchRenderDialog):
-        BatchRenderDialog.setWindowTitle(QCoreApplication.translate("BatchRenderDialog", "Submit to ShotGrid", None))
+        BatchRenderDialog.setWindowTitle(
+            QCoreApplication.translate("BatchRenderDialog", "Submit to ShotGrid", None)
+        )
         self.label_2.setText("")
-        self.cancel.setText(QCoreApplication.translate("BatchRenderDialog", "Skip", None))
-        self.submit.setText(QCoreApplication.translate("BatchRenderDialog", "Send to ShotGrid Review", None))
-    # retranslateUi
+        self.cancel.setText(
+            QCoreApplication.translate("BatchRenderDialog", "Skip", None)
+        )
+        self.submit.setText(
+            QCoreApplication.translate(
+                "BatchRenderDialog", "Send to ShotGrid Review", None
+            )
+        )
 
+    # retranslateUi

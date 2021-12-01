@@ -11,17 +11,27 @@
 try:
     from tank.platform.qt.QtCore import *
 except ImportError:
-    from PySide2.QtCore import *
+    try:
+        from PySide2.QtCore import *
+    except:
+        from PySide.QtCore import *
 try:
     from tank.platform.qt.QtGui import *
 except ImportError:
-    from PySide2.QtGui import *
+    try:
+        from PySide2.QtGui import *
+    except:
+        from PySide.QtGui import *
 try:
     from tank.platform.qt.QtWidgets import *
 except ImportError:
-    from PySide2.QtWidgets import *
+    try:
+        from PySide2.QtWidgets import *
+    except ImportError:
+        pass
 
-from  . import resources_rc
+from . import resources_rc
+
 
 class Ui_SubmissionFailedDialog(object):
     def setupUi(self, SubmissionFailedDialog):
@@ -49,7 +59,7 @@ class Ui_SubmissionFailedDialog(object):
         self.label_3 = QLabel(SubmissionFailedDialog)
         self.label_3.setObjectName("label_3")
         self.label_3.setStyleSheet("QLabel { font-size: 18px; }")
-        self.label_3.setAlignment(Qt.AlignLeading|Qt.AlignLeft|Qt.AlignTop)
+        self.label_3.setAlignment(Qt.AlignLeading | Qt.AlignLeft | Qt.AlignTop)
 
         self.verticalLayout_3.addWidget(self.label_3)
 
@@ -61,20 +71,20 @@ class Ui_SubmissionFailedDialog(object):
         sizePolicy1.setHeightForWidth(self.status.sizePolicy().hasHeightForWidth())
         self.status.setSizePolicy(sizePolicy1)
         self.status.setTextFormat(Qt.RichText)
-        self.status.setAlignment(Qt.AlignLeading|Qt.AlignLeft|Qt.AlignTop)
+        self.status.setAlignment(Qt.AlignLeading | Qt.AlignLeft | Qt.AlignTop)
         self.status.setWordWrap(True)
 
         self.verticalLayout_3.addWidget(self.status)
 
-
         self.horizontalLayout_3.addLayout(self.verticalLayout_3)
-
 
         self.verticalLayout.addLayout(self.horizontalLayout_3)
 
         self.horizontalLayout = QHBoxLayout()
         self.horizontalLayout.setObjectName("horizontalLayout")
-        self.horizontalSpacer = QSpacerItem(368, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
+        self.horizontalSpacer = QSpacerItem(
+            368, 20, QSizePolicy.Expanding, QSizePolicy.Minimum
+        )
 
         self.horizontalLayout.addItem(self.horizontalSpacer)
 
@@ -83,20 +93,29 @@ class Ui_SubmissionFailedDialog(object):
 
         self.horizontalLayout.addWidget(self.submit)
 
-
         self.verticalLayout.addLayout(self.horizontalLayout)
-
 
         self.retranslateUi(SubmissionFailedDialog)
 
         QMetaObject.connectSlotsByName(SubmissionFailedDialog)
+
     # setupUi
 
     def retranslateUi(self, SubmissionFailedDialog):
-        SubmissionFailedDialog.setWindowTitle(QCoreApplication.translate("SubmissionFailedDialog", "ShotGrid Submission Failed", None))
+        SubmissionFailedDialog.setWindowTitle(
+            QCoreApplication.translate(
+                "SubmissionFailedDialog", "ShotGrid Submission Failed", None
+            )
+        )
         self.label_2.setText("")
-        self.label_3.setText(QCoreApplication.translate("SubmissionFailedDialog", "Something went wrong!", None))
+        self.label_3.setText(
+            QCoreApplication.translate(
+                "SubmissionFailedDialog", "Something went wrong!", None
+            )
+        )
         self.status.setText("")
-        self.submit.setText(QCoreApplication.translate("SubmissionFailedDialog", "Ok", None))
-    # retranslateUi
+        self.submit.setText(
+            QCoreApplication.translate("SubmissionFailedDialog", "Ok", None)
+        )
 
+    # retranslateUi

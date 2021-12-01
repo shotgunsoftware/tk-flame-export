@@ -11,17 +11,27 @@
 try:
     from tank.platform.qt.QtCore import *
 except ImportError:
-    from PySide2.QtCore import *
+    try:
+        from PySide2.QtCore import *
+    except:
+        from PySide.QtCore import *
 try:
     from tank.platform.qt.QtGui import *
 except ImportError:
-    from PySide2.QtGui import *
+    try:
+        from PySide2.QtGui import *
+    except:
+        from PySide.QtGui import *
 try:
     from tank.platform.qt.QtWidgets import *
 except ImportError:
-    from PySide2.QtWidgets import *
+    try:
+        from PySide2.QtWidgets import *
+    except ImportError:
+        pass
 
-from  . import resources_rc
+from . import resources_rc
+
 
 class Ui_SubmissionCompleteDialog(object):
     def setupUi(self, SubmissionCompleteDialog):
@@ -41,7 +51,7 @@ class Ui_SubmissionCompleteDialog(object):
         sizePolicy.setHeightForWidth(self.label.sizePolicy().hasHeightForWidth())
         self.label.setSizePolicy(sizePolicy)
         self.label.setPixmap(QPixmap(":/tk-flame-export/success.png"))
-        self.label.setAlignment(Qt.AlignLeading|Qt.AlignLeft|Qt.AlignTop)
+        self.label.setAlignment(Qt.AlignLeading | Qt.AlignLeft | Qt.AlignTop)
 
         self.horizontalLayout_3.addWidget(self.label)
 
@@ -50,7 +60,7 @@ class Ui_SubmissionCompleteDialog(object):
         self.label_3 = QLabel(SubmissionCompleteDialog)
         self.label_3.setObjectName("label_3")
         self.label_3.setStyleSheet("QLabel { font-size: 18px; }")
-        self.label_3.setAlignment(Qt.AlignLeading|Qt.AlignLeft|Qt.AlignTop)
+        self.label_3.setAlignment(Qt.AlignLeading | Qt.AlignLeft | Qt.AlignTop)
 
         self.verticalLayout_2.addWidget(self.label_3)
 
@@ -61,20 +71,20 @@ class Ui_SubmissionCompleteDialog(object):
         sizePolicy1.setVerticalStretch(0)
         sizePolicy1.setHeightForWidth(self.status.sizePolicy().hasHeightForWidth())
         self.status.setSizePolicy(sizePolicy1)
-        self.status.setAlignment(Qt.AlignLeading|Qt.AlignLeft|Qt.AlignTop)
+        self.status.setAlignment(Qt.AlignLeading | Qt.AlignLeft | Qt.AlignTop)
         self.status.setWordWrap(True)
 
         self.verticalLayout_2.addWidget(self.status)
 
-
         self.horizontalLayout_3.addLayout(self.verticalLayout_2)
-
 
         self.verticalLayout.addLayout(self.horizontalLayout_3)
 
         self.horizontalLayout = QHBoxLayout()
         self.horizontalLayout.setObjectName("horizontalLayout")
-        self.horizontalSpacer = QSpacerItem(368, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
+        self.horizontalSpacer = QSpacerItem(
+            368, 20, QSizePolicy.Expanding, QSizePolicy.Minimum
+        )
 
         self.horizontalLayout.addItem(self.horizontalSpacer)
 
@@ -83,20 +93,31 @@ class Ui_SubmissionCompleteDialog(object):
 
         self.horizontalLayout.addWidget(self.submit)
 
-
         self.verticalLayout.addLayout(self.horizontalLayout)
-
 
         self.retranslateUi(SubmissionCompleteDialog)
 
         QMetaObject.connectSlotsByName(SubmissionCompleteDialog)
+
     # setupUi
 
     def retranslateUi(self, SubmissionCompleteDialog):
-        SubmissionCompleteDialog.setWindowTitle(QCoreApplication.translate("SubmissionCompleteDialog", "ShotGrid Submission Complete", None))
+        SubmissionCompleteDialog.setWindowTitle(
+            QCoreApplication.translate(
+                "SubmissionCompleteDialog", "ShotGrid Submission Complete", None
+            )
+        )
         self.label.setText("")
-        self.label_3.setText(QCoreApplication.translate("SubmissionCompleteDialog", "Submission Complete!", None))
-        self.status.setText(QCoreApplication.translate("SubmissionCompleteDialog", "TextLabel", None))
-        self.submit.setText(QCoreApplication.translate("SubmissionCompleteDialog", "Ok", None))
-    # retranslateUi
+        self.label_3.setText(
+            QCoreApplication.translate(
+                "SubmissionCompleteDialog", "Submission Complete!", None
+            )
+        )
+        self.status.setText(
+            QCoreApplication.translate("SubmissionCompleteDialog", "TextLabel", None)
+        )
+        self.submit.setText(
+            QCoreApplication.translate("SubmissionCompleteDialog", "Ok", None)
+        )
 
+    # retranslateUi
