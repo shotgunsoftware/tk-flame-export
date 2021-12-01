@@ -380,8 +380,7 @@ class ExportPreset(object):
             escape(resolved_flame_templates["segment_clip_template"]),
         )
         xml = xml.replace(
-            "{BATCH_NAME_PATTERN}",
-            escape(resolved_flame_templates["batch_template"]),
+            "{BATCH_NAME_PATTERN}", escape(resolved_flame_templates["batch_template"]),
         )
         xml = xml.replace(
             "{SHOT_CLIP_NAME_PATTERN}",
