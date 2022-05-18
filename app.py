@@ -586,11 +586,13 @@ class FlameExport(Application):
                                 "Updating ShotGrid...",
                                 "Updating Shot %s / Batch Setup" % (shot.name),
                             )
-                            sg_batch_data = self._sg_submit_helper.register_batch_publish(
-                                shot.context,
-                                shot.batch_path,
-                                self._user_comments,
-                                shot.batch_version_number,
+                            sg_batch_data = (
+                                self._sg_submit_helper.register_batch_publish(
+                                    shot.context,
+                                    shot.batch_path,
+                                    self._user_comments,
+                                    shot.batch_version_number,
+                                )
                             )
                         else:
                             sg_batch_data = None
@@ -673,8 +675,10 @@ class FlameExport(Application):
                             if segment.has_shotgun_version:
 
                                 # compute quicktime path from frames
-                                quicktime_path = self._export_preset.quicktime_path_from_render_path(
-                                    segment.render_path
+                                quicktime_path = (
+                                    self._export_preset.quicktime_path_from_render_path(
+                                        segment.render_path
+                                    )
                                 )
 
                                 # if the video media is generated in a backburner job, make sure that
@@ -790,8 +794,8 @@ class FlameExport(Application):
         self.log_debug(
             "Checking if the render path '%s' is recognized by toolkit..." % render_path
         )
-        self._batch_export_preset = self.export_preset_handler.get_preset_for_batch_render_path(
-            render_path
+        self._batch_export_preset = (
+            self.export_preset_handler.get_preset_for_batch_render_path(render_path)
         )
         if self._batch_export_preset is None:
             self.log_debug(
