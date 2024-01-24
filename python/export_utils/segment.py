@@ -34,7 +34,7 @@ class Segment(object):
         self._name = name
         self._flame_data = None
 
-        # associated ShotGrid version
+        # associated Flow Production Tracking version
         self._shotgun_version_id = None
 
     def __repr__(self):
@@ -57,19 +57,19 @@ class Segment(object):
     @property
     def has_shotgun_version(self):
         """
-        Returns true if a ShotGrid version exists for the render associated with this segment.
-        If a ShotGrid version exists, it is implied that a render also exists.
+        Returns true if a Flow Production Tracking version exists for the render associated with this segment.
+        If a Flow Production Tracking version exists, it is implied that a render also exists.
         """
         return self._shotgun_version_id is not None
 
     @property
     def shotgun_version_id(self):
         """
-        Returns the ShotGrid id for the version associated with this segment, if there is one.
+        Returns the Flow Production Tracking id for the version associated with this segment, if there is one.
         """
         if not self.has_shotgun_version:
             raise TankError(
-                "Cannot get ShotGrid version id for segment - no version associated!"
+                "Cannot get Flow Production Tracking version id for segment - no version associated!"
             )
         return self._shotgun_version_id
 
@@ -316,7 +316,7 @@ class Segment(object):
 
     def set_shotgun_version_id(self, version_id):
         """
-        Specifies the ShotGrid version id assocaited with this segment
+        Specifies the Flow Production Tracking version id assocaited with this segment
         :param version_id: version id as int
         """
         self._shotgun_version_id = version_id

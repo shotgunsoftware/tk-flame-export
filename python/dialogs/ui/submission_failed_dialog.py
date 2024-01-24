@@ -88,7 +88,7 @@ class Ui_SubmissionFailedDialog(object):
     # setupUi
 
     def retranslateUi(self, SubmissionFailedDialog):
-        SubmissionFailedDialog.setWindowTitle(QCoreApplication.translate("SubmissionFailedDialog", "ShotGrid Submission Failed", None))
+        SubmissionFailedDialog.setWindowTitle(QCoreApplication.translate("SubmissionFailedDialog", "Flow Production Tracking Submission Failed", None))
         self.label_2.setText("")
         self.label_3.setText(QCoreApplication.translate("SubmissionFailedDialog", "Something went wrong!", None))
         self.status.setText("")

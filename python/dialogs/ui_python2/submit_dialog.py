@@ -63,7 +63,7 @@ class Ui_SubmitDialog(object):
         SubmitDialog.setWindowTitle(
             QtGui.QApplication.translate(
                 "SubmitDialog",
-                "Submit to ShotGrid",
+                "Submit to Flow Production Tracking",
                 None,
                 QtGui.QApplication.UnicodeUTF8,
             )
@@ -84,7 +84,7 @@ class Ui_SubmitDialog(object):
         self.submit.setText(
             QtGui.QApplication.translate(
                 "SubmitDialog",
-                "Submit to ShotGrid",
+                "Submit to Flow Production Tracking",
                 None,
                 QtGui.QApplication.UnicodeUTF8,
             )

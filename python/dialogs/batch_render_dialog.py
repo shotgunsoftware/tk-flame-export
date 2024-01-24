@@ -25,7 +25,7 @@ class BatchRenderDialog(QtGui.QWidget):
     """
     UI popping up before a Flare/Batch render happens,
     asking the user if they want to submit the render for
-    review in ShotGrid and in that case to enter some comments.
+    review in Flow Production Tracking and in that case to enter some comments.
     """
 
     def __init__(self):

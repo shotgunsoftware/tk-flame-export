@@ -40,7 +40,7 @@ class ExportPreset(object):
 
     def __get_publish_name(self, template, path):
         """
-        Creates a name suitable for a ShotGrid publish given a path.
+        Creates a name suitable for a Flow Production Tracking publish given a path.
         Will return a default name in case name extraction cannot be done.
 
         :param template: Template object to use for field extraction
@@ -262,7 +262,7 @@ class ExportPreset(object):
 
     def upload_quicktime(self):
         """
-        Indicates that quicktimes should be pushed to ShotGrid.
+        Indicates that quicktimes should be pushed to Flow Production Tracking.
 
         :returns: bool flag, true if quicktimes should be uploaded, false if not
         """
@@ -316,7 +316,7 @@ class ExportPreset(object):
             """<?xml version="1.0" encoding="UTF-8"?>
             <preset version="%s">
                <type>sequence</type>
-               <comment>Export profile for the ShotGrid Flame export</comment>
+               <comment>Export profile for the Flow Production Tracking Flame export</comment>
                <sequence>
                   <fileType>NONE</fileType>
                   <namePattern />
