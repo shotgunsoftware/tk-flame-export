@@ -74,7 +74,9 @@ class ShotgunSubmitter(object):
             "published_file_type": publish_type,
         }
 
-        self._app.log_debug("Register publish in Flow Production Tracking: %s" % str(args))
+        self._app.log_debug(
+            "Register publish in Flow Production Tracking: %s" % str(args)
+        )
         sg_publish_data = sgtk.util.register_publish(**args)
         self._app.log_debug("Register complete: %s" % sg_publish_data)
         return sg_publish_data
@@ -104,7 +106,9 @@ class ShotgunSubmitter(object):
         :param is_batch_render: If set to True, the publish is generated from a Batch render
         :returns: Flow Production Tracking data for the created item
         """
-        self._app.log_debug("Creating video publish in Flow Production Tracking for %s..." % path)
+        self._app.log_debug(
+            "Creating video publish in Flow Production Tracking for %s..." % path
+        )
 
         # resolve export preset object
         preset_obj = self._app.export_preset_handler.get_preset_by_name(export_preset)
@@ -129,7 +133,9 @@ class ShotgunSubmitter(object):
             "published_file_type": preset_obj.get_render_publish_type(),
         }
 
-        self._app.log_debug("Register render publish in Flow Production Tracking: %s" % str(args))
+        self._app.log_debug(
+            "Register render publish in Flow Production Tracking: %s" % str(args)
+        )
         sg_publish_data = sgtk.util.register_publish(**args)
         self._app.log_debug("Register complete: %s" % sg_publish_data)
 
@@ -177,14 +183,17 @@ class ShotgunSubmitter(object):
         :param aspect_ratio: Aspect ratio of the images
         :returns: The created Flow Production Tracking record
         """
-        self._app.log_debug("Preparing data for version creation in Flow Production Tracking...")
+        self._app.log_debug(
+            "Preparing data for version creation in Flow Production Tracking..."
+        )
         sg_batch_payload = []
         version_batch = self.create_version_batch(
             context, path, user_comments, sg_publish_data, aspect_ratio
         )
         sg_batch_payload.append(version_batch)
         self._app.log_debug(
-            "Create version in Flow Production Tracking: %s" % pprint.pformat(sg_batch_payload)
+            "Create version in Flow Production Tracking: %s"
+            % pprint.pformat(sg_batch_payload)
         )
         sg_data = self._app.shotgun.batch(sg_batch_payload)
         self._app.log_debug("...done!")

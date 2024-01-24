@@ -164,7 +164,9 @@ class Sequence(object):
                   in order for Flow Production Tracking to be up to date with
                   Flame.
         """
-        self._app.log_debug("Computing cut changes between Flow Production Tracking and Flame....")
+        self._app.log_debug(
+            "Computing cut changes between Flow Production Tracking and Flame...."
+        )
 
         shotgun_batch_items = []
 
@@ -236,7 +238,9 @@ class Sequence(object):
             )
             return
 
-        self._app.engine.show_busy("Updating Flow Production Tracking...", "Creating Cut...")
+        self._app.engine.show_busy(
+            "Updating Flow Production Tracking...", "Creating Cut..."
+        )
 
         try:
 
@@ -348,7 +352,9 @@ class Sequence(object):
 
         Flow Production Tracking Shot and Sequence data for objects will be populated.
         """
-        self._app.log_debug("Ensuring sequence and shots exists in Flow Production Tracking...")
+        self._app.log_debug(
+            "Ensuring sequence and shots exists in Flow Production Tracking..."
+        )
         # get some configuration settings first
         shot_task_template = self._app.get_setting("task_template")
         if shot_task_template == "":
@@ -367,14 +373,18 @@ class Sequence(object):
             "Locating %s %s..." % (self._shot_parent_entity_type, self.name),
         )
 
-        self._app.log_debug("Locating Shot parent object in Flow Production Tracking...")
+        self._app.log_debug(
+            "Locating Shot parent object in Flow Production Tracking..."
+        )
         sg_parent = self._app.shotgun.find_one(
             self._shot_parent_entity_type,
             [["code", "is", self.name], ["project", "is", project]],
         )
 
         if sg_parent:
-            self._app.log_debug("Parent %s already exists in Flow Production Tracking." % sg_parent)
+            self._app.log_debug(
+                "Parent %s already exists in Flow Production Tracking." % sg_parent
+            )
             self._shotgun_id = sg_parent["id"]
 
         else:
@@ -432,7 +442,9 @@ class Sequence(object):
             sg_task_template = None
 
         # now attempt to retrieve metadata for all shots. Shots that are not found are created.
-        self._app.engine.show_busy("Preparing Flow Production Tracking...", "Loading Shot data...")
+        self._app.engine.show_busy(
+            "Preparing Flow Production Tracking...", "Loading Shot data..."
+        )
 
         self._app.log_debug("Loading shots from Flow Production Tracking...")
 
@@ -476,11 +488,15 @@ class Sequence(object):
                         "project": project,
                     },
                 }
-                self._app.log_debug("Adding to Flow Production Tracking batch queue: %s" % batch)
+                self._app.log_debug(
+                    "Adding to Flow Production Tracking batch queue: %s" % batch
+                )
                 sg_batch_data.append(batch)
 
         if sg_batch_data:
-            self._app.engine.show_busy("Preparing Flow Production Tracking...", "Creating new shots...")
+            self._app.engine.show_busy(
+                "Preparing Flow Production Tracking...", "Creating new shots..."
+            )
 
             self._app.log_debug("Executing sg batch command....")
             # We probably have to cut this into chunks

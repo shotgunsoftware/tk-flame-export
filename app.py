@@ -546,11 +546,13 @@ class FlameExport(Application):
             sg_data = []
             if len(shotgun_batch_items) > 0:
                 self.engine.show_busy(
-                    "Updating Flow Production Tracking...", "Registering review and cut data..."
+                    "Updating Flow Production Tracking...",
+                    "Registering review and cut data...",
                 )
                 try:
                     self.log_debug(
-                        "Pushing %s Flow Production Tracking batch items..." % len(shotgun_batch_items)
+                        "Pushing %s Flow Production Tracking batch items..."
+                        % len(shotgun_batch_items)
                     )
                     sg_data = self.shotgun.batch(shotgun_batch_items)
                     self.log_debug("...done")
@@ -665,7 +667,8 @@ class FlameExport(Application):
             if self._export_preset.highres_quicktime_enabled():
                 try:
                     self.engine.show_busy(
-                        "Updating Flow Production Tracking...", "Generating high-res quicktimes..."
+                        "Updating Flow Production Tracking...",
+                        "Generating high-res quicktimes...",
                     )
                     self.log_debug(
                         "Looping over all shots and segments to generate high-res quicktimes..."
@@ -725,7 +728,8 @@ class FlameExport(Application):
             comments += "- A new Shot was created in Flow Production Tracking. <br>"
         elif num_created_shots > 1:
             comments += (
-                "- %d new Shots were created in Flow Production Tracking. <br>" % num_created_shots
+                "- %d new Shots were created in Flow Production Tracking. <br>"
+                % num_created_shots
             )
 
         num_cut_updates = num_cut_changes - num_created_shots
@@ -878,7 +882,9 @@ class FlameExport(Application):
         """
 
         if info.get("aborted"):
-            self.log_debug("Rendering was aborted. Will not push to Flow Production Tracking.")
+            self.log_debug(
+                "Rendering was aborted. Will not push to Flow Production Tracking."
+            )
             return
 
         if self._batch_export_preset is None:
@@ -901,7 +907,9 @@ class FlameExport(Application):
         )
 
         try:
-            self.engine.show_busy("Updating Flow Production Tracking...", "Publishing...")
+            self.engine.show_busy(
+                "Updating Flow Production Tracking...", "Publishing..."
+            )
 
             # Now register the rendered images as a published plate in Flow Production Tracking
             full_flame_batch_render_path = os.path.join(
@@ -939,7 +947,8 @@ class FlameExport(Application):
 
                 if export_preset_obj.batch_highres_quicktime_enabled():
                     self.engine.show_busy(
-                        "Updating Flow Production Tracking...", "Updating local quicktime..."
+                        "Updating Flow Production Tracking...",
+                        "Updating local quicktime...",
                     )
                     self.engine.trancoder.trancoder(
                         display_name=export_preset_obj.get_name(),
@@ -948,7 +957,9 @@ class FlameExport(Application):
                         asset_info=info,
                     )
 
-            self.engine.show_busy("Updating Flow Production Tracking...", "Updating thumbnails...")
+            self.engine.show_busy(
+                "Updating Flow Production Tracking...", "Updating thumbnails..."
+            )
             self.engine.thumbnail_generator.generate(
                 display_name=export_preset_obj.get_name(),
                 path=full_flame_batch_render_path,
