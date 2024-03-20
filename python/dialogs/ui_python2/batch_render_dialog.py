@@ -49,7 +49,7 @@ class Ui_BatchRenderDialog(object):
         BatchRenderDialog.setWindowTitle(
             QtGui.QApplication.translate(
                 "BatchRenderDialog",
-                "Submit to ShotGrid",
+                "Submit to Flow Production Tracking",
                 None,
                 QtGui.QApplication.UnicodeUTF8,
             )
@@ -62,7 +62,7 @@ class Ui_BatchRenderDialog(object):
         self.submit.setText(
             QtGui.QApplication.translate(
                 "BatchRenderDialog",
-                "Send to ShotGrid Review",
+                "Send to Flow Production Tracking Review",
                 None,
                 QtGui.QApplication.UnicodeUTF8,
             )

@@ -18,7 +18,7 @@ HookBaseClass = sgtk.get_hook_baseclass()
 class ExportSettings(HookBaseClass):
     """
     This hook controls the settings that Flame will use when it exports plates and generates
-    quicktimes prior to uploading them to ShotGrid.
+    quicktimes prior to uploading them to Flow Production Tracking.
     """
 
     def get_video_preset(self, preset_name, name_pattern, publish_linked):

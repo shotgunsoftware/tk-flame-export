@@ -76,7 +76,7 @@ class Ui_SubmissionCompleteDialog(object):
         SubmissionCompleteDialog.setWindowTitle(
             QtGui.QApplication.translate(
                 "SubmissionCompleteDialog",
-                "ShotGrid Submission Complete",
+                "Flow Production Tracking Submission Complete",
                 None,
                 QtGui.QApplication.UnicodeUTF8,
             )

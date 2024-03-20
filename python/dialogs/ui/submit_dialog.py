@@ -83,10 +83,10 @@ class Ui_SubmitDialog(object):
     # setupUi
 
     def retranslateUi(self, SubmitDialog):
-        SubmitDialog.setWindowTitle(QCoreApplication.translate("SubmitDialog", "Submit to ShotGrid", None))
+        SubmitDialog.setWindowTitle(QCoreApplication.translate("SubmitDialog", "Submit to Flow Production Tracking", None))
         self.label_2.setText("")
         self.label.setText(QCoreApplication.translate("SubmitDialog", "Use Export Preset", None))
         self.cancel.setText(QCoreApplication.translate("SubmitDialog", "Cancel", None))
-        self.submit.setText(QCoreApplication.translate("SubmitDialog", "Submit to ShotGrid", None))
+        self.submit.setText(QCoreApplication.translate("SubmitDialog", "Submit to Flow Production Tracking", None))
     # retranslateUi
 
