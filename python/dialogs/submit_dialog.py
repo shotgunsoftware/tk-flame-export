@@ -13,10 +13,7 @@ import sys
 import sgtk
 from sgtk.platform.qt import QtCore, QtGui
 
-if sys.version_info.major == 2:
-    from .ui_python2.submit_dialog import Ui_SubmitDialog
-else:
-    from .ui.submit_dialog import Ui_SubmitDialog
+from .ui.submit_dialog import Ui_SubmitDialog
 
 
 class SubmitDialog(QtGui.QWidget):
