@@ -11,7 +11,6 @@
 import sgtk
 from sgtk import TankError
 import pprint
-import sys
 import os
 
 from html import escape

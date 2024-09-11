@@ -10,7 +10,6 @@
 
 import sgtk
 import pprint
-import uuid
 from sgtk import TankError
 import os
 import re
