@@ -20,7 +20,6 @@
 
 
 # system wide stuff - always import
-from __future__ import absolute_import
 from . import export_utils
 
 # only needed for UIs - don't import if we don't have QT:
