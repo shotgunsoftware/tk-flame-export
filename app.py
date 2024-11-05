@@ -34,7 +34,6 @@ split across two different apps).
 
 """
 
-from __future__ import absolute_import
 import uuid
 import os
 import re

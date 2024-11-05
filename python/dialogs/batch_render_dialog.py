@@ -8,17 +8,10 @@
 # agreement to the Shotgun Pipeline Toolkit Source Code License. All rights
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
-from __future__ import absolute_import
-
-import sys
-
 import sgtk
-from sgtk.platform.qt import QtCore, QtGui
+from sgtk.platform.qt import QtGui
 
-if sys.version_info.major == 2:
-    from .ui_python2.batch_render_dialog import Ui_BatchRenderDialog
-else:
-    from .ui.batch_render_dialog import Ui_BatchRenderDialog
+from .ui.batch_render_dialog import Ui_BatchRenderDialog
 
 
 class BatchRenderDialog(QtGui.QWidget):

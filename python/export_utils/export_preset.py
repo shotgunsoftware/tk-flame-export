@@ -8,17 +8,12 @@
 # agreement to the Shotgun Pipeline Toolkit Source Code License. All rights
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
-from __future__ import absolute_import
 import sgtk
 from sgtk import TankError
 import pprint
-import sys
 import os
 
-if sys.version_info >= (3, 2):
-    from html import escape
-else:
-    from cgi import escape
+from html import escape
 
 
 class ExportPreset(object):

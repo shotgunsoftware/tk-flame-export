@@ -8,18 +8,12 @@
 # agreement to the Shotgun Pipeline Toolkit Source Code License. All rights
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
-from __future__ import absolute_import
-
 import sys
 
 from sgtk.platform.qt import QtGui
 
-if sys.version_info.major == 2:
-    from .ui_python2.submission_complete_dialog import Ui_SubmissionCompleteDialog
-    from .ui_python2.submission_failed_dialog import Ui_SubmissionFailedDialog
-else:
-    from .ui.submission_complete_dialog import Ui_SubmissionCompleteDialog
-    from .ui.submission_failed_dialog import Ui_SubmissionFailedDialog
+from .ui.submission_complete_dialog import Ui_SubmissionCompleteDialog
+from .ui.submission_failed_dialog import Ui_SubmissionFailedDialog
 
 
 class SubmissionCompleteDialog(QtGui.QWidget):
