@@ -8,56 +8,55 @@
 ## WARNING! All changes made in this file will be lost when recompiling UI file!
 ################################################################################
 
-from sgtk.platform.qt import QtCore
+from tank.platform.qt import QtCore
 for name, cls in QtCore.__dict__.items():
     if isinstance(cls, type): globals()[name] = cls
 
-from sgtk.platform.qt import QtGui
+from tank.platform.qt import QtGui
 for name, cls in QtGui.__dict__.items():
     if isinstance(cls, type): globals()[name] = cls
 
-from . import resources_rc
+
+from  . import resources_rc
 
 class Ui_BatchRenderDialog(object):
     def setupUi(self, BatchRenderDialog):
         if not BatchRenderDialog.objectName():
-            BatchRenderDialog.setObjectName("BatchRenderDialog")
+            BatchRenderDialog.setObjectName(u"BatchRenderDialog")
         BatchRenderDialog.resize(352, 398)
         self.verticalLayout = QVBoxLayout(BatchRenderDialog)
-        self.verticalLayout.setObjectName("verticalLayout")
+        self.verticalLayout.setObjectName(u"verticalLayout")
         self.verticalLayout.setContentsMargins(20, 20, 20, -1)
         self.label_2 = QLabel(BatchRenderDialog)
-        self.label_2.setObjectName("label_2")
-        self.label_2.setPixmap(QPixmap(":/tk-flame-export/batch_render_splash.png"))
+        self.label_2.setObjectName(u"label_2")
+        self.label_2.setPixmap(QPixmap(u":/tk-flame-export/batch_render_splash.png"))
 
         self.verticalLayout.addWidget(self.label_2)
 
         self.comments = QPlainTextEdit(BatchRenderDialog)
-        self.comments.setObjectName("comments")
+        self.comments.setObjectName(u"comments")
         self.comments.setMinimumSize(QSize(300, 100))
 
         self.verticalLayout.addWidget(self.comments)
 
         self.horizontalLayout = QHBoxLayout()
         self.horizontalLayout.setSpacing(4)
-        self.horizontalLayout.setObjectName("horizontalLayout")
+        self.horizontalLayout.setObjectName(u"horizontalLayout")
         self.horizontalSpacer = QSpacerItem(368, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
 
         self.horizontalLayout.addItem(self.horizontalSpacer)
 
         self.cancel = QPushButton(BatchRenderDialog)
-        self.cancel.setObjectName("cancel")
+        self.cancel.setObjectName(u"cancel")
 
         self.horizontalLayout.addWidget(self.cancel)
 
         self.submit = QPushButton(BatchRenderDialog)
-        self.submit.setObjectName("submit")
+        self.submit.setObjectName(u"submit")
 
         self.horizontalLayout.addWidget(self.submit)
 
-
         self.verticalLayout.addLayout(self.horizontalLayout)
-
 
         self.retranslateUi(BatchRenderDialog)
 
@@ -65,9 +64,8 @@ class Ui_BatchRenderDialog(object):
     # setupUi
 
     def retranslateUi(self, BatchRenderDialog):
-        BatchRenderDialog.setWindowTitle(QCoreApplication.translate("BatchRenderDialog", "Submit to Flow Production Tracking", None))
+        BatchRenderDialog.setWindowTitle(QCoreApplication.translate("BatchRenderDialog", u"Submit to Flow Production Tracking", None))
         self.label_2.setText("")
-        self.cancel.setText(QCoreApplication.translate("BatchRenderDialog", "Skip", None))
-        self.submit.setText(QCoreApplication.translate("BatchRenderDialog", "Send to Flow Production Tracking Review", None))
+        self.cancel.setText(QCoreApplication.translate("BatchRenderDialog", u"Skip", None))
+        self.submit.setText(QCoreApplication.translate("BatchRenderDialog", u"Send to Flow Production Tracking Review", None))
     # retranslateUi
-
