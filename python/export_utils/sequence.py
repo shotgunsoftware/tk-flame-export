@@ -124,7 +124,7 @@ class Sequence(object):
 
             # run folder creation for our newly created shots
             self._app.log_debug("Creating folders on for all new shots...")
-            for (idx, shot) in enumerate(new_shots):
+            for idx, shot in enumerate(new_shots):
                 # this is a new shot
                 msg = "Step %s/%s: Creating folders for Shot %s..." % (
                     idx + 1,
