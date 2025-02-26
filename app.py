@@ -29,15 +29,15 @@ configuration and essentially parts of the same workflow (this is why they are n
 split across two different apps).
 
 - The Flame Shot export runs via a context menu item on the sequence right-click menu
-- A Flare / batch mode render hook allows Flow Production Tracking to intercept the rendering process and
-  ask the user if they want to submit to Flow Production Tracking review whenever they render out in Flame.
+- A Flare / batch mode render hook allows Flow Production Tracking to intercept the
+- rendering process and ask the user if they want to submit to Flow Production Tracking
+- review whenever they render out in Flame.
 
 """
 
 import uuid
 import os
 import re
-import sgtk
 import datetime
 import pprint
 
@@ -107,7 +107,7 @@ class FlameExport(Application):
         info["abortMessage"] = message
         self.log_error(message)
 
-    ##############################################################################################################
+    ################################################################################################
     # Flame shot export integration
 
     def pre_custom_export(self, session_id, info):
@@ -187,8 +187,8 @@ class FlameExport(Application):
                      - abort: Hook can set this to True if the export sequence process should
                        be aborted. If other sequences are exported in the same export session
                        they will still be exported even if this export sequence is aborted.
-                     - abortMessage: Error message to be displayed to the user when the export sequence
-                       process has been aborted.
+                     - abortMessage: Error message to be displayed to the user when the export
+                       sequence process has been aborted.
         """
         from sgtk.platform.qt import QtGui
 
@@ -201,9 +201,9 @@ class FlameExport(Application):
             QtGui.QMessageBox.warning(
                 None,
                 "Please name your shots!",
-                "The Flow Production Tracking integration requires you to name your shots. Please go back to "
-                "the time line and ensure that all clips have been given shot names before "
-                "proceeding!",
+                "The Flow Production Tracking integration requires you to name your shots. "
+                "Please go back to the time line and ensure that all clips have been given"
+                "shot names before proceeding!",
             )
             self._abort_export(info, "Cannot export due to missing shot names.")
             return
@@ -214,8 +214,8 @@ class FlameExport(Application):
                 None,
                 "Sequence name cannot contain spaces!",
                 "Your Sequence name contains spaces. This is currently not supported by "
-                "the Flow Production Tracking/Flame integration. Try renaming your sequence and use for "
-                "example underscores instead of spaces, then try again!",
+                "the Flow Production Tracking/Flame integration. Try renaming your sequence "
+                "and use for example underscores instead of spaces, then try again!",
             )
             self._abort_export(info, "Cannot export due to spaces in sequence names.")
             return
@@ -225,7 +225,8 @@ class FlameExport(Application):
         for shot_name in shot_names:
             sequence.add_shot(shot_name)
 
-        # create entities in Flow Production Tracking, create folders on disk and compute shot contexts.
+        # create entities in Flow Production Tracking, create folders on disk and
+        # compute shot contexts.
         sequence.process_shotgun_shot_structure()
         self._sequences.append(sequence)
 
@@ -250,12 +251,15 @@ class FlameExport(Application):
            assetName:       Name of the exported asset.
            sequenceName:    Name of the sequence the asset is part of.
            shotName:        Name of the shot the asset is part of.
-           assetType:       Type of exported asset. ( 'video', 'movie', 'audio', 'batch', 'openClip', 'batchOpenClip' )
+           assetType:       Type of exported asset.
+                            ( 'video', 'movie', 'audio', 'batch', 'openClip', 'batchOpenClip' )
            width:           Frame width of the exported asset.
            height:          Frame height of the exported asset.
            aspectRatio:     Frame aspect ratio of the exported asset.
-           depth:           Frame depth of the exported asset. ( '8-bits', '10-bits', '12-bits', '16 fp' )
-           scanFormat:      Scan format of the exported asset. ( 'FIELD_1', 'FIELD_2', 'PROGRESSIVE' )
+           depth:           Frame depth of the exported asset.
+                            ( '8-bits', '10-bits', '12-bits', '16 fp' )
+           scanFormat:      Scan format of the exported asset.
+                            ( 'FIELD_1', 'FIELD_2', 'PROGRESSIVE' )
            fps:             Frame rate of exported asset.
            sequenceFps:     Frame rate of the sequence the asset is part of.
            sourceIn:        Source in point in frame and asset frame rate.
@@ -408,15 +412,18 @@ class FlameExport(Application):
            assetName:       Name of the exported asset.
            sequenceName:    Name of the sequence the asset is part of.
            shotName:        Name of the shot the asset is part of.
-           assetType:       Type of exported asset. ( 'video', 'movie', 'audio', 'batch', 'openClip', 'batchOpenClip' )
+           assetType:       Type of exported asset.
+                            ( 'video', 'movie', 'audio', 'batch', 'openClip', 'batchOpenClip' )
            isBackground:    True if the export of the asset happened in the background.
            backgroundJobId: Id of the background job given by the backburner manager upon submission.
                             Empty if job is done in foreground.
            width:           Frame width of the exported asset.
            height:          Frame height of the exported asset.
            aspectRatio:     Frame aspect ratio of the exported asset.
-           depth:           Frame depth of the exported asset. ( '8-bits', '10-bits', '12-bits', '16 fp' )
-           scanFormat:      Scan format of the exported asset. ( 'FIELD_1', 'FIELD_2', 'PROGRESSIVE' )
+           depth:           Frame depth of the exported asset.
+                            ( '8-bits', '10-bits', '12-bits', '16 fp' )
+           scanFormat:      Scan format of the exported asset.
+                            ( 'FIELD_1', 'FIELD_2', 'PROGRESSIVE' )
            fps:             Frame rate of exported asset.
            sequenceFps:     Frame rate of the sequence the asset is part of.
            sourceIn:        Source in point in frame and asset frame rate.
@@ -535,9 +542,10 @@ class FlameExport(Application):
                         )
                         shotgun_batch_items.append(sg_version_batch)
 
-                        # once the batch has been executed and the versions have been created in Flow Production Tracking
-                        # we need to update our segment metadata with the Flow Production Tracking version id.
-                        # in order to do that, maintain a lookup dictionary:
+                        # once the batch has been executed and the versions have been created in
+                        # Flow Production Tracking we need to update our segment metadata with
+                        # the Flow Production Tracking version id. in order to do that,
+                        # maintain a lookup dictionary:
                         path_to_frames = sg_version_batch["data"]["sg_path_to_frames"]
                         version_path_lookup[path_to_frames] = segment
 
@@ -615,6 +623,11 @@ class FlameExport(Application):
                                     segment.render_version_number,
                                     is_batch_render=False,
                                 )
+
+                                if segment.has_shotgun_version:
+                                    self._sg_submit_helper.update_version_dependencies(
+                                        segment.shotgun_version_id, sg_data
+                                    )
 
                                 # if the video media is generated in a backburner job, make sure that
                                 # our quicktime job is executed *after* this job has finished
@@ -804,7 +817,7 @@ class FlameExport(Application):
             self.log_debug(
                 "This path does not appear to match any toolkit render paths. Ignoring."
             )
-            return None
+            return
 
         batch_template = self.get_template("batch_template")
         if not batch_template.validate(batch_path):
@@ -812,7 +825,7 @@ class FlameExport(Application):
                 "The path '%s' does not match the template '%s'. Ignoring."
                 % (batch_path, batch_template)
             )
-            return None
+            return
 
         # as a last check, extract the context for the batch path
         self.log_debug("Getting context from path '%s'" % batch_path)
