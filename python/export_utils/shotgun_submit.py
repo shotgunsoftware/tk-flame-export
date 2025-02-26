@@ -283,9 +283,9 @@ class ShotgunSubmitter(object):
                 batch_item["data"]["tank_published_file"] = sg_publish_data
 
         # populate the path to frames with a path which is using %4d syntax
-        batch_item["data"][
-            "sg_path_to_frames"
-        ] = self.__get_tk_path_from_flame_plate_path(path)
+        batch_item["data"]["sg_path_to_frames"] = (
+            self.__get_tk_path_from_flame_plate_path(path)
+        )
 
         # This is used to find the latest Version from the same department.
         batch_item["data"]["sg_department"] = self.SHOTGUN_DEPARTMENT
