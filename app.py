@@ -624,6 +624,11 @@ class FlameExport(Application):
                                     is_batch_render=False,
                                 )
 
+                                if segment.has_shotgun_version:
+                                    self._sg_submit_helper.update_version_dependencies(
+                                        segment.shotgun_version_id, sg_data
+                                    )
+
                                 # if the video media is generated in a backburner job, make sure that
                                 # our quicktime job is executed *after* this job has finished
                                 dependencies = segment.backburner_job_id
