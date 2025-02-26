@@ -524,9 +524,9 @@ class ExportPreset(object):
         # 'sequences/{Sequence}/{Shot}/editorial/plates/{segment_name}_{Shot}.v{version}.{SEQ}.dpx'
         template_defs = {}
         template_defs["plate_template"] = self.get_render_template().definition
-        template_defs[
-            "batch_render_template"
-        ] = self.get_batch_render_template().definition
+        template_defs["batch_render_template"] = (
+            self.get_batch_render_template().definition
+        )
         template_defs["batch_template"] = self._app.get_template(
             "batch_template"
         ).definition
