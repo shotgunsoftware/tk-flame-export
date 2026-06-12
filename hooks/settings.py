@@ -48,8 +48,7 @@ class ExportSettings(HookBaseClass):
             preset_version = int(preset_version_str)
             codec_id = 923680 if preset_version < 7 else 6176
 
-            xml = (
-                """
+            xml = """
                    <video>
                       <fileType>Dpx</fileType>
                       <codec>%d</codec>
@@ -74,9 +73,7 @@ class ExportSettings(HookBaseClass):
                          <scanFormat>P</scanFormat>
                       </resize>
                    </video>
-                """
-                % codec_id
-            )
+                """ % codec_id
 
         elif preset_name == "16 bit OpenEXR":
             xml = """

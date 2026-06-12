@@ -177,7 +177,7 @@ class Sequence(object):
             # make cut order 1 based
             cut_order = index + 1
             # get full cut data
-            (sg_in, sg_out, sg_cut_order) = shot.get_sg_shot_in_out()
+            sg_in, sg_out, sg_cut_order = shot.get_sg_shot_in_out()
 
             # we get the edit points in flame from the base layer
             base_seg = shot.get_base_segment()

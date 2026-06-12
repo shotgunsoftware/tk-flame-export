@@ -241,7 +241,7 @@ class ShotgunSubmitter(object):
         try:
             re_match = re.search(r".*\[([0-9]+)-([0-9]+)\]\..*", path)
             if re_match:
-                (first_str, last_str) = re_match.groups()
+                first_str, last_str = re_match.groups()
                 first_frame = int(first_str)
                 last_frame = int(last_str)
             else:

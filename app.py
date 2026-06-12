@@ -132,7 +132,7 @@ class FlameExport(Application):
         # pop up a UI asking the user for description
         dialogs = self.import_module("dialogs")
 
-        (return_code, widget) = self.engine.show_modal(
+        return_code, widget = self.engine.show_modal(
             "Export Shots",
             self,
             dialogs.SubmitDialog,
@@ -847,7 +847,7 @@ class FlameExport(Application):
 
         # pop up a UI asking the user for description
         dialogs = self.import_module("dialogs")
-        (return_code, widget) = self.engine.show_modal(
+        return_code, widget = self.engine.show_modal(
             "Send to Review", self, dialogs.BatchRenderDialog
         )
 

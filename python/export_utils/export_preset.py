@@ -307,8 +307,7 @@ class ExportPreset(object):
         # we always generate xmls with a matching preset version.
         preset_version = self._app.engine.preset_version
 
-        xml = (
-            """<?xml version="1.0" encoding="UTF-8"?>
+        xml = """<?xml version="1.0" encoding="UTF-8"?>
             <preset version="%s">
                <type>sequence</type>
                <comment>Export profile for the Flow Production Tracking Flame export</comment>
@@ -358,9 +357,7 @@ class ExportPreset(object):
                   <namePattern />
                </reImport>
             </preset>
-        """
-            % preset_version
-        )
+        """ % preset_version
 
         # wedge in the video settings we got from the hook
         xml = xml.replace("{VIDEO_EXPORT_PRESET}", video_preset_xml)
@@ -566,7 +563,7 @@ class ExportPreset(object):
             template_defs[t] = template_defs[t].replace("{height}", "<height>")
 
             # Now carry over the sequence token
-            (head, _) = os.path.splitext(template_defs[t])
+            head, _ = os.path.splitext(template_defs[t])
             template_defs[t] = "%s<ext>" % head
 
             self._app.log_debug("   Flame:  %s" % template_defs[t])
